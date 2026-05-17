@@ -60,15 +60,20 @@ async function loadDataFromGAS() {
 
         if (result.status === "success") {
             teamsData = formatDataForUI(result.data);
-            window.renderStats();
-            window.filterTeams();
+            allTeams = teamsData; // ซิงค์ข้อมูลเข้า allTeams
+
+            if (window.renderStats) window.renderStats(teamsData);
+            if (window.filterTeams) window.filterTeams();
+
+            if (callbacks.onTeamsLoaded) callbacks.onTeamsLoaded(allTeams);
             triggerToast("ดึงข้อมูลสำเร็จ ✅", "success");
+            console.log("Loaded Teams:", allTeams);
         } else {
             throw new Error(result.message);
         }
     } catch (error) {
         console.error("Fetch Error:", error);
-        triggerToast("❌ โหลดข้อมูลล้มเหลว กรุณารีเฟรชหน้าเว็บ", "error");
+        triggerToast("❌ โหลดข้อมูลล้มเหลว", "error");
     }
 }
 
@@ -110,6 +115,8 @@ export async function loadAllTeams(forceRefresh = false) {
 
 // แปลงข้อมูลจาก GAS ให้เข้ากับโครงสร้างของ UI (แทนที่ Mockup)
 function formatDataForUI(gasData) {
+    if (!row["Member 1 Email"]) console.warn("Row missing Email:", row);
+    
     return gasData.map(row => ({
         id: row["Member 1 Email"], // ใช้อีเมลเป็น ID หลัก
         idx: row["rowIdx"],
@@ -130,7 +137,7 @@ function formatDataForUI(gasData) {
 
         // ลิงก์เอกสาร
         certUrl: row["Latest School Cert"],
-        transcriptUrl: row["Latest Transcript (ปพ.7)"],
+        transcriptUrl: row["Latest Transcript"],
         slipUrl: row["Latest Payment Slip"],
 
         // สถานะเอกสาร
@@ -211,15 +218,22 @@ function setupFirebaseListeners() {
 
             // ถ้ากำลังเปิดดูทีมเดียวกัน ให้โชว์แจ้งเตือนในหน้า Detail ด้วย
             if (currentTeam && escapeEmail(currentTeam.id) === escapedEmail) {
-                const banner = document.getElementById('staffViewing');
-                banner.style.display = 'inline-flex';
-                banner.innerHTML = `<i class="fa-solid ${occData.isTyping ? 'fa-pen fa-bounce' : 'fa-eye fa-pulse'}"></i> ${occData.staffName} กำลัง${occData.isTyping ? 'พิมพ์...' : 'ดูทีมนี้อยู่'}`;
+                const banner = document.getElementById('occupancyBanner');
+                const text = document.getElementById('occupancyText'); // ดึง ID text มาด้วย
+
+                if (banner) {
+                    banner.style.display = 'inline-flex';
+                    if (text) {
+                        text.textContent = `${occData.staffName} กำลัง${occData.action === 'editing' ? 'พิมพ์...' : 'ดูอยู่'}`;
+                    }
+                }
             }
         }
 
         // ปิด Banner ถ้าไม่มีคนดูแล้ว
         if (currentTeam && !allOcc[escapeEmail(currentTeam.id)]) {
-            document.getElementById('staffViewing').style.display = 'none';
+            const banner = document.getElementById('occupancyBanner');
+            if (banner) banner.style.display = 'none';
         }
     });
 }

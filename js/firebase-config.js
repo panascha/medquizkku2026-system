@@ -19,7 +19,7 @@ const firebaseConfig = {
     measurementId: "G-VJVDG2D7TT"
 };
 
-export const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwXG2hRNKpV81ARLVI08bjU8IGO5Fu9wygkkqMfGo_hvPUuQ9zx34-tbTqEnL8R-7r-rQ/exec";
+export const WEB_APP_URL = "https://script.google.com/macros/s/AKfycby8jWsaFQ-cmgU2728byEJZSnT_-zCqdPA5Z3x14ItDbukj7JjOD0uBL3mhoTeE7L2IeA/exec";
 
 
 // 3. Initialize Firebase
@@ -28,7 +28,9 @@ const db = getDatabase(app);
 const auth = getAuth(app);
 
 // 4. Utility Function สำหรับจัดการ Email (แปลง . เป็น _)
-const escapeEmail = (email) => email.replace(/\./g, '_');
-
+const escapeEmail = (email) => {
+    if (!email || typeof email !== 'string') return "unknown_email";
+    return email.replace(/\./g, '_');
+};
 // 5. ส่งออกตัวแปรเพื่อให้ไฟล์อื่น (checking-logic.js) เรียกใช้ได้
 export { db, auth, ref, set, get, onValue, update, remove, onDisconnect, escapeEmail };
