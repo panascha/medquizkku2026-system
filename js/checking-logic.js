@@ -83,7 +83,8 @@ export async function loadAllTeams(forceRefresh = false) {
         const result = await response.json();
         if (result.status === "success") {
             allTeams = result.data.map((row, i) => ({
-                id: row["Member 1 Email"], // ใช้ Email เป็น ID
+                idx: i + 1,
+                id: row["Member 1 Email"],
                 email: row["Member 1 Email"],
                 teamName: row["Team Name"],
                 category: row["Team Category"],

@@ -319,13 +319,17 @@
         .team-card {
             background: white;
             border-radius: 12px;
-            padding: 12px;
+            padding: 20px 14px;
             border: 2px solid transparent;
             cursor: pointer;
             transition: all .18s;
             position: relative;
             overflow: hidden;
             box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 120px;
         }
 
         .team-card:hover {
@@ -408,19 +412,24 @@
         }
 
         .member-chip {
-            font-size: 10px;
-            background: #f1f5f9;
-            color: #475569;
-            padding: 2px 7px;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-        }
+    font-size: 10px;
+    background: #f8fafc;
+    color: #64748b;
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid #f1f5f9;
+    white-space: nowrap;
+}
 
-        .card-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .card-sider {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
 
         .overall-badge {
             font-size: 9px;
@@ -432,10 +441,22 @@
         }
 
         .card-idx {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 9px;
-            color: #94a3b8;
-        }
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 5px;
+    border: 1px solid #e2e8f0;
+}
+
+.card-members {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
 
         .tag {
             font-size: 10px;
@@ -1785,12 +1806,11 @@
             <div class="team-card-inner">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
                     <span class="tag ${catStyle}" style="font-size:9px;padding:2px 7px;">${catLabel}</span>
-                    <span class="card-idx mono">#${t.id.slice(-4)}</span>
+                    <span class="card-idx mono">#${t.idx}</span>
                 </div>
                 <div class="card-team">${t.teamName}</div>
                 <div class="card-email">${t.email || '—'}</div>
-                <div class="card-members">${membersList}</div>
-                <div class="card-footer">
+                <div class="card-sider">
                     <span class="overall-badge ${oc.badge}">${t.overall}</span>
                     ${emailBadge}
                 </div>
