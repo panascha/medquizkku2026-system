@@ -100,7 +100,7 @@ export async function loadAllTeams(forceRefresh = false) {
                 advisor: { name: row["Advisor Name"], phone: row["Advisor Phone"], email: row["Advisor Email"] },
                 payment: { bank: row["Transferring Bank"], date: row["Transfer Date"], time: row["Transfer Time"], last4: row["Account Last 4 Digits"] },
                 certUrl: row["Latest School Cert"],
-                transcriptUrl: row["Latest Transcript (ปพ.7)"],
+                transcriptUrl: row["Latest Transcript"],
                 slipUrl: row["Latest Payment Slip"],
                 certStatus: row["School Cert Review Status"],
                 transcriptStatus: row["Transcript Review Status"],
@@ -115,40 +115,41 @@ export async function loadAllTeams(forceRefresh = false) {
 
 // แปลงข้อมูลจาก GAS ให้เข้ากับโครงสร้างของ UI (แทนที่ Mockup)
 function formatDataForUI(gasData) {
-    if (!row["Member 1 Email"]) console.warn("Row missing Email:", row);
-    
-    return gasData.map(row => ({
-        id: row["Member 1 Email"], // ใช้อีเมลเป็น ID หลัก
-        idx: row["rowIdx"],
-        teamName: row["Team Name"],
-        category: row["Team Category"],
-        overall: row["Registration Status Overall"],
-        updated: false, // จะถูกเขียนทับโดย Firebase
-        emailSentStatus: row["Additional Form Sent Status"],
-        version: row["Review Version"] || 1,
+    return gasData.map((row, i) => {
+        if (!row["Member 1 Email"]) console.warn("Row missing Email:", row);
+        return {
+            id: row["Member 1 Email"], // ใช้อีเมลเป็น ID หลัก
+            idx: i+1,
+            teamName: row["Team Name"],
+            category: row["Team Category"],
+            overall: row["Registration Status Overall"],
+            updated: false, // จะถูกเขียนทับโดย Firebase
+            emailSentStatus: row["Additional Form Sent Status"],
+            version: row["Review Version"] || 1,
 
-        members: [
-            { prefix: row["Member 1 Prefix"], name: row["Member 1 Name"], email: row["Member 1 Email"], phone: row["Member 1 Phone"], school: row["Member 1 School Name"], level: row["Member 1 Level"] },
-            { prefix: row["Member 2 Prefix"], name: row["Member 2 Name"], email: row["Member 2 Email"], phone: row["Member 2 Phone"], school: row["Member 2 School Name"], level: row["Member 2 Level"] },
-            { prefix: row["Member 3 Prefix"], name: row["Member 3 Name"], email: row["Member 3 Email"], phone: row["Member 3 Phone"], school: row["Member 3 School Name"], level: row["Member 3 Level"] }
-        ],
-        advisor: { name: row["Advisor Name"], phone: row["Advisor Phone"], email: row["Advisor Email"] },
-        payment: { date: row["Transfer Date"], time: row["Transfer Time"], bank: row["Transferring Bank"], last4: row["Account Last 4 Digits"] },
+            members: [
+                { prefix: row["Member 1 Prefix"], name: row["Member 1 Name"], email: row["Member 1 Email"], phone: row["Member 1 Phone"], school: row["Member 1 School Name"], level: row["Member 1 Level"] },
+                { prefix: row["Member 2 Prefix"], name: row["Member 2 Name"], email: row["Member 2 Email"], phone: row["Member 2 Phone"], school: row["Member 2 School Name"], level: row["Member 2 Level"] },
+                { prefix: row["Member 3 Prefix"], name: row["Member 3 Name"], email: row["Member 3 Email"], phone: row["Member 3 Phone"], school: row["Member 3 School Name"], level: row["Member 3 Level"] }
+            ],
+            advisor: { name: row["Advisor Name"], phone: row["Advisor Phone"], email: row["Advisor Email"] },
+            payment: { date: row["Transfer Date"], time: row["Transfer Time"], bank: row["Transferring Bank"], last4: row["Account Last 4 Digits"] },
 
-        // ลิงก์เอกสาร
-        certUrl: row["Latest School Cert"],
-        transcriptUrl: row["Latest Transcript"],
-        slipUrl: row["Latest Payment Slip"],
+            // ลิงก์เอกสาร
+            certUrl: row["Latest School Cert"],
+            transcriptUrl: row["Latest Transcript"],
+            slipUrl: row["Latest Payment Slip"],
 
-        // สถานะเอกสาร
-        certStatus: row["School Cert Review Status"],
-        transcriptStatus: row["Transcript Review Status"],
-        slipStatus: row["Payment Slip Review Status"],
-        feedback: row["Feedback for Student"],
+            // สถานะเอกสาร
+            certStatus: row["School Cert Review Status"],
+            transcriptStatus: row["Transcript Review Status"],
+            slipStatus: row["Payment Slip Review Status"],
+            feedback: row["Feedback for Student"],
 
-        // ข้อมูลเบื้องหลัง
-        reviewer: row["Reviewer Email"]
-    }));
+            // ข้อมูลเบื้องหลัง
+            reviewer: row["Reviewer Email"]
+        };
+    });
 }
 
 // ============================================================================

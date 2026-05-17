@@ -1883,39 +1883,37 @@
         // ─── Doc Viewer ─────────────────────────────────────────────────
         let currentDocType = 'cert';
         window.viewDoc = function (type) {
-            currentDocType = type;
-            ['cert', 'transcript', 'slip'].forEach(t => {
-                document.getElementById(`tab-${t}`).className = `doc-tab ${t === type ? 'active' : ''}`;
-            });
-            document.getElementById('docLoading').style.display = 'flex';
-            document.getElementById('mainDocPreview').style.display = 'none';
-            document.getElementById('mainDocIframe').style.display = 'none';
-            document.getElementById('noDocMsg').style.display = 'none';
+                currentDocType = type;
+                ['cert', 'transcript', 'slip'].forEach(t => {
+                    document.getElementById(`tab-${t}`).className = `doc-tab ${t === type ? 'active' : ''}`;
+                });
+                document.getElementById('docLoading').style.display = 'flex';
+                document.getElementById('mainDocPreview').style.display = 'none';
+                document.getElementById('mainDocIframe').style.display = 'none';
+                document.getElementById('noDocMsg').style.display = 'none';
 
-            const urlMap = { cert: localCurrentTeam?.certUrl, transcript: localCurrentTeam?.transcriptUrl, slip: localCurrentTeam?.slipUrl };
-            const rawUrl = urlMap[type];
-            const previewUrl = getDrivePreviewUrl(rawUrl);
+                const urlMap = {
+                    cert: localCurrentTeam?.certUrl,
+                    transcript: localCurrentTeam?.transcriptUrl,
+                    slip: localCurrentTeam?.slipUrl
+                };
+                const rawUrl = urlMap[type];
+                const previewUrl = getDrivePreviewUrl(rawUrl);
 
-            document.getElementById('dtPopOut').href = rawUrl || '#';
+                document.getElementById('dtPopOut').href = rawUrl || '#';
 
-            setTimeout(() => {
-                if (!previewUrl) {
-                    document.getElementById('docLoading').style.display = 'none';
-                    document.getElementById('noDocMsg').style.display = 'block';
-                    return;
-                }
-                // ถ้า URL เป็น /preview (PDF) ใช้ iframe, มิฉะนั้นใช้ img
-                if (previewUrl.includes('/preview')) {
-                    document.getElementById('mainDocIframe').src = previewUrl;
-                    document.getElementById('mainDocIframe').style.display = 'block';
-                } else {
-                    document.getElementById('mainDocPreview').src = previewUrl;
-                    document.getElementById('mainDocPreview').style.display = 'block';
-                }
-                resetDocTransform();
-            }, 300);
-        };
-
+                setTimeout(() => {
+                    if (!previewUrl) {
+                        document.getElementById('docLoading').style.display = 'none';
+                        document.getElementById('noDocMsg').style.display = 'block';
+                        return;
+                    }
+                    const iframe = document.getElementById('mainDocIframe');
+                    iframe.src = previewUrl;
+                    iframe.style.display = 'block';
+                    resetDocTransform();
+                }, 300);
+            };
         window.onDocLoaded = () => {
                 const loader = document.getElementById('docLoading');
                 if (loader) loader.style.display = 'none';
