@@ -1283,27 +1283,100 @@
             }
         }
 
-        @media(max-width:768px) {
-            #sidebar {
-                width: 100%;
-            }
+        @media (max-width: 768px) {
+    /* --- 1. จัดการ Topbar (Navbar) --- */
+    nav {
+        padding: 8px 10px;
+        gap: 6px;
+    }
+    .nav-brand span,             /* ซ่อนคำว่า "ระบบตรวจสอบเอกสาร" */
+    .workload-wrap,               /* ซ่อนแถบ Progress */
+    #staffOnlineCount,            /* ซ่อนจำนวนสตาฟ */
+    #navStaffName {               /* ซ่อนชื่อสตาฟ (เหลือแต่รูป) */
+        display: none !important;
+    }
+    .nav-brand {
+        font-size: 14px;          /* ลดขนาดชื่อแอป */
+    }
+    #btnRefresh {
+        padding: 5px 8px;
+        font-size: 10px;
+    }
 
-            #detailView {
-                display: none;
-            }
+    /* --- 2. ทำให้หน้าเว็บ Scroll ได้ --- */
+    body {
+        overflow: auto;           /* เปิดให้ body เลื่อนได้ */
+        height: auto;
+    }
+    .main-layout {
+        height: auto;
+        overflow: visible;
+    }
+    
+    /* Sidebar บนมือถือให้เลื่อนได้ปกติ */
+    #sidebar {
+        width: 100% !important;
+        height: calc(100vh - 55px); /* หักความสูง Navbar */
+        overflow-y: auto;
+    }
 
-            #detailView.mobile-open {
-                display: flex;
-            }
+    /* --- 3. หน้า Detail View (เมื่อกดเลือกทีม) --- */
+    #detailView.mobile-open {
+        display: flex;
+        position: fixed;          /* ทับหน้าจอทั้งหมด */
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1000;            /* อยู่บนสุด */
+        background: var(--surface);
+        overflow-y: auto;         /* สำคัญมาก: ให้เลื่อนขึ้นลงได้ */
+        -webkit-overflow-scrolling: touch;
+    }
 
-            .status-panel {
-                display: none;
-            }
+    #detailContent {
+        display: flex !important;
+        height: auto;             /* ให้ยืดตามเนื้อหา */
+        overflow: visible;
+    }
 
-            nav .workload-wrap {
-                display: none;
-            }
-        }
+    /* ปรับ Layout ภายในให้เรียงต่อกันเป็นแนวตั้งเพื่อ Scroll */
+    .workspace {
+        flex-direction: column;
+        height: auto;
+        overflow: visible;
+    }
+
+    .doc-section {
+        flex: none;
+        height: 75vh;             /* ให้พื้นที่แสดงเอกสาร 75% ของจอ */
+        min-height: 500px;
+        padding: 10px;
+    }
+
+    .status-panel {
+        display: flex !important;  /* บังคับให้แสดง Panel ตรวจสอบ */
+        width: 100% !important;
+        border-left: none;
+        border-top: 2px solid var(--border);
+        height: auto;
+        padding-bottom: 80px;      /* เพิ่มพื้นที่ล่างสุดกันปุ่ม Save จม */
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr !important; /* ข้อมูลสมาชิกเรียง 1 คอลัมน์ */
+    }
+
+    /* ปุ่มย้อนกลับ */
+    #btnBack {
+        display: flex !important;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+}
     </style>
 </head>
 
@@ -1422,7 +1495,7 @@
                 </div>
             </div>
 
-            <div id="detailContent" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+            <div id="detailContent" style="display:none;flex-direction:column;flex:1;overflow-y:auto;">
                 <!-- Detail Header -->
                 <div class="detail-header">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
@@ -1441,8 +1514,10 @@
                                 <i class="fa-solid fa-eye fa-pulse"></i>
                                 <span id="occupancyText">กำลังดูอยู่</span>
                             </div>
-                            <button onclick="closeMobileDetail()" id="btnBack" style="display:none;" class="btn-icon"><i
-                                    class="fa-solid fa-arrow-left"></i></button>
+                            <button onclick="closeMobileDetail()" id="btnBack" style="display:none; width: 40px; height: 40px; border-radius: 50%;"
+                                class="btn-icon">
+                                <i class="fa-solid fa-arrow-left"></i>
+                            </button>
                         </div>
                     </div>
                     <div class="info-grid">
@@ -1918,6 +1993,7 @@
                 document.getElementById('sidebar').style.display = 'none';
                 document.getElementById('detailView').classList.add('mobile-open');
                 document.getElementById('btnBack').style.display = 'flex';
+                document.body.style.overflow = 'hidden';
             }
         };
 
@@ -2095,10 +2171,11 @@
         // ─── Misc ─────────────────────────────────────────────────────────
         window.closeModal = function (id) { document.getElementById(id).classList.add('hidden'); };
         window.closeMobileDetail = function () {
-            document.getElementById('sidebar').style.display = '';
-            document.getElementById('detailView').classList.remove('mobile-open');
-            releaseCurrentTeam();
-        };
+                document.getElementById('detailView').classList.remove('mobile-open');
+                document.getElementById('sidebar').style.display = 'flex';
+                document.body.style.overflow = '';
+                releaseCurrentTeam();
+            };
 
         function showToast(msg, type = '') {
             const t = document.getElementById('toast');
