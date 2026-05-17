@@ -178,13 +178,13 @@
         }
 
         .sidebar-top {
-            padding: 12px;
-            background: #f8faff;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
+    padding: 12px;
+    background: #f8faff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 
         .search-box {
             position: relative;
@@ -216,6 +216,23 @@
             font-size: 13px;
         }
 
+        /* Filter Groups */
+.filter-groups select {
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text);
+}
+
+.filter-groups select:hover {
+    border-color: var(--blue-light);
+    background-color: #f1f5f9;
+}
+
+.filter-groups select:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
+}
+
         .range-row {
             display: flex;
             align-items: center;
@@ -238,34 +255,6 @@
             font-family: 'IBM Plex Mono', monospace;
             font-size: 11px;
             outline: none;
-        }
-
-        .filter-chips {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            padding-bottom: 2px;
-        }
-
-        .filter-chips::-webkit-scrollbar {
-            display: none;
-        }
-
-        .chip {
-            flex-shrink: 0;
-            padding: 4px 10px;
-            border-radius: 99px;
-            font-size: 10px;
-            font-weight: 700;
-            border: 1.5px solid;
-            cursor: pointer;
-            transition: all .15s;
-            white-space: nowrap;
-        }
-
-        .chip.active {
-            transform: scale(1.05);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .stats-strip {
@@ -1389,23 +1378,34 @@
                         style="padding:5px 10px;background:#e2e8f0;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-family:'Sarabun',sans-serif;"><i
                             class="fa-solid fa-filter"></i></button>
                 </div>
-                <div class="filter-chips" id="filterChips">
-                    <button class="chip active" style="background:#dbeafe;color:#1e40af;border-color:#93c5fd;"
-                        onclick="setFilter('all',this)">ทั้งหมด</button>
-                    <button class="chip" style="background:#fef9c3;color:#854d0e;border-color:#fde047;"
-                        onclick="setFilter('waiting',this)">รอตรวจ</button>
-                    <button class="chip" style="background:#ffedd5;color:#9a3412;border-color:#fb923c;"
-                        onclick="setFilter('updated',this)">Updated</button>
-                    <button class="chip" style="background:#dcfce7;color:#166534;border-color:#86efac;"
-                        onclick="setFilter('done',this)">สมบูรณ์</button>
-                    <button class="chip" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5;"
-                        onclick="setFilter('bad',this)">ไม่เรียบร้อย</button>
-                    <button class="chip" style="background:#ede9fe;color:#5b21b6;border-color:#c4b5fd;"
-                        onclick="setFilter('school',this)">ทีมโรงเรียน</button>
-                    <button class="chip" style="background:#fdf4ff;color:#701a75;border-color:#e879f9;"
-                        onclick="setFilter('mixed',this)">ทีมผสม</button>
-                    <button class="chip" style="background:#ecfdf5;color:#065f46;border-color:#6ee7b7;"
-                        onclick="setFilter('email-sent',this)">ส่งเมลแล้ว</button>
+                <!-- กลุ่ม Filter แบบ Dropdown -->
+                <div class="filter-groups" style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                    <!-- แถวที่ 1: สถานะหลัก -->
+                    <div style="display: flex; gap: 6px;">
+                        <select id="filterStatus" onchange="filterTeams()"
+                            style="flex: 1.5; padding: 6px; border-radius: 8px; border: 1.5px solid var(--border); font-size: 12px; font-family: 'Sarabun'; outline: none; background: white;">
+                            <option value="all">📊 ทุกสถานะ</option>
+                            <option value="waiting">⏳ รอตรวจ</option>
+                            <option value="updated">🔴 Updated</option>
+                            <option value="done">✅ สมบูรณ์</option>
+                            <option value="bad">⚠️ ไม่เรียบร้อย</option>
+                        </select>
+                
+                        <select id="filterCategory" onchange="filterTeams()"
+                            style="flex: 1; padding: 6px; border-radius: 8px; border: 1.5px solid var(--border); font-size: 12px; font-family: 'Sarabun'; outline: none; background: white;">
+                            <option value="all">🏢 ทุกประเภท</option>
+                            <option value="school">🎓 ทีมโรงเรียน</option>
+                            <option value="mixed">🧬 ทีมผสม</option>
+                        </select>
+                    </div>
+                
+                    <!-- แถวที่ 2: สถานะอีเมล -->
+                    <select id="filterEmail" onchange="filterTeams()"
+                        style="width: 100%; padding: 6px; border-radius: 8px; border: 1.5px solid var(--border); font-size: 12px; font-family: 'Sarabun'; outline: none; background: white;">
+                        <option value="all">📩 สถานะอีเมล (ทั้งหมด)</option>
+                        <option value="sent">📧 ส่งเมลแล้ว</option>
+                        <option value="unsent">🚫 ยังไม่ส่งอีเมล</option>
+                    </select>
                 </div>
             </div>
             <div class="stats-strip" id="statsStrip"></div>
@@ -1735,26 +1735,47 @@
         };
 
         window.filterTeams = () => {
-            const q = document.getElementById('searchInput').value.toLowerCase();
-            const start = parseInt(document.getElementById('rangeStart').value) || 1;
-            const end = parseInt(document.getElementById('rangeEnd').value) || 9999;
-            const filtered = allTeams.filter((t, i) => {
-                const rowIdx = i + 1;
-                const inRange = rowIdx >= start && rowIdx <= end;
-                const matchQ = !q || t.teamName.toLowerCase().includes(q) ||
-                    t.email.includes(q) || t.members.some(m => m.name.toLowerCase().includes(q));
-                let matchF = true;
-                if (currentFilter === 'waiting') matchF = t.overall === 'รอการตรวจสอบ';
-                else if (currentFilter === 'done') matchF = t.overall === 'สมบูรณ์';
-                else if (currentFilter === 'bad') matchF = t.overall === 'การสมัครไม่เรียบร้อย';
-                else if (currentFilter === 'updated') matchF = t.updated;
-                else if (currentFilter === 'school') matchF = t.category?.includes('โรงเรียน');
-                else if (currentFilter === 'mixed') matchF = t.category?.includes('ผสม');
-                else if (currentFilter === 'email-sent') matchF = t.emailSentStatus === 'ส่งแล้ว';
-                return inRange && matchQ && matchF;
-            });
-            renderTeamList(filtered);
-        };
+                const q = document.getElementById('searchInput').value.toLowerCase();
+                const start = parseInt(document.getElementById('rangeStart').value) || 1;
+                const end = parseInt(document.getElementById('rangeEnd').value) || 9999;
+
+                // ดึงค่าจาก Dropdown ใหม่
+                const fStatus = document.getElementById('filterStatus').value;
+                const fCategory = document.getElementById('filterCategory').value;
+                const fEmail = document.getElementById('filterEmail').value;
+
+                const filtered = allTeams.filter((t, i) => {
+                    const rowIdx = i + 1;
+
+                    // 1. ตรวจสอบช่วง Row
+                    const inRange = rowIdx >= start && rowIdx <= end;
+
+                    // 2. ตรวจสอบการค้นหา (Search)
+                    const matchQ = !q || t.teamName.toLowerCase().includes(q) ||
+                        t.email.includes(q) || t.members.some(m => m.name.toLowerCase().includes(q));
+
+                    // 3. ตรวจสอบสถานะ (Status Filter)
+                    let matchStatus = true;
+                    if (fStatus === 'waiting') matchStatus = t.overall === 'รอการตรวจสอบ';
+                    else if (fStatus === 'done') matchStatus = t.overall === 'สมบูรณ์';
+                    else if (fStatus === 'bad') matchStatus = t.overall === 'การสมัครไม่เรียบร้อย';
+                    else if (fStatus === 'updated') matchStatus = t.updated;
+
+                    // 4. ตรวจสอบประเภททีม (Category Filter)
+                    let matchCat = true;
+                    if (fCategory === 'school') matchCat = t.category?.includes('โรงเรียน');
+                    else if (fCategory === 'mixed') matchCat = t.category?.includes('ผสม');
+
+                    // 5. ตรวจสอบสถานะอีเมล (Email Filter)
+                    let matchEmail = true;
+                    if (fEmail === 'sent') matchEmail = t.emailSentStatus === 'ส่งแล้ว';
+                    else if (fEmail === 'unsent') matchEmail = t.emailSentStatus !== 'ส่งแล้ว';
+
+                    return inRange && matchQ && matchStatus && matchCat && matchEmail;
+                });
+
+                renderTeamList(filtered);
+            };
 
         window.renderStats = (teams) => {
             const all = teams.length;

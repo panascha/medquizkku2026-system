@@ -183,17 +183,21 @@ function setupFirebaseListeners() {
                 t.overall = fbData.status.overall;
                 t.version = fbData.status.reviewVersion;
                 t.updated = fbData.status.isUpdated;
-                t.certStatus = fbData.docs.cert.status;
-                t.transcriptStatus = fbData.docs.transcript.status;
-                t.slipStatus = fbData.docs.slip.status;
-                t.emailSentStatus = fbData.communication.additionalForm.sentStatus;
+                
+                if (fbData.docs) {
+                    t.certStatus = fbData.docs.cert?.status || t.certStatus;
+                    t.transcriptStatus = fbData.docs.transcript?.status || t.transcriptStatus;
+                    t.slipStatus = fbData.docs.slip?.status || t.slipStatus;
+                }
+
+                if (fbData.communication?.additionalForm) t.emailSentStatus = fbData.communication.additionalForm.sentStatus;
                 needsRender = true;
             }
         });
 
         if (needsRender) {
-            window.renderStats();
-            window.filterTeams();
+            if (window.renderStats) window.renderStats(teamsData);
+            if (window.filterTeams) window.filterTeams();
         }
     });
 
