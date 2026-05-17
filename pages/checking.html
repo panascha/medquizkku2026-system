@@ -37,14 +37,15 @@
         }
 
         body {
-            font-family: 'Sarabun', sans-serif;
-            background: var(--surface);
-            color: var(--text);
-            height: 100dvh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+    font-family: 'Sarabun', sans-serif;
+    background: var(--surface);
+    color: var(--text);
+    min-height: 100dvh; 
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto; 
+}
 
         .mono {
             font-family: 'IBM Plex Mono', monospace;
@@ -163,7 +164,8 @@
         .main-layout {
             display: flex;
             flex: 1;
-            overflow: hidden;
+            height: auto;
+            min-height: 0;
         }
 
         /* ── Sidebar ── */
@@ -393,13 +395,6 @@
             margin-bottom: 6px;
         }
 
-        .card-members {
-            display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
-            margin-bottom: 6px;
-        }
-
         .member-chip {
     font-size: 10px;
     background: #f8fafc;
@@ -501,7 +496,7 @@
             display: flex;
             flex-direction: column;
             background: #f1f5f9;
-            overflow: hidden;
+            overflow-y: auto;
         }
 
         #emptyState {
@@ -537,7 +532,6 @@
             display: none;
             flex-direction: column;
             flex: 1;
-            overflow: hidden;
         }
 
         .detail-header {
@@ -570,11 +564,23 @@
         }
 
         .info-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 14px;
-        }
+    display: grid;
+    grid-template-columns: 1fr; /* Mobile: 1 แถวต่อ 1 กล่อง */
+    gap: 10px;
+    margin-top: 14px;
+}
+
+@media (min-width: 768px) {
+    .info-grid {
+        grid-template-columns: repeat(2, 1fr); /* MD: 2 คอลัมน์ (2 แถว) */
+    }
+}
+
+@media (min-width: 1280px) {
+    .info-grid {
+        grid-template-columns: repeat(4, 1fr); /* LG: 4 คอลัมน์เรียงแถวเดียว (ถ้าจอใหญ่มาก) */
+    }
+}
 
         .info-card {
             background: #f8faff;
@@ -667,15 +673,6 @@
             min-width: 0;
         }
 
-        .doc-content {
-    width: 100%;
-    height: 100%;
-    display: flex;          /* ใช้ Flexbox */
-    align-items: center;    /* จัดกึ่งกลางแนวตั้ง */
-    justify-content: center; /* จัดกึ่งกลางแนวนอน */
-    padding: 12px;
-}
-
         .doc-tabs {
             display: flex;
             gap: 6px;
@@ -702,15 +699,35 @@
             background: #eff6ff;
         }
 
+        #mainDocPreview {
+    max-width: 100%; /* เริ่มต้นให้พอดีจอ */
+    height: auto;
+    object-fit: contain;
+    transition: transform 0.2s ease;
+    transform-origin: center center;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    display: none;
+}
+
+#mainDocIframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: none;
+    background: white;
+}
+
         .doc-viewer {
-            flex: 1;
-            background: #1e293b;
-            border-radius: 16px;
-            position: relative;
-            overflow: hidden;
-            border: 3px solid white;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, .2);
-        }
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #d1d5db; /* bg-gray-300 */
+    border-radius: 0 0 12px 12px;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden; /* คุมขอบนอก */
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06); /* shadow-inner */
+}
 
         .doc-controls {
             position: absolute;
@@ -763,13 +780,16 @@
         }
 
         .doc-content {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 12px;
-        }
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    overflow: auto; /* เปิดให้ Scroll ได้เมื่อเนื้อหาใหญ่กว่าจอ */
+    display: flex;
+    align-items: center;    /* จัดกึ่งกลางแนวตั้ง */
+    justify-content: center; /* จัดกึ่งกลางแนวนอน */
+    position: relative;
+    padding: 20px;
+}
 
         .doc-content img {
             max-width: 100%;
@@ -1311,6 +1331,7 @@
     .main-layout {
         height: auto;
         overflow: visible;
+        flex-direction: column;
     }
     
     /* Sidebar บนมือถือให้เลื่อนได้ปกติ */
@@ -1521,27 +1542,34 @@
                         </div>
                     </div>
                     <div class="info-grid">
-                        <div class="info-card" style="border-left:3px solid var(--navy);">
-                            <div class="info-card-title"><i class="fa-solid fa-users"
-                                    style="margin-right:4px;"></i>สมาชิกในทีม</div>
-                            <div class="members-grid" id="dtMembersGrid"></div>
-                        </div>
+                        <!-- แถวที่ 1: กล่องที่ 1 -->
                         <div class="info-card" style="border-left:3px solid #8b5cf6;">
                             <div class="info-card-title"><i class="fa-solid fa-chalkboard-user"
                                     style="margin-right:4px;"></i>อาจารย์ที่ปรึกษา</div>
                             <p id="dtAdvisor" style="font-size:12px;font-weight:600;line-height:1.7;"></p>
                         </div>
-                        <div class="info-card" style="border-left:3px solid var(--green);">
-                            <div class="info-card-title"><i class="fa-solid fa-money-bill-transfer"
-                                    style="margin-right:4px;"></i>การโอนเงิน</div>
-                            <p id="dtPayment" style="font-size:12px;font-weight:600;line-height:1.7;"></p>
-                        </div>
+                    
+                        <!-- แถวที่ 1: กล่องที่ 2 -->
                         <div class="info-card" style="border-left:3px solid var(--accent);">
-                            <div class="info-card-title"><i class="fa-solid fa-clock-rotate-left"
-                                    style="margin-right:4px;"></i>ประวัติ / เวอร์ชัน</div>
+                            <div class="info-card-title"><i class="fa-solid fa-clock-rotate-left" style="margin-right:4px;"></i>ประวัติ /
+                                เวอร์ชัน</div>
                             <p id="dtVersion" style="font-size:12px;font-weight:600;line-height:1.7;"></p>
                         </div>
+                    
+                        <!-- แถวที่ 2: กล่องที่ 3 (จะอยู่ใกล้ Preview) -->
+                        <div class="info-card" style="border-left:3px solid var(--navy);">
+                            <div class="info-card-title"><i class="fa-solid fa-users" style="margin-right:4px;"></i>สมาชิกในทีม</div>
+                            <div class="members-grid" id="dtMembersGrid"></div>
+                        </div>
+                    
+                        <!-- แถวที่ 2: กล่องที่ 4 (จะอยู่ใกล้ Preview) -->
+                        <div class="info-card" style="border-left:3px solid var(--green);">
+                            <div class="info-card-title"><i class="fa-solid fa-money-bill-transfer" style="margin-right:4px;"></i>การโอนเงิน
+                            </div>
+                            <p id="dtPayment" style="font-size:12px;font-weight:600;line-height:1.7;"></p>
+                        </div>
                     </div>
+                    
                 </div>
 
                 <!-- Workspace -->
@@ -1554,30 +1582,37 @@
                             <button class="doc-tab" id="tab-slip" onclick="viewDoc('slip')">3. สลิปโอนเงิน</button>
                         </div>
                         <div class="doc-viewer" id="docViewer">
+                            <!-- ปุ่มควบคุม (ลอยอยู่บนภาพ) -->
                             <div class="doc-controls">
-                                <button class="ctrl-btn" onclick="adjustDoc('zoomIn')" title="Zoom In"><i
+                                <button class="ctrl-btn" onclick="adjustDoc('zoomIn')"><i
                                         class="fa-solid fa-magnifying-glass-plus"></i></button>
-                                <button class="ctrl-btn" onclick="adjustDoc('zoomOut')" title="Zoom Out"><i
+                                <button class="ctrl-btn" onclick="adjustDoc('zoomOut')"><i
                                         class="fa-solid fa-magnifying-glass-minus"></i></button>
-                                <button class="ctrl-btn" onclick="adjustDoc('rotate')" title="Rotate"><i
-                                        class="fa-solid fa-rotate-right"></i></button>
-                                <a id="dtPopOut" href="#" target="_blank" class="ctrl-btn" title="Open in new tab"><i
+                                <button class="ctrl-btn" onclick="adjustDoc('rotate')"><i class="fa-solid fa-rotate-right"></i></button>
+                                <a id="dtPopOut" href="#" target="_blank" class="ctrl-btn"><i
                                         class="fa-solid fa-arrow-up-right-from-square"></i></a>
                             </div>
-                            <div id="docLoading" class="doc-loading">
-                                <i class="fa-solid fa-circle-notch fa-spin" style="font-size:28px;opacity:.6;"></i>
-                                <span style="font-size:12px;opacity:.5;">กำลังโหลดเอกสาร...</span>
+                        
+                            <!-- สถานะโหลด -->
+                            <div id="docLoading" class="doc-loading" style="background: rgba(209, 213, 223, 0.8); color: #4b5563;">
+                                <i class="fa-solid fa-circle-notch fa-spin" style="font-size:28px;"></i>
+                                <span style="font-size:12px; margin-top:8px;">กำลังโหลดเอกสาร...</span>
                             </div>
+                        
+                            <!-- พื้นที่แสดงผล (Scrollable Area) -->
                             <div class="doc-content" id="docContent">
-                                <img id="mainDocPreview" src="" draggable="false" style="display:none;"
-                                    onload="window.onDocLoaded && window.onDocLoaded()"
+                                <!-- แสดงรูปภาพ -->
+                                <img id="mainDocPreview" src="" alt="Document Preview" onload="window.onDocLoaded && window.onDocLoaded()"
                                     onerror="window.onDocError && window.onDocError()">
-                                <iframe id="mainDocIframe" style="display:none;"
-                                    onload="window.onDocLoaded && window.onDocLoaded()"></iframe>
-                                <div id="noDocMsg" style="color:#94a3b8;text-align:center;display:none;">
+                        
+                                <!-- แสดง PDF ผ่าน Iframe -->
+                                <iframe id="mainDocIframe" src="" onload="window.onDocLoaded && window.onDocLoaded"></iframe>
+                        
+                                <!-- กรณีไม่พบเอกสาร -->
+                                <div id="noDocMsg" style="color:#94a3b8; text-align:center; display:none;">
                                     <i class="fa-solid fa-file-circle-xmark"
-                                        style="font-size:40px;margin-bottom:12px;display:block;opacity:.3;"></i>
-                                    <span style="font-size:13px;">ไม่พบลิงก์เอกสาร</span>
+                                        style="font-size:40px; margin-bottom:12px; display:block; opacity:.3;"></i>
+                                    <span>ไม่พบไฟล์เอกสาร</span>
                                 </div>
                             </div>
                         </div>
@@ -1867,9 +1902,6 @@
         <div class="stat-pill" style="background:#fef9c3;border-color:#fde047;"><span class="num" style="color:#854d0e;">${wait}</span><span class="lbl" style="color:#854d0e;">รอตรวจ</span></div>
         <div class="stat-pill" style="background:#fee2e2;border-color:#fca5a5;"><span class="num" style="color:#991b1b;">${bad}</span><span class="lbl" style="color:#991b1b;">ไม่เรียบร้อย</span></div>
         <div class="stat-pill" style="background:#ffedd5;border-color:#fb923c;"><span class="num" style="color:#9a3412;">${upd}</span><span class="lbl" style="color:#9a3412;">Updated</span></div>
-        <div class="stat-pill" style="background:#ecfdf5;border-color:#6ee7b7;"><span class="num" style="color:#065f46;">${emailSent}</span><span class="lbl" style="color:#065f46;">เมลแล้ว</span></div>
-        <div class="stat-pill" style="background:#ede9fe;border-color:#c4b5fd;"><span class="num" style="color:#5b21b6;">${school}</span><span class="lbl" style="color:#5b21b6;">ทีม รร.</span></div>
-        <div class="stat-pill" style="background:#fdf4ff;border-color:#e879f9;"><span class="num" style="color:#701a75;">${mixed}</span><span class="lbl" style="color:#701a75;">ผสม</span></div>
     `;
             document.getElementById('wlText').textContent = `${done}/${all} ทีม`;
             document.getElementById('wlBar').style.width = `${all ? (done / all) * 100 : 0}%`;
@@ -1976,7 +2008,7 @@
             document.getElementById('dtAdvisor').innerHTML =
                 `<b>${team.advisor.name}</b><br>📞 ${team.advisor.phone}${team.advisor.email ? `<br>✉️ ${team.advisor.email}` : ''}`;
             document.getElementById('dtPayment').innerHTML =
-                `<b>ธ. ${team.payment.bank || '—'}</b><br>📅 ${team.payment.date} เวลา ${team.payment.time}<br>เลขท้าย: <span class="mono" style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${team.payment.last4 || '—'}</span>`;
+                `<b>ธนาคาร: ${team.payment.bank || '—'}</b><br>📅 ${team.payment.date} เวลา ${team.payment.time}<br>เลขท้าย: <span class="mono" style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${team.payment.last4 || '—'}</span>`;
             document.getElementById('dtVersion').innerHTML =
                 `ส่งล่าสุด: ${formatDate(team.lastSubmit)} ${formatTime(team.lastSubmit)}<br>ตรวจครั้งที่: <b>${team.version}</b>`;
 
@@ -1986,6 +2018,19 @@
             document.getElementById('sel-slip').value = team.slipStatus;
             document.getElementById('feedbackText').value = team.feedback;
             document.getElementById('sendEmail').checked = false;
+
+            const isMixedTeam = team.category?.includes('ผสม');
+
+            // ถ้าเป็นทีมผสม ให้บังคับค่าสถานะใบรับรองเป็น "ไม่ต้องส่ง"
+            if (isMixedTeam) {
+                document.getElementById('sel-cert').value = "ไม่ต้องส่ง";
+                // ปรับสีปุ่ม Tab ให้ดูจางลงเพื่อให้สตาฟรู้ว่าไม่ต้องกด
+                document.getElementById('tab-cert').style.opacity = "0.5";
+                document.getElementById('tab-cert').innerText = "1. ไม่ต้องส่ง (ทีมผสม)";
+            } else {
+                document.getElementById('tab-cert').style.opacity = "1";
+                document.getElementById('tab-cert').innerText = "1. ใบรับรอง รร.";
+            }
 
             viewDoc('cert');
 
@@ -2001,14 +2046,25 @@
         let currentDocType = 'cert';
         window.viewDoc = function (type) {
                 currentDocType = type;
-                ['cert', 'transcript', 'slip'].forEach(t => {
-                    document.getElementById(`tab-${t}`).className = `doc-tab ${t === type ? 'active' : ''}`;
-                });
-                document.getElementById('docLoading').style.display = 'flex';
-                document.getElementById('mainDocPreview').style.display = 'none';
-                document.getElementById('mainDocIframe').style.display = 'none';
-                document.getElementById('noDocMsg').style.display = 'none';
 
+                // 1. จัดการปุ่ม Tab
+                ['cert', 'transcript', 'slip'].forEach(t => {
+                    const btn = document.getElementById(`tab-${t}`);
+                    if (btn) btn.className = `doc-tab ${t === type ? 'active' : ''}`;
+                });
+
+                // 2. เปิดตัวโหลด และล้างค่าเก่า
+                const loader = document.getElementById('docLoading');
+                const img = document.getElementById('mainDocPreview');
+                const iframe = document.getElementById('mainDocIframe');
+                const noDoc = document.getElementById('noDocMsg');
+
+                loader.style.display = 'flex';
+                img.style.display = 'none';
+                iframe.style.display = 'none';
+                noDoc.style.display = 'none';
+
+                // 3. ดึง URL
                 const urlMap = {
                     cert: localCurrentTeam?.certUrl,
                     transcript: localCurrentTeam?.transcriptUrl,
@@ -2019,35 +2075,82 @@
 
                 document.getElementById('dtPopOut').href = rawUrl || '#';
 
-                setTimeout(() => {
-                    if (!previewUrl) {
-                        document.getElementById('docLoading').style.display = 'none';
-                        document.getElementById('noDocMsg').style.display = 'block';
-                        return;
-                    }
-                    const iframe = document.getElementById('mainDocIframe');
+                // 4. แสดงผล
+                if (type === 'cert' && localCurrentTeam?.category?.includes('ผสม')) {
+                loader.style.display = 'none';
+                noDoc.style.display = 'block';
+                noDoc.innerHTML = `
+        <i class="fa-solid fa-user-group" style="font-size:40px; margin-bottom:12px; display:block; opacity:.3;"></i>
+        <span style="font-size:14px; font-weight:700; color:var(--navy);">โควตาทีมผสม: ไม่ต้องใช้ใบรับรองโรงเรียน</span>
+    `;
+                return; // หยุดการทำงาน ไม่ต้องไปโหลด Iframe
+            }
+            
+                if (!previewUrl) {
+                    loader.style.display = 'none';
+                    noDoc.style.display = 'block';
+                    return;
+                }
+
+                // กรณีเป็น Google Drive Preview มักจะมาในรูปแบบ Iframe
+                if (previewUrl.includes('drive.google.com') || previewUrl.includes('/preview')) {
                     iframe.src = previewUrl;
                     iframe.style.display = 'block';
+                    // หมายเหตุ: Iframe จะไปเรียก window.onDocLoaded() เมื่อโหลดเสร็จตามที่เขียนใน HTML
+                } else {
+                    // กรณีเป็นลิงก์รูปภาพโดยตรง
+                    img.src = previewUrl;
+                    img.style.display = 'block';
                     resetDocTransform();
-                }, 300);
+                }
+
+                setTimeout(() => {
+                if (document.getElementById('docLoading').style.display !== 'none') {
+                    console.warn("Loading timeout - hiding loader anyway");
+                    window.onDocLoaded();
+                }
+            }, 1000); // 1 วินาที
             };
-        window.onDocLoaded = () => {
+            window.onDocLoaded = function () {
+                console.log("Document Loaded Successfully");
                 const loader = document.getElementById('docLoading');
-                if (loader) loader.style.display = 'none';
+                if (loader) {
+                    loader.style.display = 'none';
+                }
             };
-         window.onDocError = () => {
+         window.onDocError = function () {
+                console.log("Document Load Failed");
                 const loader = document.getElementById('docLoading');
-                if (loader) loader.style.display = 'none';
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+                // ซ่อนรูปและโชว์ข้อความ Error
                 document.getElementById('mainDocPreview').style.display = 'none';
                 document.getElementById('noDocMsg').style.display = 'block';
             };
 
         window.adjustDoc = function (action) {
-            if (action === 'zoomIn') docScale = Math.min(docScale + .25, 4);
-            if (action === 'zoomOut') docScale = Math.max(docScale - .25, .5);
-            if (action === 'rotate') docRotate = (docRotate + 90) % 360;
-            document.getElementById('mainDocPreview').style.transform = `scale(${docScale}) rotate(${docRotate}deg)`;
-        };
+                const img = document.getElementById('mainDocPreview');
+                if (action === 'zoomIn') {
+                    docScale = Math.min(docScale + 0.25, 4);
+                } else if (action === 'zoomOut') {
+                    docScale = Math.max(docScale - 0.25, 0.5);
+                } else if (action === 'rotate') {
+                    docRotate = (docRotate + 90) % 360;
+                }
+
+                // อัปเดตการแสดงผล
+                img.style.transform = `scale(${docScale}) rotate(${docRotate}deg)`;
+
+                // ถ้า Zoom จนใหญ่กว่า Container ให้เปลี่ยน max-width เป็น none เพื่อให้เกิด Scrollbar
+                if (docScale > 1) {
+                    img.style.maxWidth = 'none';
+                    img.style.maxHeight = 'none';
+                } else {
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '100%';
+                }
+            };
         function resetDocTransform() { docScale = 1; docRotate = 0; document.getElementById('mainDocPreview').style.transform = ''; }
 
         // ─── Feedback ────────────────────────────────────────────────────
