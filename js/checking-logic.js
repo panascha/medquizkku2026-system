@@ -4,15 +4,34 @@ import { auth, db, ref, set, get, onValue, update, remove, onDisconnect, escapeE
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // ============================================================================
-// 1. STATE MANAGEMENT (จัดการตัวแปรส่วนกลาง)
+// STATE MANAGEMENT (จัดการตัวแปรส่วนกลาง)
 // ============================================================================
 let currentUser = null;
 let teamsData = [];       // เก็บข้อมูลทั้งหมดจาก GAS
-let currentTeam = null;   // ทีมที่กำลังถูกเปิดดู
 let currentFilter = 'all';
+export let allTeams = [];
+export let currentTeam = null;
+export const callbacks = {
+    onTeamsLoaded: null,
+    onStatusChange: null,
+    onOccupancyChange: null,
+    onStaffPresenceChange: null,
+    onSaveSuccess: null,
+    onSaveError: null,
+    onConflict: null,
+    onToast: null
+};
 
 // ============================================================================
-// 2. INITIALIZATION & DATA FETCHING
+// UTILS (ฟังก์ชันช่วยเหลือทั่วไป)
+// ===========================================================================
+
+function triggerToast(msg, type) {
+    if (callbacks.onToast) callbacks.onToast(msg, type);
+}
+
+// ============================================================================
+// INITIALIZATION & DATA FETCHING
 // ============================================================================
 
 // รอให้ Firebase เช็ค Auth เสร็จก่อนโหลดข้อมูล
@@ -27,9 +46,14 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// ดึงข้อมูล 46 คอลัมน์จาก GAS ครั้งแรกเมื่อเปิดหน้าเว็บ
+export async function initCheckingSystem(user) {
+    setupStaffPresence(user);
+    await loadAllTeams();
+    setupFirebaseListeners();
+}
+
 async function loadDataFromGAS() {
-    showToast("กำลังดึงข้อมูลจากฐานข้อมูล...", "loading");
+    triggerToast("กำลังดึงข้อมูลจากฐานข้อมูล...", "loading");
     try {
         const response = await fetch(WEB_APP_URL);
         const result = await response.json();
@@ -38,14 +62,50 @@ async function loadDataFromGAS() {
             teamsData = formatDataForUI(result.data);
             window.renderStats();
             window.filterTeams();
-            showToast("ดึงข้อมูลสำเร็จ ✅");
+            triggerToast("ดึงข้อมูลสำเร็จ ✅", "success");
         } else {
             throw new Error(result.message);
         }
     } catch (error) {
         console.error("Fetch Error:", error);
-        showToast("❌ โหลดข้อมูลล้มเหลว กรุณารีเฟรชหน้าเว็บ");
+        triggerToast("❌ โหลดข้อมูลล้มเหลว กรุณารีเฟรชหน้าเว็บ", "error");
     }
+}
+
+export async function loadAllTeams(forceRefresh = false) {
+    try {
+        const response = await fetch(WEB_APP_URL);
+        const result = await response.json();
+        if (result.status === "success") {
+            allTeams = result.data.map((row, i) => ({
+                id: row["Member 1 Email"], // ใช้ Email เป็น ID
+                email: row["Member 1 Email"],
+                teamName: row["Team Name"],
+                category: row["Team Category"],
+                overall: row["Registration Status Overall"],
+                updated: false,
+                emailSentStatus: row["Additional Form Sent Status"],
+                version: parseInt(row["Review Version"]) || 1,
+                lastModified: new Date(row["Last Review Timestamp"]).getTime(),
+                members: [
+                    { name: row["Member 1 Name"], level: row["Member 1 Level"], school: row["Member 1 School Name"], email: row["Member 1 Email"], phone: row["Member 1 Phone"], prefix: row["Member 1 Prefix"] },
+                    { name: row["Member 2 Name"], level: row["Member 2 Level"], school: row["Member 2 School Name"], email: row["Member 2 Email"], phone: row["Member 2 Phone"], prefix: row["Member 2 Prefix"] },
+                    { name: row["Member 3 Name"], level: row["Member 3 Level"], school: row["Member 3 School Name"], email: row["Member 3 Email"], phone: row["Member 3 Phone"], prefix: row["Member 3 Prefix"] }
+                ],
+                advisor: { name: row["Advisor Name"], phone: row["Advisor Phone"], email: row["Advisor Email"] },
+                payment: { bank: row["Transferring Bank"], date: row["Transfer Date"], time: row["Transfer Time"], last4: row["Account Last 4 Digits"] },
+                certUrl: row["Latest School Cert"],
+                transcriptUrl: row["Latest Transcript (ปพ.7)"],
+                slipUrl: row["Latest Payment Slip"],
+                certStatus: row["School Cert Review Status"],
+                transcriptStatus: row["Transcript Review Status"],
+                slipStatus: row["Payment Slip Review Status"],
+                feedback: row["Feedback for Student"],
+                additionalFormLink: row["Additional Form Link"]
+            }));
+            if (callbacks.onTeamsLoaded) callbacks.onTeamsLoaded(allTeams);
+        }
+    } catch (e) { console.error("Load failed", e); }
 }
 
 // แปลงข้อมูลจาก GAS ให้เข้ากับโครงสร้างของ UI (แทนที่ Mockup)
@@ -85,8 +145,19 @@ function formatDataForUI(gasData) {
 }
 
 // ============================================================================
-// 3. FIREBASE REAL-TIME LISTENERS
+// FIREBASE REAL-TIME LISTENERS
 // ============================================================================
+
+function setupStaffPresence(user) {
+    const pRef = ref(db, `staff_presence/${escapeEmail(user.email)}`);
+    set(pRef, {
+        name: user.displayName || user.email,
+        status: "online",
+        lastOnline: Date.now(),
+        currentTeam: ""
+    });
+    onDisconnect(pRef).update({ status: "offline", currentTeam: "" });
+}
 
 function setupFirebaseListeners() {
     // 3.1 ฟังการเปลี่ยนแปลงสถานะทีม (เพื่ออัปเดตสี Sidebar ทันที)
@@ -154,7 +225,7 @@ function setupFirebaseListeners() {
 }
 
 // ============================================================================
-// 4. OCCUPANCY & PRESENCE LOGIC
+// OCCUPANCY & PRESENCE LOGIC
 // ============================================================================
 
 async function updateStaffPresence(status) {
@@ -166,6 +237,39 @@ async function updateStaffPresence(status) {
     });
     // ถ้าปิดเว็บให้ลบชื่อออกอัตโนมัติ
     onDisconnect(presenceRef).update({ status: "offline" });
+}
+
+export async function claimTeam(team) {
+    if (currentTeam) await releaseCurrentTeam();
+    currentTeam = team;
+    const escapedEmail = escapeEmail(team.email);
+    const occRef = ref(db, `occupancy/${escapedEmail}`);
+
+    await set(occRef, {
+        staffEmail: auth.currentUser.email,
+        staffName: auth.currentUser.displayName || "Staff",
+        action: "viewing",
+        lastActive: Date.now()
+    });
+
+    onDisconnect(occRef).remove();
+    // อัปเดตสถานะ Presence ว่ากำลังดูทีมไหน
+    update(ref(db, `staff_presence/${escapeEmail(auth.currentUser.email)}`), {
+        currentTeam: team.teamName
+    });
+}
+
+export async function releaseCurrentTeam() {
+    if (!currentTeam) return;
+    await remove(ref(db, `occupancy/${escapeEmail(currentTeam.email)}`));
+    currentTeam = null;
+}
+
+export function setTypingStatus(isTyping) {
+    if (!currentTeam) return;
+    update(ref(db, `occupancy/${escapeEmail(currentTeam.email)}`), {
+        action: isTyping ? "editing" : "viewing"
+    });
 }
 
 async function setTeamOccupancy(teamEmail) {
@@ -204,7 +308,7 @@ document.getElementById('feedbackText').addEventListener('blur', () => {
 });
 
 // ============================================================================
-// 5. SAVE & CONFLICT LOGIC (เชื่อม GAS)
+// SAVE & CONFLICT LOGIC (เชื่อม GAS)
 // ============================================================================
 
 window.startSaveFlow = async function (isForce = false) {
@@ -266,7 +370,7 @@ window.startSaveFlow = async function (isForce = false) {
             // เขียนสถานะล่าสุดลง Firebase (เพื่อให้หน้าจอเพื่อนร่วมงานเด้งอัปเดต)
             await updateFirebaseTeamRecord(currentTeam, payload);
 
-            showToast(payload.sendEmail ? "✅ บันทึกและส่งอีเมลสำเร็จ!" : "✅ บันทึกข้อมูลเรียบร้อย");
+            triggerToast(payload.sendEmail ? "✅ บันทึกและส่งอีเมลสำเร็จ!" : "✅ บันทึกข้อมูลเรียบร้อย", "success");
 
             // รีเฟรช UI
             window.renderStats();
@@ -284,6 +388,48 @@ window.startSaveFlow = async function (isForce = false) {
         if (currentTeam) update(ref(db, `occupancy/${escapeEmail(currentTeam.id)}`), { action: "viewing" });
     }
 };
+
+export async function saveReview(payload) {
+    if (!currentTeam) return;
+
+    // Check Conflict ก่อนเซฟ
+    const escaped = escapeEmail(currentTeam.email);
+    const snap = await get(ref(db, `teams/${escaped}/status/reviewVersion`));
+    const serverVersion = snap.val() || 0;
+
+    if (serverVersion > currentTeam.version) {
+        if (callbacks.onConflict) callbacks.onConflict({ lastModified: Date.now() }, currentTeam);
+        return;
+    }
+
+    try {
+        const body = {
+            ...payload,
+            email: currentTeam.email,
+            reviewerEmail: auth.currentUser.email
+        };
+
+        const res = await fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify(body)
+        });
+        const result = await res.json();
+
+        if (result.status === "success") {
+            // อัปเดต Firebase ให้ทุกคนเห็นพร้อมกัน
+            await update(ref(db, `teams/${escaped}`), {
+                "status/overall": payload.overallStatus,
+                "status/reviewVersion": currentTeam.version + 1,
+                "status/isUpdated": false
+            });
+
+            // อัปเดต Local State
+            currentTeam.version += 1;
+            currentTeam.overall = payload.overallStatus;
+            if (callbacks.onSaveSuccess) callbacks.onSaveSuccess(currentTeam);
+        }
+    } catch (e) { if (callbacks.onSaveError) callbacks.onSaveError(e.message); }
+}
 
 // อัปเดตข้อมูลขึ้น Firebase หลังจากเซฟ GAS ผ่านแล้ว
 async function updateFirebaseTeamRecord(team, payload) {
@@ -319,8 +465,17 @@ function calculateOverallStatus() {
     return "รอการตรวจสอบ";
 }
 
+export function computeOverallStatus(cert, trans, slip, category) {
+    const isCertOk = cert === "เอกสารเรียบร้อย" || cert === "ไม่ต้องส่ง";
+    const isTransOk = trans === "เอกสารเรียบร้อย";
+    const isSlipOk = slip === "เอกสารเรียบร้อย";
+    if (isCertOk && isTransOk && isSlipOk) return "การสมัครสมบูรณ์";
+    if (cert.includes("ไม่") || trans.includes("ไม่") || slip.includes("ไม่")) return "การสมัครไม่เรียบร้อย";
+    return "รอการตรวจสอบ";
+}
+
 // ============================================================================
-// 6. WINDOW BINDINGS (ทำให้เรียกใช้จาก HTML ได้)
+// WINDOW BINDINGS (ทำให้เรียกใช้จาก HTML ได้)
 // ============================================================================
 
 window.selectTeamData = async function (email, element) {

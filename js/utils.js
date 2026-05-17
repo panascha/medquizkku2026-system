@@ -9,9 +9,6 @@ function getDrivePreviewUrl(url) {
 
     const fileId = match[1];
 
-    // ทริค: ถ้าเป็นรูปภาพ ใช้ thumbnail จะโหลดเร็วมาก
-    // ถ้าเป็น PDF หรือไฟล์ที่ต้องการ viewer ให้ใช้ preview (iframe)
-    // พยายามตรวจสอบจากนามสกุลใน URL ถ้ามี (heuristic)
     const extMatch = url.match(/\.([a-zA-Z0-9]+)(?:[?#]|$)/);
     const ext = extMatch ? extMatch[1].toLowerCase() : null;
 

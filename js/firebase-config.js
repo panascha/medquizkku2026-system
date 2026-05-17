@@ -7,13 +7,16 @@ import { getDatabase, ref, set, get, onValue, update, remove, onDisconnect }
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // 2. ตั้งค่า Config
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
+    apiKey: "AIzaSyC2RSce9kCA9TZ1BgjiAfk2pgE41VnOPY4",
     authDomain: "medquiz-kku-2026.firebaseapp.com",
-    databaseURL: "https://medquiz-kku-2026-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    databaseURL: "https://medquiz-kku-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "medquiz-kku-2026",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    storageBucket: "medquiz-kku-2026.firebasestorage.app",
+    messagingSenderId: "210776025383",
+    appId: "1:210776025383:web:c391a04b826fefecf66102",
+    measurementId: "G-VJVDG2D7TT"
 };
 
 export const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwXG2hRNKpV81ARLVI08bjU8IGO5Fu9wygkkqMfGo_hvPUuQ9zx34-tbTqEnL8R-7r-rQ/exec";
