@@ -178,20 +178,23 @@ function setupFirebaseListeners() {
         let needsRender = false;
         teamsData.forEach(t => {
             const fbData = fbTeams[escapeEmail(t.id)];
-            if (fbData && fbData.status.reviewVersion > t.version) {
-                // ถ้า Firebase มีเวอร์ชันใหม่กว่า ให้เอามาอัปเดตในเครื่อง
-                t.overall = fbData.status.overall;
-                t.version = fbData.status.reviewVersion;
+            if (fbData) {
                 t.updated = fbData.status.isUpdated;
+                if (fbData && fbData.status.reviewVersion > t.version) {
+                    // ถ้า Firebase มีเวอร์ชันใหม่กว่า ให้เอามาอัปเดตในเครื่อง
+                    t.overall = fbData.status.overall;
+                    t.version = fbData.status.reviewVersion;
+                    t.updated = fbData.status.isUpdated;
                 
-                if (fbData.docs) {
-                    t.certStatus = fbData.docs.cert?.status || t.certStatus;
-                    t.transcriptStatus = fbData.docs.transcript?.status || t.transcriptStatus;
-                    t.slipStatus = fbData.docs.slip?.status || t.slipStatus;
-                }
+                    if (fbData.docs) {
+                        t.certStatus = fbData.docs.cert?.status || t.certStatus;
+                        t.transcriptStatus = fbData.docs.transcript?.status || t.transcriptStatus;
+                        t.slipStatus = fbData.docs.slip?.status || t.slipStatus;
+                    }
 
-                if (fbData.communication?.additionalForm) t.emailSentStatus = fbData.communication.additionalForm.sentStatus;
-                needsRender = true;
+                    if (fbData.communication?.additionalForm) t.emailSentStatus = fbData.communication.additionalForm.sentStatus;
+                    needsRender = true;
+                }
             }
         });
 
