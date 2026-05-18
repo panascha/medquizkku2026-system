@@ -97,14 +97,16 @@ export async function loadAllTeams(forceRefresh = false) {
         const response = await fetch(WEB_APP_URL);
         const result = await response.json();
         if (result.status === "success") {
-            allTeams = result.data.map((row, i) => ({
+            allTeams = result.data.map((row, i) => {
+                const existingTeam = allTeams.find(t => t.id === row["Member 1 Email"]);
+                return {
                 idx: i + 1,
                 id: row["Member 1 Email"],
                 email: row["Member 1 Email"],
                 teamName: row["Team Name"],
                 category: row["Team Category"],
                 overall: row["Registration Status Overall"],
-                updated: false,
+                updated: existingTeam ? existingTeam.updated :  false,
                 emailSentStatus: row["Additional Form Sent Status"],
                 version: parseInt(row["Review Version"]) || 1,
                 lastModified: new Date(row["Last Review Timestamp"]).getTime(),
@@ -123,7 +125,8 @@ export async function loadAllTeams(forceRefresh = false) {
                 slipStatus: row["Payment Slip Review Status"],
                 feedback: row["Feedback for Student"],
                 additionalFormLink: row["Additional Form Link"]
-            }));
+                }
+                });
             if (callbacks.onTeamsLoaded) callbacks.onTeamsLoaded(allTeams);
         }
     } catch (e) { console.error("Load failed", e); }
@@ -132,6 +135,7 @@ export async function loadAllTeams(forceRefresh = false) {
 // แปลงข้อมูลจาก GAS ให้เข้ากับโครงสร้างของ UI (แทนที่ Mockup)
 function formatDataForUI(gasData) {
     return gasData.map((row, i) => {
+        const existingTeam = teamsData.find(t => t.id === row["Member 1 Email"]);
         if (!row["Member 1 Email"]) console.warn("Row missing Email:", row);
         return {
             id: row["Member 1 Email"], // ใช้อีเมลเป็น ID หลัก
@@ -139,7 +143,7 @@ function formatDataForUI(gasData) {
             teamName: row["Team Name"],
             category: row["Team Category"],
             overall: row["Registration Status Overall"],
-            updated: false, // จะถูกเขียนทับโดย Firebase
+            updated: existingTeam ? existingTeam.updated : false,
             emailSentStatus: row["Additional Form Sent Status"],
             version: row["Review Version"] || 1,
 

@@ -486,9 +486,9 @@
         }
 
         .s-updated {
-            background: #ffedd5;
-            color: #9a3412;
-            border-color: #fb923c;
+            background: #bfdbfe;
+            color: #2563eb;
+            border-color: #0f1f4b
         }
 
         /* ── Detail ── */
@@ -1818,10 +1818,10 @@
                         </label>
 
                         <div class="save-row">
-                            <button class="btn-icon" onclick="showHistoryModal()" title="ประวัติการแก้ไข"><i
-                                    class="fa-solid fa-clock-rotate-left"></i></button>
-                            <button class="btn-icon" onclick="openAdditionalFormLink()"
-                                title="ลิงก์ฟอร์มเอกสารเพิ่มเติม"><i class="fa-solid fa-link"></i></button>
+                            <!-- <button class="btn-icon" onclick="showHistoryModal()" title="ประวัติการแก้ไข"><i
+                                    class="fa-solid fa-clock-rotate-left"></i></button> -->
+                            <button class="btn-icon" onclick="window.prepareEmailPreview && window.prepareEmailPreview()"
+                                title="ตรวจสอบอีเมล"><i class="fa-solid fa-envelope"></i></button>
                             <button class="btn-save" id="btnSave" onclick="startSaveFlow()">
                                 <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
                             </button>
@@ -2190,6 +2190,7 @@
             };
             container.innerHTML = teams.map(t => {
                 const oc = overallColors[t.overall] || { bar: '#94a3b8', badge: 's-na' };
+                const finalBarColor = t.updated ? '#2563eb' : oc.bar; // blue 
                 const isMixed = t.category?.includes('ผสม');
                 const catStyle = isMixed ? 'cat-mixed' : 'cat-school';
                 const catLabel = isMixed ? 'ทีมผสม' : 'ทีม รร.';
@@ -2197,10 +2198,9 @@
                 const emailBadge = t.emailSentStatus === 'ส่งแล้ว'
                     ? `<span style="font-size:9px;background:#dcfce7;color:#166534;border:1px solid #86efac;padding:2px 7px;border-radius:99px;font-weight:700;">📧 ส่งแล้ว</span>`
                     : `<span style="font-size:9px;background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;padding:2px 7px;border-radius:99px;">ยังไม่ส่ง</span>`;
-                if (t.teamName == 'ทีเอมพี')console.log('Rendering team:', t.teamName, 'with status:', t.overall, t.updated ? '(Updated)' : '');
                     return `
         <div onclick="selectTeam('${t.id}')" class="team-card" data-id="${t.id}" data-email="${t.email}">
-            <div class="cat-bar" style="background:${oc.bar};"></div>
+            <div class="cat-bar" style="background:${finalBarColor};"></div>
             ${t.updated ? `<div class="upd-ring"></div><div class="upd-dot"></div>` : ''}
             <div class="team-card-inner">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
