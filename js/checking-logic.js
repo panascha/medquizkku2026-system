@@ -413,37 +413,49 @@ window.startSaveFlow = async function (isForce = false) {
 };
 
 export async function saveReview(payload) {
-    if (!currentTeam) return;
+    if (!localCurrentTeam) return;
 
     try {
         const body = {
             ...payload,
-            email: currentTeam.id, // หรือ currentTeam.email
+            email: localCurrentTeam.id,
             reviewerEmail: auth.currentUser.email
         };
 
-        // ส่งไป GAS
-        const response = await fetch(WEB_APP_URL, {
-            method: "POST",
-            body: JSON.stringify(body)
-        });
+        // 1. ส่งไปที่ GAS (ทำงานเบื้องหลัง)
+        fetch(WEB_APP_URL, { method: "POST", body: JSON.stringify(body) });
 
-        // แก้ไขบรรทัดนี้: ใช้ currentTeam.id (ซึ่งเก็บอีเมลไว้) มาทำ escaped email
-        const emailToUse = currentTeam.id;
-        const escaped = emailToUse.replace(/\./g, '_');
-
+        // 2. อัปเดต Firebase Realtime Database
+        const escaped = localCurrentTeam.id.replace(/\./g, '_');
         const teamRef = ref(db, `teams/${escaped}`);
 
-        // อัปเดต Firebase เพื่อให้คนอื่นเห็นสถานะเปลี่ยนทันที
-        await update(teamRef, {
+        const updateData = {
             "status/overall": payload.overallStatus,
-            "status/reviewVersion": (currentTeam.version || 1) + 1,
-            "status/isUpdated": false,
+            "status/reviewVersion": (localCurrentTeam.version || 1) + 1,
+            "status/isUpdated": false, // เคลียร์จุดแดงทันทีเพราะตรวจแล้ว
             "communication/note": payload.feedback,
-            "communication/additionalForm/sentStatus": payload.sendEmail ? "ส่งแล้ว" : (currentTeam.emailSentStatus || "ยังไม่ส่ง")
-        });
+            "communication/additionalForm/sentStatus": payload.sendEmail ? "ส่งแล้ว" : (localCurrentTeam.emailSentStatus || "ยังไม่ส่ง")
+        };
 
-        if (callbacks.onSaveSuccess) callbacks.onSaveSuccess({ ...currentTeam, ...payload });
+        await update(teamRef, updateData);
+
+        // 3. 🔥 จุดสำคัญ: อัปเดตข้อมูลใน Local Array (allTeams) ทันที
+        const teamIdx = allTeams.findIndex(t => t.id === localCurrentTeam.id);
+        if (teamIdx !== -1) {
+            allTeams[teamIdx].overall = payload.overallStatus;
+            allTeams[teamIdx].version = (localCurrentTeam.version || 1) + 1;
+            allTeams[teamIdx].updated = false;
+            allTeams[teamIdx].feedback = payload.feedback;
+            allTeams[teamIdx].certStatus = payload.certStatus;
+            allTeams[teamIdx].transcriptStatus = payload.transcriptStatus;
+            allTeams[teamIdx].slipStatus = payload.slipStatus;
+            if (payload.sendEmail) allTeams[teamIdx].emailSentStatus = 'ส่งแล้ว';
+        }
+
+        // 4. แจ้ง UI ให้วาดใหม่
+        if (callbacks.onSaveSuccess) {
+            callbacks.onSaveSuccess(allTeams[teamIdx]);
+        }
 
     } catch (e) {
         console.error("Save Error:", e);

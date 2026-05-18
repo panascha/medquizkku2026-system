@@ -1981,24 +1981,28 @@
             renderStaffPanel(online);
         };
 
-        callbacks.onSaveSuccess = (team) => {
-            localCurrentTeam = team;
-            historyLog.unshift({
-                staff: auth.currentUser?.displayName || auth.currentUser?.email || 'Staff',
-                action: `บันทึก: cert=${team.certStatus}, ปพ7=${team.transcriptStatus}, slip=${team.slipStatus}`,
-                team: team.teamName,
-                time: new Date().toLocaleString('th-TH'),
-            });
-            showToast('✅ บันทึกข้อมูลเรียบร้อยแล้ว', 'success');
-            resetSaveBtn();
-            renderStats(allTeams);
-            filterTeams();
-            setTimeout(() => {
-                const el = document.querySelector(`[data-email="${team.email}"]`);
-                if (el) { document.querySelectorAll('.team-card').forEach(c => c.classList.remove('active')); el.classList.add('active'); }
-            }, 60);
-        };
+        callbacks.onSaveSuccess = (updatedTeam) => {
+                // 1. อัปเดตตัวแปร localCurrentTeam ให้เป็นข้อมูลใหม่
+                localCurrentTeam = { ...updatedTeam };
 
+                // 2. วาดสถิติใหม่ (ตัวเลข Done/Waiting จะเปลี่ยนทันที)
+                window.renderStats(allTeams);
+
+                // 3. วาดรายการทีมใหม่ (สถานะในการ์ดจะเปลี่ยนทันที)
+                window.filterTeams();
+
+                // 4. แสดง Toast แจ้งเตือน
+                showToast('✅ บันทึกข้อมูลและอัปเดตหน้าจอเรียบร้อย', 'success');
+
+                // 5. คืนค่าสถานะปุ่มบันทึก
+                resetSaveBtn();
+
+                // 6. ไฮไลท์การ์ดเดิมที่เคยเลือกไว้
+                setTimeout(() => {
+                    const el = document.querySelector(`[data-id="${updatedTeam.id}"]`);
+                    if (el) el.classList.add('active');
+                }, 100);
+            };
         callbacks.onSaveError = (msg) => {
             showToast('❌ ' + msg, 'error');
             resetSaveBtn();
