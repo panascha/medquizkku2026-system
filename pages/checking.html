@@ -915,6 +915,32 @@
             color: #1d4ed8;
         }
 
+        #feedbackText {
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+}
+
+#feedbackText:focus {
+    background-color: #fff;
+}
+
+/* เอฟเฟกต์ตอนสตาฟกำลังพิมพ์ */
+.feedback-container.typing {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+/* Animation สำหรับไฟกะพริบตอน Sync */
+@keyframes syncPulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+.syncing {
+    animation: syncPulse 1s infinite;
+    color: #f59e0b !important; /* สีส้มบอกว่ากำลังพิมพ์/ซิงค์ */
+}
+
         textarea {
             width: 100%;
             padding: 10px;
@@ -1671,14 +1697,14 @@
                         <div class="doc-viewer" id="docViewer">
                             <!-- ปุ่มควบคุม (ลอยอยู่บนภาพ) -->
                             <div class="doc-controls">
-                                <button class="ctrl-btn" onclick="adjustDoc('zoomIn')"><i
+                                <!-- <button class="ctrl-btn" onclick="adjustDoc('zoomIn')"><i
                                         class="fa-solid fa-magnifying-glass-plus"></i></button>
                                 <button class="ctrl-btn" onclick="adjustDoc('zoomOut')"><i
                                         class="fa-solid fa-magnifying-glass-minus"></i></button>
                                 <button class="ctrl-btn" onclick="adjustDoc('rotate')"><i
-                                        class="fa-solid fa-rotate-right"></i></button>
-                                <a id="dtPopOut" href="#" target="_blank" class="ctrl-btn"><i
-                                        class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                                        class="fa-solid fa-rotate-right"></i></button> -->
+                                <!-- <a id="dtPopOut" href="#" target="_blank" class="ctrl-btn"><i
+                                        class="fa-solid fa-arrow-up-right-from-square"></i></a> -->
                             </div>
 
                             <!-- สถานะโหลด -->
@@ -1756,8 +1782,34 @@
                                 <button class="quick-btn" onclick="addFeedback('ลายเซ็นอาจารย์ไม่ครบ')">+
                                     ไม่มีลายเซ็น</button>
                             </div>
-                            <textarea id="feedbackText" placeholder="ระบบจะสรุป feedback อัตโนมัติ..."
-                                oninput="onFeedbackType()"></textarea>
+                            <div
+                                class="feedback-container mt-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                                <!-- Header ของช่อง Feedback -->
+                                <div class="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
+                                    <label class="flex items-center gap-2 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
+                                        <i class="fa-solid fa-comment-dots text-blue-500"></i>
+                                        สรุปผลการตรวจสอบ (Feedback)
+                                    </label>
+                                    <!-- ไฟบอกสถานะ Sync -->
+                                    <span id="syncIndicator" class="text-[9px] font-bold text-gray-400 flex items-center gap-1">
+                                        <i class="fa-solid fa-cloud-check"></i> <span id="syncText">Saved</span>
+                                    </span>
+                                </div>
+                            
+                                <!-- ช่องกรอกข้อความ -->
+                                <textarea id="feedbackText"
+                                    class="w-full p-3 text-sm leading-relaxed text-slate-700 bg-white border-none outline-none resize-none min-h-[180px] font-['Sarabun'] placeholder:text-slate-400 placeholder:italic"
+                                    placeholder="เลือก Quick Feedback ด้านบน หรือพิมพ์รายละเอียดที่ต้องการแจ้งให้น้องแก้ไข..."
+                                    oninput="onFeedbackType()"></textarea>
+                            
+                                <!-- Footer: คำแนะนำเล็กๆ -->
+                                <div class="px-3 py-1.5 bg-gray-50/50 border-t border-gray-50 flex justify-between items-center">
+                                    <span class="text-[9px] text-slate-400 italic">ข้อความนี้จะถูกส่งในอีเมล และแสดงใน Looker Studio</span>
+                                    <button onclick="genBullets()" class="text-[10px] text-blue-600 font-bold hover:underline">
+                                        <i class="fa-solid fa-arrows-rotate"></i> Reset
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <label class="email-toggle">
@@ -2017,7 +2069,7 @@
                     // 3. ตรวจสอบสถานะ
                     let matchStatus = true;
                     if (fStatus === 'waiting') matchStatus = t.overall === 'รอการตรวจสอบ';
-                    else if (fStatus === 'done') matchStatus = t.overall === 'สมบูรณ์';
+                    else if (fStatus === 'done') matchStatus = t.overall === 'การสมัครสมบูรณ์';
                     else if (fStatus === 'bad') matchStatus = t.overall === 'การสมัครไม่เรียบร้อย';
                     else if (fStatus === 'updated') matchStatus = t.updated;
 
@@ -2095,7 +2147,7 @@
         };
         window.renderStats = (teams) => {
             const all = teams.length;
-            const done = teams.filter(t => t.overall === 'สมบูรณ์').length;
+            const done = teams.filter(t => t.overall === 'การสมัครสมบูรณ์').length;
             const wait = teams.filter(t => t.overall === 'รอการตรวจสอบ').length;
             const bad = teams.filter(t => t.overall === 'การสมัครไม่เรียบร้อย').length;
             const upd = teams.filter(t => t.updated).length;
@@ -2121,7 +2173,7 @@
             }
             const overallColors = {
                 'รอการตรวจสอบ': { bar: '#f59e0b', badge: 's-wait' },
-                'สมบูรณ์': { bar: '#16a34a', badge: 's-done' },
+                'การสมัครสมบูรณ์': { bar: '#16a34a', badge: 's-done' },
                 'การสมัครไม่เรียบร้อย': { bar: '#dc2626', badge: 's-bad' },
             };
             container.innerHTML = teams.map(t => {
@@ -2156,7 +2208,7 @@
         const updateCardStatus = (card, s) => {
             const badge = card.querySelector('.overall-badge');
             const bar = card.querySelector('.cat-bar');
-            const map = { 'รอการตรวจสอบ': { cls: 's-wait', color: '#f59e0b' }, 'สมบูรณ์': { cls: 's-done', color: '#16a34a' }, 'การสมัครไม่เรียบร้อย': { cls: 's-bad', color: '#dc2626' } };
+            const map = { 'รอการตรวจสอบ': { cls: 's-wait', color: '#f59e0b' }, 'การสมัครสมบูรณ์': { cls: 's-done', color: '#16a34a' }, 'การสมัครไม่เรียบร้อย': { cls: 's-bad', color: '#dc2626' } };
             const m = map[s.overall] || { cls: 's-na', color: '#94a3b8' };
             if (badge) { badge.className = `overall-badge ${m.cls}`; badge.textContent = s.overall; }
             if (bar) bar.style.background = m.color;
@@ -2279,7 +2331,7 @@
             const rawUrl = urlMap[type];
             const previewUrl = getDrivePreviewUrl(rawUrl);
 
-            document.getElementById('dtPopOut').href = rawUrl || '#';
+            if (document.getElementById('dtPopOut')) document.getElementById('dtPopOut').href = rawUrl || '#';
 
             // 4. แสดงผล
             if (type === 'cert' && localCurrentTeam?.category?.includes('ผสม')) {
@@ -2360,30 +2412,55 @@
 
         // ─── Feedback ────────────────────────────────────────────────────
         window.genBullets = function () {
-            if (!localCurrentTeam) return;
-            const certVal = document.getElementById('sel-cert').value;
-            const tranVal = document.getElementById('sel-transcript').value;
-            const slipVal = document.getElementById('sel-slip').value;
-            const emojiMap = { 'เอกสารเรียบร้อย': '✅', 'รอตรวจเอกสาร': '⏳', 'ยังไม่ได้รับเอกสาร': '❌', 'เอกสารไม่เรียบร้อย': '⚠️', 'ไม่ต้องส่ง': '➖' };
-            const lines = [
-                { label: 'ใบรับรองโรงเรียน', val: certVal },
-                { label: 'ปพ.7', val: tranVal },
-                { label: 'สลิปโอนเงิน', val: slipVal },
-            ].map(item => `• ${item.label} ${emojiMap[item.val] || '⏳'}${item.val === 'เอกสารไม่เรียบร้อย' ? ': (โปรดระบุ)' : ''}`);
-            document.getElementById('feedbackText').value = 'สิ่งที่ต้องดำเนินการ:\n' + lines.join('\n');
-        };
+                if (!localCurrentTeam) return;
+                const certVal = document.getElementById('sel-cert').value;
+                const tranVal = document.getElementById('sel-transcript').value;
+                const slipVal = document.getElementById('sel-slip').value;
 
+                const emojiMap = {
+                    'เอกสารเรียบร้อย': '✅ เรียบร้อย',
+                    'รอตรวจเอกสาร': '⏳ อยู่ระหว่างตรวจสอบ',
+                    'ยังไม่ได้รับเอกสาร': '❌ ยังไม่ได้รับข้อมูล',
+                    'เอกสารไม่เรียบร้อย': '⚠️ โปรดดำเนินการแก้ไข',
+                    'ไม่ต้องส่ง': '➖ (ไม่ต้องส่ง)'
+                };
+
+                const lines = [
+                    { label: 'หนังสือรับรองจากโรงเรียน', val: certVal },
+                    { label: 'ใบรับรองผลการศึกษา (ปพ.7)', val: tranVal },
+                    { label: 'หลักฐานการชำระเงิน', val: slipVal },
+                ].map(item => `• ${item.label}: [${emojiMap[item.val] || '⏳'}]${item.val === 'เอกสารไม่เรียบร้อย' ? '\n   เหตุผลที่ต้องแก้ไข: ' : ''}`);
+
+                document.getElementById('feedbackText').value = 'สรุปสถานะเอกสารการสมัคร:\n' + lines.join('\n');
+            };
         window.addFeedback = function (msg) {
             const area = document.getElementById('feedbackText');
             if (!area.value.includes(msg)) area.value += `\n  - ${msg}`;
         };
 
         window.onFeedbackType = function () {
-            clearTimeout(typingTimer);
-            setTypingStatus(true);
-            typingTimer = setTimeout(() => setTypingStatus(false), 2000);
-        };
+                const indicator = document.getElementById('syncIndicator');
+                const syncText = document.getElementById('syncText');
+                const container = document.querySelector('.feedback-container');
 
+                // เปลี่ยนสถานะเป็น "กำลังพิมพ์/ซิงค์"
+                indicator.classList.add('syncing');
+                syncText.textContent = 'Typing...';
+                container.classList.add('typing');
+
+                clearTimeout(typingTimer);
+
+                // แจ้ง Firebase ว่าเรากำลังพิมพ์ (Occupancy Logic)
+                setTypingStatus(true);
+
+                typingTimer = setTimeout(() => {
+                    // เมื่อหยุดพิมพ์เกิน 2 วินาที
+                    setTypingStatus(false);
+                    indicator.classList.remove('syncing');
+                    syncText.textContent = 'Auto-saved';
+                    container.classList.remove('typing');
+                }, 2000);
+            };
         // ─── Save Flow ────────────────────────────────────────────────────
         // ─── Save Flow & Email Preview ─────────────────────────────────────
             window.startSaveFlow = async () => {
