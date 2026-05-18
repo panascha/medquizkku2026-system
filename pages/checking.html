@@ -44,7 +44,8 @@
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
-    overflow-y: auto; 
+    overflow-y: auto;
+    max-height: 200dvh;
 }
 
         .mono {
@@ -1325,8 +1326,8 @@
 
     /* --- 2. ทำให้หน้าเว็บ Scroll ได้ --- */
     body {
-        overflow: auto;           /* เปิดให้ body เลื่อนได้ */
-        height: auto;
+        max-height: 100dvh;
+        overflow-x: hidden;
     }
     .main-layout {
         height: auto;
