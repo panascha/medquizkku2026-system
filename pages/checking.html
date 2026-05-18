@@ -748,7 +748,7 @@
         .ctrl-btn {
             width: 36px;
             height: 36px;
-            background: rgba(255, 255, 255, .92);
+            background: rgb(255, 255, 255);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -2142,7 +2142,6 @@
                 // อัปเดตการแสดงผล
                 img.style.transform = `scale(${docScale}) rotate(${docRotate}deg)`;
 
-                // ถ้า Zoom จนใหญ่กว่า Container ให้เปลี่ยน max-width เป็น none เพื่อให้เกิด Scrollbar
                 if (docScale > 1) {
                     img.style.maxWidth = 'none';
                     img.style.maxHeight = 'none';
