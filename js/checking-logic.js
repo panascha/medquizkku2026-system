@@ -52,6 +52,19 @@ export async function initCheckingSystem(user) {
     setupFirebaseListeners();
 }
 
+async function syncUpdatedStatusFromFirebase() {
+    const snapshot = await get(ref(db, 'teams'));
+    const fbTeams = snapshot.val();
+    if (!fbTeams) return;
+
+    teamsData.forEach(t => {
+        const fbData = fbTeams[escapeEmail(t.id)];
+        if (fbData) {
+            t.updated = fbData.status.isUpdated;
+        }
+    });
+}
+
 async function loadDataFromGAS() {
     triggerToast("กำลังดึงข้อมูลจากฐานข้อมูล...", "loading");
     try {
@@ -62,6 +75,8 @@ async function loadDataFromGAS() {
             teamsData = formatDataForUI(result.data);
             allTeams = teamsData; // ซิงค์ข้อมูลเข้า allTeams
 
+            await syncUpdatedStatusFromFirebase();
+            
             if (window.renderStats) window.renderStats(teamsData);
             if (window.filterTeams) window.filterTeams();
 
@@ -169,13 +184,13 @@ function setupStaffPresence(user) {
 }
 
 function setupFirebaseListeners() {
-    // 3.1 ฟังการเปลี่ยนแปลงสถานะทีม (เพื่ออัปเดตสี Sidebar ทันที)
     const teamsRef = ref(db, 'teams');
     onValue(teamsRef, (snapshot) => {
         const fbTeams = snapshot.val();
         if (!fbTeams) return;
 
         let needsRender = false;
+
         teamsData.forEach(t => {
             const fbData = fbTeams[escapeEmail(t.id)];
             if (fbData) {
@@ -183,25 +198,27 @@ function setupFirebaseListeners() {
                     t.updated = fbData.status.isUpdated;
                     needsRender = true;
                 }
-                if (fbData && fbData.status.reviewVersion > t.version) {
-                    // ถ้า Firebase มีเวอร์ชันใหม่กว่า ให้เอามาอัปเดตในเครื่อง
+
+                if (fbData.status.reviewVersion > t.version) {
                     t.overall = fbData.status.overall;
                     t.version = fbData.status.reviewVersion;
-                    t.updated = fbData.status.isUpdated;
-                
+
                     if (fbData.docs) {
                         t.certStatus = fbData.docs.cert?.status || t.certStatus;
                         t.transcriptStatus = fbData.docs.transcript?.status || t.transcriptStatus;
                         t.slipStatus = fbData.docs.slip?.status || t.slipStatus;
                     }
 
+                    if (fbData.communication?.note) t.feedback = fbData.communication.note;
                     if (fbData.communication?.additionalForm) t.emailSentStatus = fbData.communication.additionalForm.sentStatus;
+
                     needsRender = true;
                 }
             }
         });
 
         if (needsRender) {
+            console.log("Firebase Update detected - Rerendering list...");
             if (window.renderStats) window.renderStats(teamsData);
             if (window.filterTeams) window.filterTeams();
         }

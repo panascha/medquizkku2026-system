@@ -2147,26 +2147,37 @@
             updateNavButtons();
         };
         window.renderStats = (teams) => {
-            const all = teams.length;
-            const done = teams.filter(t => t.overall === 'การสมัครสมบูรณ์').length;
-            const wait = teams.filter(t => t.overall === 'รอการตรวจสอบ').length;
-            const bad = teams.filter(t => t.overall === 'การสมัครไม่เรียบร้อย').length;
-            const upd = teams.filter(t => t.updated).length;
-            const emailSent = teams.filter(t => t.emailSentStatus === 'ส่งแล้ว').length;
-            const school = teams.filter(t => t.category?.includes('โรงเรียน')).length;
-            const mixed = teams.filter(t => t.category?.includes('ผสม')).length;
-            document.getElementById('statsStrip').innerHTML = `
-        <div class="stat-pill" style="background:#f0f9ff;border-color:#bae6fd;"><span class="num" style="color:#0369a1;">${all}</span><span class="lbl" style="color:#0369a1;">ทั้งหมด</span></div>
-        <div class="stat-pill" style="background:#dcfce7;border-color:#86efac;"><span class="num" style="color:#166534;">${done}</span><span class="lbl" style="color:#166534;">สมบูรณ์</span></div>
-        <div class="stat-pill" style="background:#fef9c3;border-color:#fde047;"><span class="num" style="color:#854d0e;">${wait}</span><span class="lbl" style="color:#854d0e;">รอตรวจ</span></div>
-        <div class="stat-pill" style="background:#fee2e2;border-color:#fca5a5;"><span class="num" style="color:#991b1b;">${bad}</span><span class="lbl" style="color:#991b1b;">ไม่เรียบร้อย</span></div>
-        <div class="stat-pill" style="background:#ffedd5;border-color:#fb923c;"><span class="num" style="color:#9a3412;">${upd}</span><span class="lbl" style="color:#9a3412;">Updated</span></div>
-    `;
-            document.getElementById('wlText').textContent = `${done}/${all} ทีม`;
-            document.getElementById('wlBar').style.width = `${all ? (done / all) * 100 : 0}%`;
-        }
+                // 1. กรองเอาแถวที่ไม่มี Email ออกก่อน (กันแถวว่างจาก Google Sheet)
+                const validTeams = teams.filter(t => t.id && t.id.trim() !== "");
+                const all = validTeams.length;
 
-        const renderTeamList = (teams) => {
+                // 2. ใช้ .trim() เพื่อตัดช่องว่างที่อาจติดมาจาก Sheet
+                const done = validTeams.filter(t => t.overall?.trim() === 'การสมัครสมบูรณ์').length;
+                const wait = validTeams.filter(t => t.overall?.trim() === 'รอการตรวจสอบ').length;
+                const bad = validTeams.filter(t => t.overall?.trim() === 'การสมัครไม่เรียบร้อย').length;
+
+                // 3. Updated (isUpdated) คือ "ไฟเตือน" ไม่ใช่ "สถานะหลัก" จึงนับแยกต่างหาก
+                const upd = validTeams.filter(t => t.updated === true).length;
+
+                // 4. หาพวกที่เหลือ (เช่น ค่าว่าง, พิมพ์ผิด, หรือสถานะอื่นๆ)
+                const others = all - (done + wait + bad);
+
+                document.getElementById('statsStrip').innerHTML = `
+        <div class="stat-pill"><span class="num">${all}</span><span class="lbl">ทั้งหมด</span></div>
+        <div class="stat-pill s-done"><span class="num">${done}</span><span class="lbl">สมบูรณ์</span></div>
+        <div class="stat-pill s-wait"><span class="num">${wait}</span><span class="lbl">รอตรวจ</span></div>
+        <div class="stat-pill s-bad"><span class="num">${bad}</span><span class="lbl">ไม่เรียบร้อย</span></div>
+        <!-- Pill พิเศษสำหรับทีมที่ส่งเพิ่ม (Updated) -->
+        <div class="stat-pill s-updated"><span class="num">${upd}</span><span class="lbl">Updated</span></div>
+        
+        ${others > 0 ? `
+            <div class="stat-pill" style="background:#475569; border-color:#1e293b;">
+                <span class="num" style="color:#fff;">${others}</span>
+                <span class="lbl" style="color:#cbd5e1;">อื่นๆ/ว่าง</span>
+            </div>` : ''}
+    `;
+            }
+            const renderTeamList = (teams) => {
             const container = document.getElementById('teamList');
             if (!teams.length) {
                 container.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#94a3b8;"><i class="fa-solid fa-inbox" style="font-size:32px;margin-bottom:8px;display:block;opacity:.3;"></i><span style="font-size:13px;">ไม่พบทีมที่ตรงกัน</span></div>`;
@@ -2186,7 +2197,8 @@
                 const emailBadge = t.emailSentStatus === 'ส่งแล้ว'
                     ? `<span style="font-size:9px;background:#dcfce7;color:#166534;border:1px solid #86efac;padding:2px 7px;border-radius:99px;font-weight:700;">📧 ส่งแล้ว</span>`
                     : `<span style="font-size:9px;background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;padding:2px 7px;border-radius:99px;">ยังไม่ส่ง</span>`;
-                return `
+                if (t.teamName == 'ทีเอมพี')console.log('Rendering team:', t.teamName, 'with status:', t.overall, t.updated ? '(Updated)' : '');
+                    return `
         <div onclick="selectTeam('${t.id}')" class="team-card" data-id="${t.id}" data-email="${t.email}">
             <div class="cat-bar" style="background:${oc.bar};"></div>
             ${t.updated ? `<div class="upd-ring"></div><div class="upd-dot"></div>` : ''}
