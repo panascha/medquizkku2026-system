@@ -37,16 +37,16 @@
         }
 
         body {
-    font-family: 'Sarabun', sans-serif;
-    background: var(--surface);
-    color: var(--text);
-    min-height: 100dvh; 
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-    overflow-y: auto;
-    max-height: 200dvh;
-}
+            font-family: 'Sarabun', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            overflow-y: auto;
+            max-height: 200dvh;
+        }
 
         .mono {
             font-family: 'IBM Plex Mono', monospace;
@@ -181,13 +181,13 @@
         }
 
         .sidebar-top {
-    padding: 12px;
-    background: #f8faff;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
+            padding: 12px;
+            background: #f8faff;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
 
         .search-box {
             position: relative;
@@ -220,21 +220,21 @@
         }
 
         /* Filter Groups */
-.filter-groups select {
-    cursor: pointer;
-    transition: all 0.2s;
-    color: var(--text);
-}
+        .filter-groups select {
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text);
+        }
 
-.filter-groups select:hover {
-    border-color: var(--blue-light);
-    background-color: #f1f5f9;
-}
+        .filter-groups select:hover {
+            border-color: var(--blue-light);
+            background-color: #f1f5f9;
+        }
 
-.filter-groups select:focus {
-    border-color: var(--blue);
-    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
-}
+        .filter-groups select:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.1);
+        }
 
         .range-row {
             display: flex;
@@ -397,24 +397,24 @@
         }
 
         .member-chip {
-    font-size: 10px;
-    background: #f8fafc;
-    color: #64748b;
-    padding: 1px 6px;
-    border-radius: 4px;
-    border: 1px solid #f1f5f9;
-    white-space: nowrap;
-}
+            font-size: 10px;
+            background: #f8fafc;
+            color: #64748b;
+            padding: 1px 6px;
+            border-radius: 4px;
+            border: 1px solid #f1f5f9;
+            white-space: nowrap;
+        }
 
         .card-sider {
-    position: absolute;
-    bottom: 12px;
-    right: 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-}
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
 
         .overall-badge {
             font-size: 9px;
@@ -426,22 +426,22 @@
         }
 
         .card-idx {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    font-weight: 700;
-    color: #475569;
-    background: #f1f5f9;
-    padding: 2px 6px;
-    border-radius: 5px;
-    border: 1px solid #e2e8f0;
-}
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: #475569;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 5px;
+            border: 1px solid #e2e8f0;
+        }
 
-.card-members {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-    margin-bottom: 8px;
-}
+        .card-members {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
 
         .tag {
             font-size: 10px;
@@ -565,23 +565,26 @@
         }
 
         .info-grid {
-    display: grid;
-    grid-template-columns: 1fr; /* Mobile: 1 แถวต่อ 1 กล่อง */
-    gap: 10px;
-    margin-top: 14px;
-}
+            display: grid;
+            grid-template-columns: 1fr;
+            /* Mobile: 1 แถวต่อ 1 กล่อง */
+            gap: 10px;
+            margin-top: 14px;
+        }
 
-@media (min-width: 768px) {
-    .info-grid {
-        grid-template-columns: repeat(2, 1fr); /* MD: 2 คอลัมน์ (2 แถว) */
-    }
-}
+        @media (min-width: 768px) {
+            .info-grid {
+                grid-template-columns: repeat(2, 1fr);
+                /* MD: 2 คอลัมน์ (2 แถว) */
+            }
+        }
 
-@media (min-width: 1280px) {
-    .info-grid {
-        grid-template-columns: repeat(4, 1fr); /* LG: 4 คอลัมน์เรียงแถวเดียว (ถ้าจอใหญ่มาก) */
-    }
-}
+        @media (min-width: 1280px) {
+            .info-grid {
+                grid-template-columns: repeat(4, 1fr);
+                /* LG: 4 คอลัมน์เรียงแถวเดียว (ถ้าจอใหญ่มาก) */
+            }
+        }
 
         .info-card {
             background: #f8faff;
@@ -701,34 +704,38 @@
         }
 
         #mainDocPreview {
-    max-width: 100%; /* เริ่มต้นให้พอดีจอ */
-    height: auto;
-    object-fit: contain;
-    transition: transform 0.2s ease;
-    transform-origin: center center;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    display: none;
-}
+            max-width: 100%;
+            /* เริ่มต้นให้พอดีจอ */
+            height: auto;
+            object-fit: contain;
+            transition: transform 0.2s ease;
+            transform-origin: center center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            display: none;
+        }
 
-#mainDocIframe {
-    width: 100%;
-    height: 100%;
-    border: none;
-    display: none;
-    background: white;
-}
+        #mainDocIframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+            background: white;
+        }
 
         .doc-viewer {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background: #d1d5db; /* bg-gray-300 */
-    border-radius: 0 0 12px 12px;
-    border: 1px solid var(--border);
-    position: relative;
-    overflow: hidden; /* คุมขอบนอก */
-    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06); /* shadow-inner */
-}
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #d1d5db;
+            /* bg-gray-300 */
+            border-radius: 0 0 12px 12px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+            /* คุมขอบนอก */
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            /* shadow-inner */
+        }
 
         .doc-controls {
             position: absolute;
@@ -781,16 +788,19 @@
         }
 
         .doc-content {
-    flex: 1;
-    width: 100%;
-    height: 100%;
-    overflow: auto; /* เปิดให้ Scroll ได้เมื่อเนื้อหาใหญ่กว่าจอ */
-    display: flex;
-    align-items: center;    /* จัดกึ่งกลางแนวตั้ง */
-    justify-content: center; /* จัดกึ่งกลางแนวนอน */
-    position: relative;
-    padding: 20px;
-}
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            /* เปิดให้ Scroll ได้เมื่อเนื้อหาใหญ่กว่าจอ */
+            display: flex;
+            align-items: center;
+            /* จัดกึ่งกลางแนวตั้ง */
+            justify-content: center;
+            /* จัดกึ่งกลางแนวนอน */
+            position: relative;
+            padding: 20px;
+        }
 
         .doc-content img {
             max-width: 100%;
@@ -1171,6 +1181,38 @@
             cursor: pointer;
         }
 
+        /* Sidebar Toggle Animation */
+        #sidebar {
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s;
+        }
+
+        #sidebar.collapsed {
+            margin-left: -340px;
+            /* เลื่อนออกซ้ายตามความกว้าง sidebar */
+        }
+
+        @media (max-width: 1024px) {
+            #sidebar.collapsed {
+                margin-left: -300px;
+            }
+        }
+
+        /* ปรับปุ่มนำทางให้น่าใช้ */
+        #btnPrev:disabled,
+        #btnNext:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            background: transparent;
+        }
+
+        /* เพิ่มคีย์ลัดบอกพนักงาน */
+        .nav-hint {
+            font-size: 10px;
+            color: #94a3b8;
+            text-align: center;
+            margin-top: 2px;
+        }
+
         /* ── Toast ── */
         #toast {
             position: fixed;
@@ -1289,6 +1331,11 @@
         }
 
         @media(max-width:1024px) {
+            body {
+                max-height: 100dvh;
+                overflow-x: hidden;
+            }
+            
             #sidebar {
                 width: 300px;
             }
@@ -1305,100 +1352,123 @@
         }
 
         @media (max-width: 768px) {
-    /* --- 1. จัดการ Topbar (Navbar) --- */
-    nav {
-        padding: 8px 10px;
-        gap: 6px;
-    }
-    .nav-brand span,             /* ซ่อนคำว่า "ระบบตรวจสอบเอกสาร" */
-    .workload-wrap,               /* ซ่อนแถบ Progress */
-    #staffOnlineCount,            /* ซ่อนจำนวนสตาฟ */
-    #navStaffName {               /* ซ่อนชื่อสตาฟ (เหลือแต่รูป) */
-        display: none !important;
-    }
-    .nav-brand {
-        font-size: 14px;          /* ลดขนาดชื่อแอป */
-    }
-    #btnRefresh {
-        padding: 5px 8px;
-        font-size: 10px;
-    }
 
-    /* --- 2. ทำให้หน้าเว็บ Scroll ได้ --- */
-    body {
-        max-height: 100dvh;
-        overflow-x: hidden;
-    }
-    .main-layout {
-        height: auto;
-        overflow: visible;
-        flex-direction: column;
-    }
-    
-    /* Sidebar บนมือถือให้เลื่อนได้ปกติ */
-    #sidebar {
-        width: 100% !important;
-        height: calc(100vh - 55px); /* หักความสูง Navbar */
-        overflow-y: auto;
-    }
+            /* --- 1. จัดการ Topbar (Navbar) --- */
+            nav {
+                padding: 8px 10px;
+                gap: 6px;
+            }
 
-    /* --- 3. หน้า Detail View (เมื่อกดเลือกทีม) --- */
-    #detailView.mobile-open {
-        display: flex;
-        position: fixed;          /* ทับหน้าจอทั้งหมด */
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 1000;            /* อยู่บนสุด */
-        background: var(--surface);
-        overflow-y: auto;         /* สำคัญมาก: ให้เลื่อนขึ้นลงได้ */
-        -webkit-overflow-scrolling: touch;
-    }
+            .nav-brand span,
+            /* ซ่อนคำว่า "ระบบตรวจสอบเอกสาร" */
+            .workload-wrap,
+            /* ซ่อนแถบ Progress */
+            #staffOnlineCount,
+            /* ซ่อนจำนวนสตาฟ */
+            #navStaffName {
+                /* ซ่อนชื่อสตาฟ (เหลือแต่รูป) */
+                display: none !important;
+            }
 
-    #detailContent {
-        display: flex !important;
-        height: auto;             /* ให้ยืดตามเนื้อหา */
-        overflow: visible;
-    }
+            .nav-brand {
+                font-size: 14px;
+                /* ลดขนาดชื่อแอป */
+            }
 
-    /* ปรับ Layout ภายในให้เรียงต่อกันเป็นแนวตั้งเพื่อ Scroll */
-    .workspace {
-        flex-direction: column;
-        height: auto;
-        overflow: visible;
-    }
+            #btnRefresh {
+                padding: 5px 8px;
+                font-size: 10px;
+            }
 
-    .doc-section {
-        flex: none;
-        height: 75vh;             /* ให้พื้นที่แสดงเอกสาร 75% ของจอ */
-        min-height: 500px;
-        padding: 10px;
-    }
+            /* --- 2. ทำให้หน้าเว็บ Scroll ได้ --- */
+            body {
+                max-height: 100dvh;
+                overflow-x: hidden;
+            }
 
-    .status-panel {
-        display: flex !important;  /* บังคับให้แสดง Panel ตรวจสอบ */
-        width: 100% !important;
-        border-left: none;
-        border-top: 2px solid var(--border);
-        height: auto;
-        padding-bottom: 80px;      /* เพิ่มพื้นที่ล่างสุดกันปุ่ม Save จม */
-    }
+            .main-layout {
+                height: auto;
+                overflow: visible;
+                flex-direction: column;
+            }
 
-    .info-grid {
-        grid-template-columns: 1fr !important; /* ข้อมูลสมาชิกเรียง 1 คอลัมน์ */
-    }
+            /* Sidebar บนมือถือให้เลื่อนได้ปกติ */
+            #sidebar {
+                width: 100% !important;
+                height: calc(100vh - 55px);
+                /* หักความสูง Navbar */
+                overflow-y: auto;
+            }
 
-    /* ปุ่มย้อนกลับ */
-    #btnBack {
-        display: flex !important;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background: white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-}
+            #sidebar.collapsed {
+                margin-left: 0;
+            }
+
+            /* --- 3. หน้า Detail View (เมื่อกดเลือกทีม) --- */
+            #detailView.mobile-open {
+                display: flex;
+                position: fixed;
+                /* ทับหน้าจอทั้งหมด */
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                z-index: 1000;
+                /* อยู่บนสุด */
+                background: var(--surface);
+                overflow-y: auto;
+                /* สำคัญมาก: ให้เลื่อนขึ้นลงได้ */
+                -webkit-overflow-scrolling: touch;
+            }
+
+            #detailContent {
+                display: flex !important;
+                height: auto;
+                /* ให้ยืดตามเนื้อหา */
+                overflow: visible;
+            }
+
+            /* ปรับ Layout ภายในให้เรียงต่อกันเป็นแนวตั้งเพื่อ Scroll */
+            .workspace {
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+            }
+
+            .doc-section {
+                flex: none;
+                height: 75vh;
+                /* ให้พื้นที่แสดงเอกสาร 75% ของจอ */
+                min-height: 500px;
+                padding: 10px;
+            }
+
+            .status-panel {
+                display: flex !important;
+                /* บังคับให้แสดง Panel ตรวจสอบ */
+                width: 100% !important;
+                border-left: none;
+                border-top: 2px solid var(--border);
+                height: auto;
+                padding-bottom: 80px;
+                /* เพิ่มพื้นที่ล่างสุดกันปุ่ม Save จม */
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr !important;
+                /* ข้อมูลสมาชิกเรียง 1 คอลัมน์ */
+            }
+
+            /* ปุ่มย้อนกลับ */
+            #btnBack {
+                display: flex !important;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                background: white;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+        }
     </style>
 </head>
 
@@ -1415,6 +1485,10 @@
     <!-- Navbar -->
     <nav>
         <div style="display:flex;align-items:center;gap:12px;">
+            <button onclick="toggleSidebar()" class="btn-icon"
+                style="background:rgba(255,255,255,0.1); color:white; border:none; width:36px; height:36px;">
+                <i class="fa-solid fa-bars"></i>
+            </button>
             <div class="nav-brand">
                 <i class="fa-solid fa-stethoscope" style="color:var(--accent)"></i>
                 MedQuiz KKU 2026
@@ -1466,12 +1540,14 @@
                 </div>
                 <div class="range-row">
                     <label>Row</label>
-                    <input type="number" id="rangeStart" value="1" min="1" style="width:60px">
+                    <input type="number" id="rangeStart" value="1" min="1" style="width:65px" oninput="filterTeams()">
                     <span style="color:#94a3b8;font-size:12px;">–</span>
-                    <input type="number" id="rangeEnd" value="500" min="1" style="width:60px">
-                    <button onclick="filterTeams()"
-                        style="padding:5px 10px;background:#e2e8f0;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-family:'Sarabun',sans-serif;"><i
-                            class="fa-solid fa-filter"></i></button>
+                    <input type="number" id="rangeEnd" value="500" min="1" style="width:65px" oninput="filterTeams()">
+                
+                    <!-- ปุ่มนี้อาจจะเปลี่ยนเป็นปุ่มรีเซ็ตค่าแทนเพื่อความสะดวก -->
+                    <button onclick="resetRange()" class="btn-icon" style="width:30px; height:30px; font-size:10px;">
+                        <i class="fa-solid fa-undo"></i>
+                    </button>
                 </div>
                 <!-- กลุ่ม Filter แบบ Dropdown -->
                 <div class="filter-groups" style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
@@ -1485,7 +1561,7 @@
                             <option value="done">✅ สมบูรณ์</option>
                             <option value="bad">⚠️ ไม่เรียบร้อย</option>
                         </select>
-                
+
                         <select id="filterCategory" onchange="filterTeams()"
                             style="flex: 1; padding: 6px; border-radius: 8px; border: 1.5px solid var(--border); font-size: 12px; font-family: 'Sarabun'; outline: none; background: white;">
                             <option value="all">🏢 ทุกประเภท</option>
@@ -1493,7 +1569,7 @@
                             <option value="mixed">🧬 ทีมผสม</option>
                         </select>
                     </div>
-                
+
                     <!-- แถวที่ 2: สถานะอีเมล -->
                     <select id="filterEmail" onchange="filterTeams()"
                         style="width: 100%; padding: 6px; border-radius: 8px; border: 1.5px solid var(--border); font-size: 12px; font-family: 'Sarabun'; outline: none; background: white;">
@@ -1521,7 +1597,7 @@
                 <!-- Detail Header -->
                 <div class="detail-header">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                        <div style="flex:1;min-width:0;">
+                        <div style="display:flex; gap:15px; align-items:center;">
                             <div class="detail-meta">
                                 <span id="dtCategory" class="tag cat-school">โควตาทีมโรงเรียน</span>
                                 <span id="dtId" class="tag mono" style="background:#f1f5f9;color:#475569;">#—</span>
@@ -1536,8 +1612,8 @@
                                 <i class="fa-solid fa-eye fa-pulse"></i>
                                 <span id="occupancyText">กำลังดูอยู่</span>
                             </div>
-                            <button onclick="closeMobileDetail()" id="btnBack" style="display:none; width: 40px; height: 40px; border-radius: 50%;"
-                                class="btn-icon">
+                            <button onclick="closeMobileDetail()" id="btnBack"
+                                style="display:none; width: 40px; height: 40px; border-radius: 50%;" class="btn-icon">
                                 <i class="fa-solid fa-arrow-left"></i>
                             </button>
                         </div>
@@ -1549,28 +1625,41 @@
                                     style="margin-right:4px;"></i>อาจารย์ที่ปรึกษา</div>
                             <p id="dtAdvisor" style="font-size:12px;font-weight:600;line-height:1.7;"></p>
                         </div>
-                    
+
                         <!-- แถวที่ 1: กล่องที่ 2 -->
                         <div class="info-card" style="border-left:3px solid var(--accent);">
-                            <div class="info-card-title"><i class="fa-solid fa-clock-rotate-left" style="margin-right:4px;"></i>ประวัติ /
+                            <div class="info-card-title"><i class="fa-solid fa-clock-rotate-left"
+                                    style="margin-right:4px;"></i>ประวัติ /
                                 เวอร์ชัน</div>
                             <p id="dtVersion" style="font-size:12px;font-weight:600;line-height:1.7;"></p>
                         </div>
-                    
+
                         <!-- แถวที่ 2: กล่องที่ 3 (จะอยู่ใกล้ Preview) -->
                         <div class="info-card" style="border-left:3px solid var(--navy);">
-                            <div class="info-card-title"><i class="fa-solid fa-users" style="margin-right:4px;"></i>สมาชิกในทีม</div>
+                            <div class="info-card-title"><i class="fa-solid fa-users"
+                                    style="margin-right:4px;"></i>สมาชิกในทีม</div>
                             <div class="members-grid" id="dtMembersGrid"></div>
                         </div>
-                    
+
                         <!-- แถวที่ 2: กล่องที่ 4 (จะอยู่ใกล้ Preview) -->
                         <div class="info-card" style="border-left:3px solid var(--green);">
-                            <div class="info-card-title"><i class="fa-solid fa-money-bill-transfer" style="margin-right:4px;"></i>การโอนเงิน
+                            <div class="info-card-title"><i class="fa-solid fa-money-bill-transfer"
+                                    style="margin-right:4px;"></i>การโอนเงิน
                             </div>
                             <p id="dtPayment" style="font-size:12px;font-weight:600;line-height:1.7;"></p>
                         </div>
                     </div>
-                    
+
+                </div>
+
+                <div
+                    style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:10px;margin-bottom:6px;">
+                    <button onclick="navigateTeam(-1)" id="btnPrev" class="btn-icon"
+                        style="width:32px; height:32px; background:white;"><i
+                            class="fa-solid fa-chevron-left"></i></button>
+                    <button onclick="navigateTeam(1)" id="btnNext" class="btn-icon"
+                        style="width:32px; height:32px; background:white;"><i
+                            class="fa-solid fa-chevron-right"></i></button>
                 </div>
 
                 <!-- Workspace -->
@@ -1589,26 +1678,30 @@
                                         class="fa-solid fa-magnifying-glass-plus"></i></button>
                                 <button class="ctrl-btn" onclick="adjustDoc('zoomOut')"><i
                                         class="fa-solid fa-magnifying-glass-minus"></i></button>
-                                <button class="ctrl-btn" onclick="adjustDoc('rotate')"><i class="fa-solid fa-rotate-right"></i></button>
+                                <button class="ctrl-btn" onclick="adjustDoc('rotate')"><i
+                                        class="fa-solid fa-rotate-right"></i></button>
                                 <a id="dtPopOut" href="#" target="_blank" class="ctrl-btn"><i
                                         class="fa-solid fa-arrow-up-right-from-square"></i></a>
                             </div>
-                        
+
                             <!-- สถานะโหลด -->
-                            <div id="docLoading" class="doc-loading" style="background: rgba(209, 213, 223, 0.8); color: #4b5563;">
+                            <div id="docLoading" class="doc-loading"
+                                style="background: rgba(209, 213, 223, 0.8); color: #4b5563;">
                                 <i class="fa-solid fa-circle-notch fa-spin" style="font-size:28px;"></i>
                                 <span style="font-size:12px; margin-top:8px;">กำลังโหลดเอกสาร...</span>
                             </div>
-                        
+
                             <!-- พื้นที่แสดงผล (Scrollable Area) -->
                             <div class="doc-content" id="docContent">
                                 <!-- แสดงรูปภาพ -->
-                                <img id="mainDocPreview" src="" alt="Document Preview" onload="window.onDocLoaded && window.onDocLoaded()"
+                                <img id="mainDocPreview" src="" alt="Document Preview"
+                                    onload="window.onDocLoaded && window.onDocLoaded()"
                                     onerror="window.onDocError && window.onDocError()">
-                        
+
                                 <!-- แสดง PDF ผ่าน Iframe -->
-                                <iframe id="mainDocIframe" src="" onload="window.onDocLoaded && window.onDocLoaded"></iframe>
-                        
+                                <iframe id="mainDocIframe" src=""
+                                    onload="window.onDocLoaded && window.onDocLoaded"></iframe>
+
                                 <!-- กรณีไม่พบเอกสาร -->
                                 <div id="noDocMsg" style="color:#94a3b8; text-align:center; display:none;">
                                     <i class="fa-solid fa-file-circle-xmark"
@@ -1736,12 +1829,12 @@
     <script src="../js/utils.js"></script>
     <script type="module">
         // ─── Import checking-logic ────────────────────────────────────────
-        
+
         import {
-                initCheckingSystem, loadAllTeams, allTeams, currentTeam, claimTeam,
-                releaseCurrentTeam, setTypingStatus, saveReview,
-                computeOverallStatus, callbacks
-            } from "../js/checking-logic.js";
+            initCheckingSystem, loadAllTeams, allTeams, currentTeam, claimTeam,
+            releaseCurrentTeam, setTypingStatus, saveReview,
+            computeOverallStatus, callbacks
+        } from "../js/checking-logic.js";
         import { auth } from "../js/firebase-config.js";
         import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -1752,14 +1845,15 @@
         let conflictPayload = null;   // ชั่วคราวสำหรับ force-overwrite
         let typingTimer = null;
         const historyLog = [];        // local history log (session-based)
+        let currentlyFilteredTeams = []; // เก็บผลลัพธ์ทีมที่ผ่านการ filter ล่าสุด เพื่อใช้ในการนำทาง (prev/next)
 
         // ─── Register callbacks ──────────────────────────────────────────
         callbacks.onTeamsLoaded = (teams) => {
-                window.renderStats(teams);
-                window.filterTeams();
-                hideLoader();
-                updateGasStatus(true);
-            };
+            window.renderStats(teams);
+            window.filterTeams();
+            hideLoader();
+            updateGasStatus(true);
+        };
 
         callbacks.onStatusChange = (email, statusObj) => {
             const card = document.querySelector(`[data-email="${email}"]`);
@@ -1845,39 +1939,50 @@
             filterTeams();
         };
 
+        const originalFilterTeams = window.filterTeams;
+        window.resetRange = () => {
+                document.getElementById('rangeStart').value = 1;
+                document.getElementById('rangeEnd').value = 500;
+                window.filterTeams();
+            };
         window.filterTeams = () => {
                 const q = document.getElementById('searchInput').value.toLowerCase();
-                const start = parseInt(document.getElementById('rangeStart').value) || 1;
-                const end = parseInt(document.getElementById('rangeEnd').value) || 9999;
 
-                // ดึงค่าจาก Dropdown ใหม่
+                // ดึงค่าจากช่อง Row และจัดการกรณีช่องว่าง (Empty Input)
+                let startRaw = document.getElementById('rangeStart').value;
+                let endRaw = document.getElementById('rangeEnd').value;
+
+                const start = startRaw === "" ? 1 : parseInt(startRaw);
+                const end = endRaw === "" ? 9999 : parseInt(endRaw);
+
                 const fStatus = document.getElementById('filterStatus').value;
                 const fCategory = document.getElementById('filterCategory').value;
                 const fEmail = document.getElementById('filterEmail').value;
 
-                const filtered = allTeams.filter((t, i) => {
-                    const rowIdx = i + 1;
+                const filtered = allTeams.filter((t) => {
+                    // t.idx คือลำดับแถวใน Google Sheet ที่เราเก็บไว้ตั้งแต่ตอนโหลด data
+                    const rowIdx = t.idx;
 
-                    // 1. ตรวจสอบช่วง Row
+                    // 1. ตรวจสอบช่วง Row (Real-time)
                     const inRange = rowIdx >= start && rowIdx <= end;
 
                     // 2. ตรวจสอบการค้นหา (Search)
                     const matchQ = !q || t.teamName.toLowerCase().includes(q) ||
                         t.email.includes(q) || t.members.some(m => m.name.toLowerCase().includes(q));
 
-                    // 3. ตรวจสอบสถานะ (Status Filter)
+                    // 3. ตรวจสอบสถานะ
                     let matchStatus = true;
                     if (fStatus === 'waiting') matchStatus = t.overall === 'รอการตรวจสอบ';
                     else if (fStatus === 'done') matchStatus = t.overall === 'สมบูรณ์';
                     else if (fStatus === 'bad') matchStatus = t.overall === 'การสมัครไม่เรียบร้อย';
                     else if (fStatus === 'updated') matchStatus = t.updated;
 
-                    // 4. ตรวจสอบประเภททีม (Category Filter)
+                    // 4. ตรวจสอบประเภททีม
                     let matchCat = true;
                     if (fCategory === 'school') matchCat = t.category?.includes('โรงเรียน');
                     else if (fCategory === 'mixed') matchCat = t.category?.includes('ผสม');
 
-                    // 5. ตรวจสอบสถานะอีเมล (Email Filter)
+                    // 5. ตรวจสอบสถานะอีเมล
                     let matchEmail = true;
                     if (fEmail === 'sent') matchEmail = t.emailSentStatus === 'ส่งแล้ว';
                     else if (fEmail === 'unsent') matchEmail = t.emailSentStatus !== 'ส่งแล้ว';
@@ -1885,9 +1990,65 @@
                     return inRange && matchQ && matchStatus && matchCat && matchEmail;
                 });
 
+                currentlyFilteredTeams = filtered;
                 renderTeamList(filtered);
+                updateNavButtons();
             };
+        // --- ฟังก์ชันนำทาง (Prev/Next) ---
+        window.navigateTeam = (direction) => {
+            if (currentlyFilteredTeams.length === 0) return;
 
+            // หา index ปัจจุบัน (ถ้าไม่มีทีมเปิดอยู่ให้เริ่มที่ 0)
+            let curIdx = localCurrentTeam ? currentlyFilteredTeams.findIndex(t => t.id === localCurrentTeam.id) : -1;
+            let newIdx = curIdx + direction;
+
+            // ป้องกัน index หลุดขอบ
+            if (newIdx < 0) newIdx = 0;
+            if (newIdx >= currentlyFilteredTeams.length) newIdx = currentlyFilteredTeams.length - 1;
+
+            const targetTeam = currentlyFilteredTeams[newIdx];
+            if (targetTeam) {
+                window.selectTeam(targetTeam.id);
+
+                // เลื่อน Sidebar ให้มาโฟกัสที่ทีมที่เลือก
+                setTimeout(() => {
+                    const el = document.querySelector(`.team-card[data-id="${targetTeam.id}"]`);
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            }
+        };
+        // --- ฟังก์ชันอัปเดตสถานะปุ่ม Prev/Next ---
+        function updateNavButtons() {
+            if (!localCurrentTeam) return;
+            const idx = currentlyFilteredTeams.findIndex(t => t.id === localCurrentTeam.id);
+            document.getElementById('btnPrev').disabled = (idx <= 0);
+            document.getElementById('btnNext').disabled = (idx === currentlyFilteredTeams.length - 1 || idx === -1);
+        }
+
+        // --- ฟังก์ชัน Toggle Sidebar ---
+        window.toggleSidebar = () => {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+            if (e.key === '[') window.navigateTeam(-1);
+            if (e.key === ']') window.navigateTeam(1);
+            if (e.key === 'b' || e.key === 'B') window.toggleSidebar();
+        });
+
+        // 6. แทรกการทำงานเพิ่มใน window.selectTeam เดิม
+        const baseSelectTeam = window.selectTeam;
+        window.selectTeam = async (id) => {
+            await baseSelectTeam(id);
+            updateNavButtons(); // อัปเดตปุ่มทุกครั้งที่เปลี่ยนทีม
+        };
+        // อย่าลืมเรียก updateNavButtons() ใน window.selectTeam ด้วย
+        const originalSelectTeam = window.selectTeam;
+        window.selectTeam = async (id) => {
+            await originalSelectTeam(id);
+            updateNavButtons();
+        };
         window.renderStats = (teams) => {
             const all = teams.length;
             const done = teams.filter(t => t.overall === 'สมบูรณ์').length;
@@ -2005,7 +2166,7 @@
             </div>
         </div>
     `).join('');
-        
+
             document.getElementById('dtAdvisor').innerHTML =
                 `<b>${team.advisor.name}</b><br>📞 ${team.advisor.phone}${team.advisor.email ? `<br>✉️ ${team.advisor.email}` : ''}`;
             document.getElementById('dtPayment').innerHTML =
@@ -2046,38 +2207,38 @@
         // ─── Doc Viewer ─────────────────────────────────────────────────
         let currentDocType = 'cert';
         window.viewDoc = function (type) {
-                currentDocType = type;
+            currentDocType = type;
 
-                // 1. จัดการปุ่ม Tab
-                ['cert', 'transcript', 'slip'].forEach(t => {
-                    const btn = document.getElementById(`tab-${t}`);
-                    if (btn) btn.className = `doc-tab ${t === type ? 'active' : ''}`;
-                });
+            // 1. จัดการปุ่ม Tab
+            ['cert', 'transcript', 'slip'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (btn) btn.className = `doc-tab ${t === type ? 'active' : ''}`;
+            });
 
-                // 2. เปิดตัวโหลด และล้างค่าเก่า
-                const loader = document.getElementById('docLoading');
-                const img = document.getElementById('mainDocPreview');
-                const iframe = document.getElementById('mainDocIframe');
-                const noDoc = document.getElementById('noDocMsg');
+            // 2. เปิดตัวโหลด และล้างค่าเก่า
+            const loader = document.getElementById('docLoading');
+            const img = document.getElementById('mainDocPreview');
+            const iframe = document.getElementById('mainDocIframe');
+            const noDoc = document.getElementById('noDocMsg');
 
-                loader.style.display = 'flex';
-                img.style.display = 'none';
-                iframe.style.display = 'none';
-                noDoc.style.display = 'none';
+            loader.style.display = 'flex';
+            img.style.display = 'none';
+            iframe.style.display = 'none';
+            noDoc.style.display = 'none';
 
-                // 3. ดึง URL
-                const urlMap = {
-                    cert: localCurrentTeam?.certUrl,
-                    transcript: localCurrentTeam?.transcriptUrl,
-                    slip: localCurrentTeam?.slipUrl
-                };
-                const rawUrl = urlMap[type];
-                const previewUrl = getDrivePreviewUrl(rawUrl);
+            // 3. ดึง URL
+            const urlMap = {
+                cert: localCurrentTeam?.certUrl,
+                transcript: localCurrentTeam?.transcriptUrl,
+                slip: localCurrentTeam?.slipUrl
+            };
+            const rawUrl = urlMap[type];
+            const previewUrl = getDrivePreviewUrl(rawUrl);
 
-                document.getElementById('dtPopOut').href = rawUrl || '#';
+            document.getElementById('dtPopOut').href = rawUrl || '#';
 
-                // 4. แสดงผล
-                if (type === 'cert' && localCurrentTeam?.category?.includes('ผสม')) {
+            // 4. แสดงผล
+            if (type === 'cert' && localCurrentTeam?.category?.includes('ผสม')) {
                 loader.style.display = 'none';
                 noDoc.style.display = 'block';
                 noDoc.innerHTML = `
@@ -2086,71 +2247,71 @@
     `;
                 return; // หยุดการทำงาน ไม่ต้องไปโหลด Iframe
             }
-            
-                if (!previewUrl) {
-                    loader.style.display = 'none';
-                    noDoc.style.display = 'block';
-                    return;
-                }
 
-                // กรณีเป็น Google Drive Preview มักจะมาในรูปแบบ Iframe
-                if (previewUrl.includes('drive.google.com') || previewUrl.includes('/preview')) {
-                    iframe.src = previewUrl;
-                    iframe.style.display = 'block';
-                    // หมายเหตุ: Iframe จะไปเรียก window.onDocLoaded() เมื่อโหลดเสร็จตามที่เขียนใน HTML
-                } else {
-                    // กรณีเป็นลิงก์รูปภาพโดยตรง
-                    img.src = previewUrl;
-                    img.style.display = 'block';
-                    resetDocTransform();
-                }
+            if (!previewUrl) {
+                loader.style.display = 'none';
+                noDoc.style.display = 'block';
+                return;
+            }
 
-                setTimeout(() => {
+            // กรณีเป็น Google Drive Preview มักจะมาในรูปแบบ Iframe
+            if (previewUrl.includes('drive.google.com') || previewUrl.includes('/preview')) {
+                iframe.src = previewUrl;
+                iframe.style.display = 'block';
+                // หมายเหตุ: Iframe จะไปเรียก window.onDocLoaded() เมื่อโหลดเสร็จตามที่เขียนใน HTML
+            } else {
+                // กรณีเป็นลิงก์รูปภาพโดยตรง
+                img.src = previewUrl;
+                img.style.display = 'block';
+                resetDocTransform();
+            }
+
+            setTimeout(() => {
                 if (document.getElementById('docLoading').style.display !== 'none') {
                     console.warn("Loading timeout - hiding loader anyway");
                     window.onDocLoaded();
                 }
             }, 1000); // 1 วินาที
-            };
-            window.onDocLoaded = function () {
-                console.log("Document Loaded Successfully");
-                const loader = document.getElementById('docLoading');
-                if (loader) {
-                    loader.style.display = 'none';
-                }
-            };
-         window.onDocError = function () {
-                console.log("Document Load Failed");
-                const loader = document.getElementById('docLoading');
-                if (loader) {
-                    loader.style.display = 'none';
-                }
-                // ซ่อนรูปและโชว์ข้อความ Error
-                document.getElementById('mainDocPreview').style.display = 'none';
-                document.getElementById('noDocMsg').style.display = 'block';
-            };
+        };
+        window.onDocLoaded = function () {
+            console.log("Document Loaded Successfully");
+            const loader = document.getElementById('docLoading');
+            if (loader) {
+                loader.style.display = 'none';
+            }
+        };
+        window.onDocError = function () {
+            console.log("Document Load Failed");
+            const loader = document.getElementById('docLoading');
+            if (loader) {
+                loader.style.display = 'none';
+            }
+            // ซ่อนรูปและโชว์ข้อความ Error
+            document.getElementById('mainDocPreview').style.display = 'none';
+            document.getElementById('noDocMsg').style.display = 'block';
+        };
 
         window.adjustDoc = function (action) {
-                const img = document.getElementById('mainDocPreview');
-                if (action === 'zoomIn') {
-                    docScale = Math.min(docScale + 0.25, 4);
-                } else if (action === 'zoomOut') {
-                    docScale = Math.max(docScale - 0.25, 0.5);
-                } else if (action === 'rotate') {
-                    docRotate = (docRotate + 90) % 360;
-                }
+            const img = document.getElementById('mainDocPreview');
+            if (action === 'zoomIn') {
+                docScale = Math.min(docScale + 0.25, 4);
+            } else if (action === 'zoomOut') {
+                docScale = Math.max(docScale - 0.25, 0.5);
+            } else if (action === 'rotate') {
+                docRotate = (docRotate + 90) % 360;
+            }
 
-                // อัปเดตการแสดงผล
-                img.style.transform = `scale(${docScale}) rotate(${docRotate}deg)`;
+            // อัปเดตการแสดงผล
+            img.style.transform = `scale(${docScale}) rotate(${docRotate}deg)`;
 
-                if (docScale > 1) {
-                    img.style.maxWidth = 'none';
-                    img.style.maxHeight = 'none';
-                } else {
-                    img.style.maxWidth = '100%';
-                    img.style.maxHeight = '100%';
-                }
-            };
+            if (docScale > 1) {
+                img.style.maxWidth = 'none';
+                img.style.maxHeight = 'none';
+            } else {
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '100%';
+            }
+        };
         function resetDocTransform() { docScale = 1; docRotate = 0; document.getElementById('mainDocPreview').style.transform = ''; }
 
         // ─── Feedback ────────────────────────────────────────────────────
@@ -2274,11 +2435,11 @@
         // ─── Misc ─────────────────────────────────────────────────────────
         window.closeModal = function (id) { document.getElementById(id).classList.add('hidden'); };
         window.closeMobileDetail = function () {
-                document.getElementById('detailView').classList.remove('mobile-open');
-                document.getElementById('sidebar').style.display = 'flex';
-                document.body.style.overflow = '';
-                releaseCurrentTeam();
-            };
+            document.getElementById('detailView').classList.remove('mobile-open');
+            document.getElementById('sidebar').style.display = 'flex';
+            document.body.style.overflow = '';
+            releaseCurrentTeam();
+        };
 
         function showToast(msg, type = '') {
             const t = document.getElementById('toast');
