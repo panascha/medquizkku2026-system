@@ -412,43 +412,40 @@ window.startSaveFlow = async function (isForce = false) {
 export async function saveReview(payload) {
     if (!currentTeam) return;
 
-    // Check Conflict ก่อนเซฟ
-    const escaped = escapeEmail(currentTeam.email);
-    const snap = await get(ref(db, `teams/${escaped}/status/reviewVersion`));
-    const serverVersion = snap.val() || 0;
-
-    if (serverVersion > currentTeam.version) {
-        if (callbacks.onConflict) callbacks.onConflict({ lastModified: Date.now() }, currentTeam);
-        return;
-    }
-
     try {
         const body = {
             ...payload,
-            email: currentTeam.email,
+            email: currentTeam.id, // หรือ currentTeam.email
             reviewerEmail: auth.currentUser.email
         };
 
-        const res = await fetch(WEB_APP_URL, {
+        // ส่งไป GAS
+        const response = await fetch(WEB_APP_URL, {
             method: "POST",
             body: JSON.stringify(body)
         });
-        const result = await res.json();
 
-        if (result.status === "success") {
-            // อัปเดต Firebase ให้ทุกคนเห็นพร้อมกัน
-            await update(ref(db, `teams/${escaped}`), {
-                "status/overall": payload.overallStatus,
-                "status/reviewVersion": currentTeam.version + 1,
-                "status/isUpdated": false
-            });
+        // แก้ไขบรรทัดนี้: ใช้ currentTeam.id (ซึ่งเก็บอีเมลไว้) มาทำ escaped email
+        const emailToUse = currentTeam.id;
+        const escaped = emailToUse.replace(/\./g, '_');
 
-            // อัปเดต Local State
-            currentTeam.version += 1;
-            currentTeam.overall = payload.overallStatus;
-            if (callbacks.onSaveSuccess) callbacks.onSaveSuccess(currentTeam);
-        }
-    } catch (e) { if (callbacks.onSaveError) callbacks.onSaveError(e.message); }
+        const teamRef = ref(db, `teams/${escaped}`);
+
+        // อัปเดต Firebase เพื่อให้คนอื่นเห็นสถานะเปลี่ยนทันที
+        await update(teamRef, {
+            "status/overall": payload.overallStatus,
+            "status/reviewVersion": (currentTeam.version || 1) + 1,
+            "status/isUpdated": false,
+            "communication/note": payload.feedback,
+            "communication/additionalForm/sentStatus": payload.sendEmail ? "ส่งแล้ว" : (currentTeam.emailSentStatus || "ยังไม่ส่ง")
+        });
+
+        if (callbacks.onSaveSuccess) callbacks.onSaveSuccess({ ...currentTeam, ...payload });
+
+    } catch (e) {
+        console.error("Save Error:", e);
+        if (callbacks.onSaveError) callbacks.onSaveError(e.message);
+    }
 }
 
 // อัปเดตข้อมูลขึ้น Firebase หลังจากเซฟ GAS ผ่านแล้ว

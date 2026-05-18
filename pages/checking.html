@@ -1821,6 +1821,53 @@
         </div>
     </div>
 
+    <!-- Modal: Email Preview -->
+    <div class="modal-overlay hidden" id="modalEmailPreview">
+        <div class="modal" style="max-width: 650px; width: 95%;">
+            <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 15px;">
+                <h2 style="margin:0; font-size:18px; color:var(--navy);"><i
+                        class="fa-solid fa-envelope-open-text text-blue-600"></i> ตรวจสอบอีเมลก่อนส่ง</h2>
+                <button onclick="closeModal('modalEmailPreview')"
+                    style="background:none; border:none; font-size:18px; cursor:pointer; color:#94a3b8;">✕</button>
+            </div>
+    
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:11px; font-weight:800; color:var(--text-muted); text-transform:uppercase;">ผู้รับ
+                    (Email หัวหน้าทีม):</label>
+                <input type="text" id="emailTo"
+                    style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#f8faff; color:var(--text); font-family:'Sarabun';"
+                    readonly>
+            </div>
+    
+            <div style="margin-bottom: 12px;">
+                <label
+                    style="font-size:11px; font-weight:800; color:var(--text-muted); text-transform:uppercase;">หัวข้ออีเมล:</label>
+                <input type="text" id="emailSubject"
+                    style="width:100%; padding:8px 10px; border:1.5px solid var(--border); border-radius:8px; outline:none; font-family:'Sarabun';">
+            </div>
+    
+            <div style="margin-bottom: 16px;">
+                <label
+                    style="font-size:11px; font-weight:800; color:var(--text-muted); text-transform:uppercase;">เนื้อหาอีเมล
+                    (สามารถแก้ไขได้):</label>
+                <textarea id="emailBody"
+                    style="width:100%; min-height:280px; padding:12px; border:1.5px solid var(--border); border-radius:8px; outline:none; font-family:'Sarabun'; font-size:13px; line-height:1.6;"></textarea>
+            </div>
+    
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeModal('modalEmailPreview')"
+                    style="flex:1; padding:12px; background:#f1f5f9; border:1.5px solid #e2e8f0; border-radius:10px; font-family:'Sarabun'; font-weight:700; cursor:pointer; color:#475569;">ย้อนกลับ</button>
+                <button id="btnConfirmSendEmail" onclick="executeSaveAndSend()"
+                    style="flex:2; padding:12px; background:var(--blue); color:white; border:none; border-radius:10px; font-family:'Sarabun'; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(29,78,216,.3);">
+                    <i class="fa-solid fa-paper-plane"></i> ยืนยันบันทึก และส่งอีเมล
+                </button>
+            </div>
+            <p style="text-align:center; font-size:10px; color:#94a3b8; margin-top:12px;">
+                * อีเมลจะถูกส่งในนาม <b>medquizkku2026@gmail.com</b> และมีการ BCC สำเนาเก็บไว้
+            </p>
+        </div>
+    </div>
+
     <div id="toast"></div>
 
     <script src="../js/utils.js"></script>
@@ -2251,16 +2298,16 @@
                 return;
             }
 
-            // กรณีเป็น Google Drive Preview มักจะมาในรูปแบบ Iframe
-            if (previewUrl.includes('drive.google.com') || previewUrl.includes('/preview')) {
-                iframe.src = previewUrl;
-                iframe.style.display = 'block';
-                // หมายเหตุ: Iframe จะไปเรียก window.onDocLoaded() เมื่อโหลดเสร็จตามที่เขียนใน HTML
-            } else {
-                // กรณีเป็นลิงก์รูปภาพโดยตรง
+            if (previewUrl && (previewUrl.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) || !previewUrl.includes('drive.google.com'))) {
+                // ถ้าเป็นลิงก์รูปภาพตรงๆ หรือไม่ใช่ Drive
                 img.src = previewUrl;
                 img.style.display = 'block';
-                resetDocTransform();
+                iframe.style.display = 'none';
+            } else {
+                // ถ้าเป็น Drive ให้ใช้ Iframe แบบ Preview
+                iframe.src = previewUrl;
+                iframe.style.display = 'block';
+                img.style.display = 'none';
             }
 
             setTimeout(() => {
@@ -2338,24 +2385,103 @@
         };
 
         // ─── Save Flow ────────────────────────────────────────────────────
-        window.startSaveFlow = async () => {
-            if (!localCurrentTeam) return;
-            const btn = document.getElementById('btnSave');
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก...`;
+        // ─── Save Flow & Email Preview ─────────────────────────────────────
+            window.startSaveFlow = async () => {
+                if (!localCurrentTeam) return;
 
-            const certStatus = document.getElementById('sel-cert').value;
-            const transcriptStatus = document.getElementById('sel-transcript').value;
-            const slipStatus = document.getElementById('sel-slip').value;
-            const feedback = document.getElementById('feedbackText').value;
-            const sendEmail = document.getElementById('sendEmail').checked;
-            const overallStatus = computeOverallStatus(certStatus, transcriptStatus, slipStatus, localCurrentTeam.category);
+                const certStatus = document.getElementById('sel-cert').value;
+                const transcriptStatus = document.getElementById('sel-transcript').value;
+                const slipStatus = document.getElementById('sel-slip').value;
+                const feedback = document.getElementById('feedbackText').value;
+                const sendEmail = document.getElementById('sendEmail').checked;
+                const overallStatus = computeOverallStatus(certStatus, transcriptStatus, slipStatus, localCurrentTeam.category);
 
-            conflictPayload = { certStatus, transcriptStatus, slipStatus, feedback, overallStatus, sendEmail };
+                // เก็บ Payload ชั่วคราวไว้
+                conflictPayload = { certStatus, transcriptStatus, slipStatus, feedback, overallStatus, sendEmail };
 
-            await saveReview(conflictPayload);
-        };
+                // ถ้าสตาฟติ๊ก "ส่งอีเมล" ให้เปิดหน้าต่าง Preview ก่อน
+                if (sendEmail) {
+                    window.prepareEmailPreview(overallStatus, feedback);
+                } else {
+                    // ถ้าไม่ส่งเมล ให้เซฟลงระบบเลย
+                    const btn = document.getElementById('btnSave');
+                    btn.disabled = true;
+                    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก...`;
+                    await saveReview(conflictPayload);
+                }
+            };
 
+            window.prepareEmailPreview = function (overallStatus, feedback) {
+                const team = localCurrentTeam;
+                let subject = "";
+                let body = "";
+
+                // ลิงก์เช็คสถานะ (ใส่ตามจริงของคุณ)
+                const lookerStudioLink = "https://lookerstudio.google.com/u/0/reporting/bb6f082b-c892-450f-ba35-416f9e749718/page/tW14D";
+                // ใช้ลิงก์ Pre-fill แบบเฉพาะทีม ถ้าไม่มีค่อยใช้ฟอร์มเปล่า
+                const formLink = team.additionalFormLink || "https://forms.gle/GQCrxDz3HWxybV3V6";
+
+                if (overallStatus === "การสมัครไม่เรียบร้อย") {
+                    subject = `🚨 [ต้องแก้ไข] ผลการตรวจสอบเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+                    body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
+                        `ตามที่ท่านได้สมัครเข้าร่วมการแข่งขันตอบปัญหาวิทยาศาสตร์การแพทย์และทักษะการคิด ประจำปีการศึกษา 2569 (MedQuiz KKU 2026) นั้น\n\n` +
+                        `จากการตรวจสอบโดยฝ่ายทะเบียน พบว่าเอกสารการสมัครของทีมท่าน "ยังไม่สมบูรณ์" โดยมีรายละเอียดที่ต้องแก้ไขดังนี้:\n\n` +
+                        `หมายเหตุ:\n${feedback}\n\n` +
+                        `เพื่อให้การสมัครเสร็จสมบูรณ์ โปรดดำเนินการแนบเอกสารที่ถูกต้องใหม่ผ่านลิงก์ด้านล่างนี้:\n` +
+                        `👉 ส่งเอกสารเพิ่มเติมได้ที่: ${formLink}\n\n` +
+                        `ทั้งนี้ หากท่านไม่ดำเนินการแก้ไขภายในวันที่ 20 สิงหาคม พ.ศ. 2569 ทางโครงการขอสงวนสิทธิ์ในการตัดสิทธิ์การสมัครของทีมท่าน\n\n` +
+                        `ตรวจสอบสถานะการสมัครล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
+                        `จึงเรียนมาเพื่อโปรดดำเนินการ\n` +
+                        `ด้วยความเคารพอย่างสูง\n` +
+                        `ฝ่ายลงทะเบียน โครงการ MedQuiz KKU 2026`;
+                } else if (overallStatus === "การสมัครสมบูรณ์") {
+                    subject = `✅ [สมบูรณ์] ยืนยันเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+                    body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
+                        `ทางคณะกรรมการขอแจ้งให้ทราบว่า เอกสารการสมัครและการชำระเงินของทีมท่านได้รับการ "ตรวจสอบผ่านเรียบร้อยแล้ว" 🎉\n\n` +
+                        `ขั้นตอนต่อไป:\nโปรดรอรับ "ลิงก์ข้อสอบรอบคัดเลือก" ทางอีเมลหัวหน้าทีม ก่อนวันสอบประมาณ 1 สัปดาห์\n\n` +
+                        `ตรวจสอบสถานะการสมัครล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
+                        `ขอบคุณที่ร่วมเป็นส่วนหนึ่งกับเรา\n` +
+                        `ฝ่ายลงทะเบียน โครงการ MedQuiz KKU 2026`;
+                } else {
+                    subject = `[แจ้งสถานะ] การสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+                    body = `เรียน หัวหน้าทีม ${team.teamName}\n\nสถานะเอกสารของท่านคือ: ${overallStatus}`;
+                }
+
+                // ใส่ข้อมูลลง UI
+                document.getElementById('emailTo').value = team.email;
+                document.getElementById('emailSubject').value = subject;
+                document.getElementById('emailBody').value = body;
+
+                // แสดง Modal
+                document.getElementById('modalEmailPreview').classList.remove('hidden');
+            };
+
+            window.executeSaveAndSend = async () => {
+                const btn = document.getElementById('btnConfirmSendEmail');
+                const mainSaveBtn = document.getElementById('btnSave');
+
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังส่งและบันทึก...`;
+                mainSaveBtn.disabled = true;
+
+                // ดึงค่า Subject / Body ที่สตาฟอาจจะแก้ไขใน Modal ส่งไปให้ GAS
+                const customSubject = document.getElementById('emailSubject').value;
+                const customBody = document.getElementById('emailBody').value;
+
+                // เอา Payload ชั่วคราวมาเติมข้อมูลอีเมล
+                const finalPayload = {
+                    ...conflictPayload,
+                    emailSubject: customSubject,
+                    emailBody: customBody // ส่งเป็น plain text ไปให้ GAS แปลง
+                };
+
+                await saveReview(finalPayload);
+
+                // ปิด Modal ทำความสะอาดปุ่ม
+                closeModal('modalEmailPreview');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ยืนยันบันทึก และส่งอีเมล`;
+            };
         window.forceOverwrite = async function () {
             closeModal('modalConflict');
             if (!conflictPayload || !localCurrentTeam) return;
