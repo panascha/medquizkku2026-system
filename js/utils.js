@@ -1,14 +1,15 @@
 // Utils Logic
 
 function getDrivePreviewUrl(url) {
-    if (!url || url.trim() === "") return null;
+    if (!url || typeof url !== 'string' || url.trim() === "") return null;
 
+    // ค้นหา File ID จาก URL รูปแบบต่างๆ ของ Google Drive
     const match = url.match(/[-\w]{25,}/);
     if (!match) return url;
 
     const fileId = match[0];
 
-    // ใช้ URL สำหรับ Embed โดยเฉพาะ ซึ่งมักจะข้ามขีดจำกัด CSP ได้ดีกว่า
+    // สำคัญ: ต้องใช้ /preview เพื่อให้ Google อนุญาตให้ Embed ใน iframe ข้ามโดเมนได้
     return `https://drive.google.com/file/d/${fileId}/preview`;
 }
 

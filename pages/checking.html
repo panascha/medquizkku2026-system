@@ -1998,11 +1998,15 @@
                 resetSaveBtn();
 
                 // 6. ไฮไลท์การ์ดเดิมที่เคยเลือกไว้
-                setTimeout(() => {
-                    const el = document.querySelector(`[data-id="${updatedTeam.id}"]`);
-                    if (el) el.classList.add('active');
-                }, 100);
-            };
+                 setTimeout(() => {
+                const activeCard = document.querySelector(`.team-card[data-id="${updatedTeam.id}"]`);
+                if (activeCard) {
+                    activeCard.classList.add('active');
+                    // เลื่อน Sidebar ให้มาที่ Card นี้ (กรณีอยู่ล่างๆ)
+                    activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }, 50);
+        };
         callbacks.onSaveError = (msg) => {
             showToast('❌ ' + msg, 'error');
             resetSaveBtn();
@@ -2136,13 +2140,6 @@
             if (e.key === ']') window.navigateTeam(1);
             if (e.key === 'b' || e.key === 'B') window.toggleSidebar();
         });
-
-        // 6. แทรกการทำงานเพิ่มใน window.selectTeam เดิม
-        const baseSelectTeam = window.selectTeam;
-        window.selectTeam = async (id) => {
-            await baseSelectTeam(id);
-            updateNavButtons(); // อัปเดตปุ่มทุกครั้งที่เปลี่ยนทีม
-        };
         // อย่าลืมเรียก updateNavButtons() ใน window.selectTeam ด้วย
         const originalSelectTeam = window.selectTeam;
         window.selectTeam = async (id) => {
@@ -2292,6 +2289,12 @@
             } else {
                 document.getElementById('tab-cert').style.opacity = "1";
                 document.getElementById('tab-cert').innerText = "1. ใบรับรอง รร.";
+            }
+
+            if (team.updated) {
+                const escapedId = id.replace(/\./g, '_');
+                update(ref(db, `teams/${escapedId}/status`), { isUpdated: false });
+                // ในเครื่องก็จะถูกเปลี่ยนเป็น false อัตโนมัติผ่าน Listener ที่เราแก้ในข้อ 1
             }
 
             viewDoc('cert');
@@ -2540,6 +2543,7 @@
             window.executeSaveAndSend = async () => {
                 const btn = document.getElementById('btnConfirmSendEmail');
                 const mainSaveBtn = document.getElementById('btnSave');
+                if (!conflictPayload) return;
 
                 btn.disabled = true;
                 btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังส่งและบันทึก...`;
@@ -2563,7 +2567,8 @@
                 btn.disabled = false;
                 btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ยืนยันบันทึก และส่งอีเมล`;
             };
-        window.forceOverwrite = async function () {
+        
+            window.forceOverwrite = async function () {
             closeModal('modalConflict');
             if (!conflictPayload || !localCurrentTeam) return;
             // บังคับ: set _localLoadedAt ให้เก่ากว่า server เพื่อข้าม conflict check ต่อไป

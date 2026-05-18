@@ -179,7 +179,10 @@ function setupFirebaseListeners() {
         teamsData.forEach(t => {
             const fbData = fbTeams[escapeEmail(t.id)];
             if (fbData) {
-                t.updated = fbData.status.isUpdated;
+                if (t.updated !== fbData.status.isUpdated) {
+                    t.updated = fbData.status.isUpdated;
+                    needsRender = true;
+                }
                 if (fbData && fbData.status.reviewVersion > t.version) {
                     // ถ้า Firebase มีเวอร์ชันใหม่กว่า ให้เอามาอัปเดตในเครื่อง
                     t.overall = fbData.status.overall;
@@ -413,49 +416,59 @@ window.startSaveFlow = async function (isForce = false) {
 };
 
 export async function saveReview(payload) {
-    if (!localCurrentTeam) return;
+    // เปลี่ยนจาก localCurrentTeam เป็น currentTeam (ซึ่งเป็นตัวแปร Global ในไฟล์นี้)
+    if (!currentTeam) {
+        console.error("No team selected to save");
+        return;
+    }
 
     try {
         const body = {
             ...payload,
-            email: localCurrentTeam.id,
+            email: currentTeam.id, // ใช้ id ซึ่งเก็บอีเมลหัวหน้าทีมไว้
             reviewerEmail: auth.currentUser.email
         };
 
-        // 1. ส่งไปที่ GAS (ทำงานเบื้องหลัง)
-        fetch(WEB_APP_URL, { method: "POST", body: JSON.stringify(body) });
+        // ส่งไปที่ GAS
+        // หมายเหตุ: ไม่ต้องใส่ mode: 'no-cors' เพราะเราต้องการรับผลลัพธ์ success/error
+        const response = await fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify(body)
+        });
 
-        // 2. อัปเดต Firebase Realtime Database
-        const escaped = localCurrentTeam.id.replace(/\./g, '_');
+        // อัปเดต Firebase Realtime
+        const escaped = currentTeam.id.replace(/\./g, '_');
         const teamRef = ref(db, `teams/${escaped}`);
 
-        const updateData = {
+        await update(teamRef, {
             "status/overall": payload.overallStatus,
-            "status/reviewVersion": (localCurrentTeam.version || 1) + 1,
-            "status/isUpdated": false, // เคลียร์จุดแดงทันทีเพราะตรวจแล้ว
+            "status/reviewVersion": (currentTeam.version || 1) + 1,
+            "status/isUpdated": false,
             "communication/note": payload.feedback,
-            "communication/additionalForm/sentStatus": payload.sendEmail ? "ส่งแล้ว" : (localCurrentTeam.emailSentStatus || "ยังไม่ส่ง")
-        };
+            "communication/additionalForm/sentStatus": payload.sendEmail ? "ส่งแล้ว" : (currentTeam.emailSentStatus || "ยังไม่ส่ง")
+        });
 
-        await update(teamRef, updateData);
-
-        // 3. 🔥 จุดสำคัญ: อัปเดตข้อมูลใน Local Array (allTeams) ทันที
-        const teamIdx = allTeams.findIndex(t => t.id === localCurrentTeam.id);
+        // อัปเดตข้อมูลในอาร์เรย์ allTeams เพื่อให้สถิติเปลี่ยนทันที
+        const teamIdx = allTeams.findIndex(t => t.id === currentTeam.id);
         if (teamIdx !== -1) {
-            allTeams[teamIdx].overall = payload.overallStatus;
-            allTeams[teamIdx].version = (localCurrentTeam.version || 1) + 1;
-            allTeams[teamIdx].updated = false;
-            allTeams[teamIdx].feedback = payload.feedback;
+            // อัปเดตสถานะ overall และข้อมูลอื่นๆ ที่ได้จากการบันทึก
+            allTeams[teamIdx].overall = payload.overallStatus; // เช่น "การสมัครไม่เรียบร้อย"
             allTeams[teamIdx].certStatus = payload.certStatus;
             allTeams[teamIdx].transcriptStatus = payload.transcriptStatus;
             allTeams[teamIdx].slipStatus = payload.slipStatus;
-            if (payload.sendEmail) allTeams[teamIdx].emailSentStatus = 'ส่งแล้ว';
+            allTeams[teamIdx].feedback = payload.feedback;
+            allTeams[teamIdx].version = (currentTeam.version || 1) + 1;
+            allTeams[teamIdx].updated = false; // ตรวจแล้ว จุดแดงต้องหาย
+
+            if (payload.sendEmail) {
+                allTeams[teamIdx].emailSentStatus = 'ส่งแล้ว';
+            }
+
+            // อัปเดตตัวแปรที่กำลังเปิดดูอยู่ด้วย
+            currentTeam = { ...allTeams[teamIdx] };
         }
 
-        // 4. แจ้ง UI ให้วาดใหม่
-        if (callbacks.onSaveSuccess) {
-            callbacks.onSaveSuccess(allTeams[teamIdx]);
-        }
+        if (callbacks.onSaveSuccess) callbacks.onSaveSuccess(currentTeam);
 
     } catch (e) {
         console.error("Save Error:", e);

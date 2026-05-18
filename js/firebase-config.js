@@ -19,7 +19,7 @@ const firebaseConfig = {
     measurementId: "G-VJVDG2D7TT"
 };
 
-export const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw1ChZ4McJTkUzSiAG__fog0i6q-LmgAQwYgHDZKe0j6HRrqoaywJdjJUlGJY_IXdxkBA/exec";
+export const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxWRQI8uUpRTHHBlUerOLVRFjazRHnLzc1xwGddVN_Eev5xZjha0iGvXmp1N1BaebYk-Q/exec";
 
 
 // 3. Initialize Firebase
