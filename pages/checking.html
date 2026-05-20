@@ -2507,79 +2507,96 @@
                 }
             };
 
-            window.prepareEmailPreview = function (overallStatus, feedback) {
-                const team = localCurrentTeam;
-                let subject = "";
-                let body = "";
+                window.prepareEmailPreview = function () {
+                    if (!localCurrentTeam) {
+                        showToast("กรุณาเลือกทีมก่อน", "error");
+                        return;
+                    }
 
-                // ลิงก์เช็คสถานะ (ใส่ตามจริงของคุณ)
-                const lookerStudioLink = "https://lookerstudio.google.com/u/0/reporting/bb6f082b-c892-450f-ba35-416f9e749718/page/tW14D";
-                // ใช้ลิงก์ Pre-fill แบบเฉพาะทีม ถ้าไม่มีค่อยใช้ฟอร์มเปล่า
-                const formLink = team.additionalFormLink || "https://forms.gle/GQCrxDz3HWxybV3V6";
+                    // 1. ดึงค่าจากหน้าจอ ณ ปัจจุบัน (เผื่อสตาฟเปลี่ยน dropdown แต่ยังไม่กด save)
+                    const certVal = document.getElementById('sel-cert').value;
+                    const transVal = document.getElementById('sel-transcript').value;
+                    const slipVal = document.getElementById('sel-slip').value;
+                    const feedback = document.getElementById('feedbackText').value;
 
-                if (overallStatus === "การสมัครไม่เรียบร้อย") {
-                    subject = `🚨 [ต้องแก้ไข] ผลการตรวจสอบเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
-                    body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
-                        `ตามที่ท่านได้สมัครเข้าร่วมการแข่งขันตอบปัญหาวิทยาศาสตร์การแพทย์และทักษะการคิด ประจำปีการศึกษา 2569 (MedQuiz KKU 2026) นั้น\n\n` +
-                        `จากการตรวจสอบโดยฝ่ายทะเบียน พบว่าเอกสารการสมัครของทีมท่าน "ยังไม่สมบูรณ์" โดยมีรายละเอียดที่ต้องแก้ไขดังนี้:\n\n` +
-                        `หมายเหตุ:\n${feedback}\n\n` +
-                        `เพื่อให้การสมัครเสร็จสมบูรณ์ โปรดดำเนินการแนบเอกสารที่ถูกต้องใหม่ผ่านลิงก์ด้านล่างนี้:\n` +
-                        `👉 ส่งเอกสารเพิ่มเติมได้ที่: ${formLink}\n\n` +
-                        `ทั้งนี้ หากท่านไม่ดำเนินการแก้ไขภายในวันที่ 20 สิงหาคม พ.ศ. 2569 ทางโครงการขอสงวนสิทธิ์ในการตัดสิทธิ์การสมัครของทีมท่าน\n\n` +
-                        `ตรวจสอบสถานะการสมัครล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
-                        `จึงเรียนมาเพื่อโปรดดำเนินการ\n` +
-                        `ด้วยความเคารพอย่างสูง\n` +
-                        `ฝ่ายลงทะเบียน โครงการ MedQuiz KKU 2026`;
-                } else if (overallStatus === "การสมัครสมบูรณ์") {
-                    subject = `✅ [สมบูรณ์] ยืนยันเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
-                    body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
-                        `ทางคณะกรรมการขอแจ้งให้ทราบว่า เอกสารการสมัครและการชำระเงินของทีมท่านได้รับการ "ตรวจสอบผ่านเรียบร้อยแล้ว" 🎉\n\n` +
-                        `ขั้นตอนต่อไป:\nโปรดรอรับ "ลิงก์ข้อสอบรอบคัดเลือก" ทางอีเมลหัวหน้าทีม ก่อนวันสอบประมาณ 1 สัปดาห์\n\n` +
-                        `ตรวจสอบสถานะการสมัครล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
-                        `ขอบคุณที่ร่วมเป็นส่วนหนึ่งกับเรา\n` +
-                        `ฝ่ายลงทะเบียน โครงการ MedQuiz KKU 2026`;
-                } else {
-                    subject = `[แจ้งสถานะ] การสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
-                    body = `เรียน หัวหน้าทีม ${team.teamName}\n\nสถานะเอกสารของท่านคือ: ${overallStatus}`;
-                }
+                    // 2. คำนวณสถานะภาพรวม
+                    const overallStatus = computeOverallStatus(certVal, transVal, slipVal, localCurrentTeam.category);
 
-                // ใส่ข้อมูลลง UI
-                document.getElementById('emailTo').value = team.email;
-                document.getElementById('emailSubject').value = subject;
-                document.getElementById('emailBody').value = body;
+                    // 3. เตรียมข้อมูล Payload ไว้สำหรับตอนกดส่งจริง
+                    conflictPayload = {
+                        certStatus: certVal,
+                        transcriptStatus: transVal,
+                        slipStatus: slipVal,
+                        feedback: feedback,
+                        overallStatus: overallStatus,
+                        sendEmail: true
+                    };
 
-                // แสดง Modal
-                document.getElementById('modalEmailPreview').classList.remove('hidden');
-            };
+                    let subject = "";
+                    let body = "";
+                    const team = localCurrentTeam;
+                    const lookerStudioLink = "https://lookerstudio.google.com/u/0/reporting/bb6f082b-c892-450f-ba35-416f9e749718/page/tW14D";
+                    const formLink = team.additionalFormLink || "https://forms.gle/GQCrxDz3HWxybV3V6";
 
-            window.executeSaveAndSend = async () => {
-                const btn = document.getElementById('btnConfirmSendEmail');
-                const mainSaveBtn = document.getElementById('btnSave');
-                if (!conflictPayload) return;
+                    // 4. สร้าง Template เนื้อหาตามสถานะ
+                    if (overallStatus === "การสมัครไม่เรียบร้อย") {
+                        subject = `🚨 [ต้องแก้ไข] ผลการตรวจสอบเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+                        body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
+                            `ตามที่ท่านได้สมัครเข้าร่วมการแข่งขัน MedQuiz KKU 2026 นั้น\n\n` +
+                            `จากการตรวจสอบพบว่าเอกสารของทีมท่าน "ยังไม่สมบูรณ์" โดยมีรายละเอียดดังนี้:\n\n` +
+                            `${feedback}\n\n` +
+                            `👉 โปรดส่งเอกสารที่แก้ไขได้ที่: ${formLink}\n\n` +
+                            `ตรวจสอบสถานะล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
+                            `จึงเรียนมาเพื่อโปรดดำเนินการแก้ไขภายในระยะเวลาที่กำหนด`;
+                    } else if (overallStatus === "การสมัครสมบูรณ์") {
+                        subject = `✅ [สมบูรณ์] ยืนยันเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+                        body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
+                            `คณะกรรมการได้ตรวจสอบเอกสารและการชำระเงินของทีมท่านเรียบร้อยแล้ว\n\n` +
+                            `ขณะนี้สถานะของท่านคือ: "การสมัครสมบูรณ์" 🎉\n\n` +
+                            `โปรดรอติดตามประกาศลำดับที่นั่งสอบและลิงก์เข้าสอบทางอีเมลนี้\n\n` +
+                            `ตรวจสอบสถานะล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
+                            `ขอบคุณที่ร่วมสนุกกับเราครับ`;
+                    } else {
+                        subject = `[แจ้งสถานะ] การสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+                        body = `เรียน หัวหน้าทีม ${team.teamName}\n\nขณะนี้ทีมของท่านอยู่ในสถานะ: ${overallStatus}\n\nข้อความจากเจ้าหน้าที่: ${feedback}`;
+                    }
 
-                btn.disabled = true;
-                btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังส่งและบันทึก...`;
-                mainSaveBtn.disabled = true;
-
-                // ดึงค่า Subject / Body ที่สตาฟอาจจะแก้ไขใน Modal ส่งไปให้ GAS
-                const customSubject = document.getElementById('emailSubject').value;
-                const customBody = document.getElementById('emailBody').value;
-
-                // เอา Payload ชั่วคราวมาเติมข้อมูลอีเมล
-                const finalPayload = {
-                    ...conflictPayload,
-                    emailSubject: customSubject,
-                    emailBody: customBody // ส่งเป็น plain text ไปให้ GAS แปลง
+                    // 5. นำข้อมูลไปใส่ใน Modal และแสดงผล
+                    document.getElementById('emailTo').value = team.email;
+                    document.getElementById('emailSubject').value = subject;
+                    document.getElementById('emailBody').value = body;
+                    document.getElementById('modalEmailPreview').classList.remove('hidden');
                 };
+            // แทนที่ฟังก์ชัน executeSaveAndSend เดิม
+                window.executeSaveAndSend = async () => {
+                    const btn = document.getElementById('btnConfirmSendEmail');
+                    const mainSaveBtn = document.getElementById('btnSave');
 
-                await saveReview(finalPayload);
+                    if (!conflictPayload) return;
 
-                // ปิด Modal ทำความสะอาดปุ่ม
-                closeModal('modalEmailPreview');
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ยืนยันบันทึก และส่งอีเมล`;
-            };
-        
+                    btn.disabled = true;
+                    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังส่งและบันทึก...`;
+                    mainSaveBtn.disabled = true;
+
+                    // ดึงเนื้อหาอีเมลล่าสุดที่มีการแก้ไขใน Modal
+                    const finalPayload = {
+                        ...conflictPayload,
+                        emailSubject: document.getElementById('emailSubject').value,
+                        emailBody: document.getElementById('emailBody').value
+                    };
+
+                    try {
+                        await saveReview(finalPayload);
+                        closeModal('modalEmailPreview');
+                        showToast("บันทึกและส่งอีเมลสำเร็จ", "success");
+                    } catch (e) {
+                        showToast("เกิดข้อผิดพลาด: " + e.message, "error");
+                    } finally {
+                        btn.disabled = false;
+                        btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ยืนยันบันทึก และส่งอีเมล`;
+                        resetSaveBtn();
+                    }
+                };
             window.forceOverwrite = async function () {
             closeModal('modalConflict');
             if (!conflictPayload || !localCurrentTeam) return;
