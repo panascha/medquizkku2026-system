@@ -2283,11 +2283,6 @@
                     document.getElementById('tab-cert').innerText = "1. ใบรับรอง รร.";
                 }
 
-                if (team.updated) {
-                    const escapedId = escapeEmail(id);
-                    update(ref(db, `teams/${escapedId}/status`), { isUpdated: false });
-                }
-
                 viewDoc('cert');
                 updateNavButtons();
 

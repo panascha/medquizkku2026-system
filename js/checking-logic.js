@@ -1,7 +1,6 @@
 // js/checking-logic.js
 
 import { auth, db, ref, set, get, onValue, update, remove, onDisconnect, escapeEmail, WEB_APP_URL } from "./firebase-config.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // ============================================================================
 // STATE MANAGEMENT (จัดการตัวแปรส่วนกลาง)
@@ -34,22 +33,26 @@ function triggerToast(msg, type) {
 // INITIALIZATION & DATA FETCHING
 // ============================================================================
 
-// รอให้ Firebase เช็ค Auth เสร็จก่อนโหลดข้อมูล
-onAuthStateChanged(auth, async (user) => {
-    if (user && (user.email.endsWith("@kku.ac.th") || user.email.endsWith("@kkumail.com"))) {
-        currentUser = user;
-        updateStaffPresence("online");
-        await loadDataFromGAS();
-        setupFirebaseListeners();
-    } else {
-        window.location.href = "login.html";
-    }
-});
-
 export async function initCheckingSystem(user) {
+    currentUser = user; // กำหนดข้อมูลผู้ใช้งานของเซสชันปัจจุบัน
     setupStaffPresence(user);
-    await loadAllTeams();
+    await loadDataFromGAS(); // ดึงข้อมูลทีมทั้งหมดและแสดงตัวโหลดเริ่มต้น
     setupFirebaseListeners();
+
+    // ตัวบอกสถานะการพิมพ์ (Typing indicator) — ทำงานเมื่อแน่ใจว่า DOM โหลดขึ้นมาแล้ว
+    const feedbackEl = document.getElementById('feedbackText');
+    if (feedbackEl) {
+        feedbackEl.addEventListener('input', () => {
+            if (currentTeam) {
+                update(ref(db, `occupancy/${escapeEmail(currentTeam.id)}`), { isTyping: true, lastActive: Date.now() });
+            }
+        });
+        feedbackEl.addEventListener('blur', () => {
+            if (currentTeam) {
+                update(ref(db, `occupancy/${escapeEmail(currentTeam.id)}`), { isTyping: false });
+            }
+        });
+    }
 }
 
 async function syncUpdatedStatusFromFirebase() {
@@ -82,7 +85,7 @@ export async function loadAllTeams(forceRefresh = false) {
         const result = await response.json();
         if (result.status === "success") {
             allTeams = result.data.map((row, i) => {
-                const existingTeam = allTeams.find(t => t.id === row["Member 1 Email"]) || teamsData.find(t => t.id === row["Member 1 Email"]);
+                const existingTeam = allTeams.find(t => t.id === row["Member 1 Email"]);
                 return {
                     idx: i + 1,
                     id: row["Member 1 Email"],
@@ -167,6 +170,11 @@ function setupFirebaseListeners() {
                         t.certStatus = fbData.docs.cert?.status || t.certStatus;
                         t.transcriptStatus = fbData.docs.transcript?.status || t.transcriptStatus;
                         t.slipStatus = fbData.docs.slip?.status || t.slipStatus;
+
+                        // ← เพิ่ม 3 บรรทัดนี้
+                        t.certUrl = fbData.docs.cert?.url || t.certUrl;
+                        t.transcriptUrl = fbData.docs.transcript?.url || t.transcriptUrl;
+                        t.slipUrl = fbData.docs.slip?.url || t.slipUrl;
                     }
 
                     if (fbData.communication?.note) t.feedback = fbData.communication.note;
@@ -297,19 +305,6 @@ async function clearTeamOccupancy(teamEmail) {
     await remove(occRef);
 }
 
-// จับเหตุการณ์กำลังพิมพ์ (Typing Indicator)
-document.getElementById('feedbackText').addEventListener('input', () => {
-    if (currentTeam) {
-        update(ref(db, `occupancy/${escapeEmail(currentTeam.id)}`), { isTyping: true, lastActive: Date.now() });
-    }
-});
-
-document.getElementById('feedbackText').addEventListener('blur', () => {
-    if (currentTeam) {
-        update(ref(db, `occupancy/${escapeEmail(currentTeam.id)}`), { isTyping: false });
-    }
-});
-
 // ============================================================================
 // SAVE & CONFLICT LOGIC (เชื่อม GAS)
 // ============================================================================
@@ -333,8 +328,14 @@ export async function saveReview(payload) {
             body: JSON.stringify(body)
         });
 
-        // อัปเดต Firebase Realtime
-        const escaped = currentTeam.id.replace(/\./g, '_');
+        // ตรวจสอบและแปลงข้อมูลตอบกลับจาก GAS
+        const result = await response.json();
+        if (result.status !== "success") {
+            throw new Error(result.message || "ระบบหลังบ้าน GAS ปฏิเสธการบันทึกข้อมูล");
+        }
+
+        // อัปเดต Firebase Realtime เฉพาะกรณีที่ GAS บันทึกผ่านแล้วเท่านั้น
+        const escaped = escapeEmail(currentTeam.id);
         const teamRef = ref(db, `teams/${escaped}`);
 
         await update(teamRef, {
@@ -354,13 +355,12 @@ export async function saveReview(payload) {
             allTeams[teamIdx].slipStatus = payload.slipStatus;
             allTeams[teamIdx].feedback = payload.feedback;
             allTeams[teamIdx].version = (currentTeam.version || 1) + 1;
-            allTeams[teamIdx].updated = false; // ตรวจแล้ว จุดแดงต้องหาย
+            allTeams[teamIdx].updated = false;
 
             if (payload.sendEmail) {
                 allTeams[teamIdx].emailSentStatus = 'ส่งแล้ว';
             }
 
-            // อัปเดตตัวแปรที่กำลังเปิดดูอยู่ด้วย
             currentTeam = { ...allTeams[teamIdx] };
         }
 
