@@ -1379,32 +1379,34 @@
 
         @media (max-width: 768px) {
 
-            /* --- 1. จัดการ Topbar (Navbar) --- */
-            nav {
-                padding: 8px 10px;
-                gap: 6px;
-            }
+    /* --- 1. จัดการ Topbar (Navbar) --- */
+    nav {
+        padding: 8px 10px;
+        gap: 6px;
+    }
 
-            .nav-brand span,
-            /* ซ่อนคำว่า "ระบบตรวจสอบเอกสาร" */
-            .workload-wrap,
-            /* ซ่อนแถบ Progress */
-            #staffOnlineCount,
-            /* ซ่อนจำนวนสตาฟ */
-            #navStaffName {
-                /* ซ่อนชื่อสตาฟ (เหลือแต่รูป) */
-                display: none !important;
-            }
+    /* เพิ่ม #btnToggleSidebar เข้าไปในรายการซ่อนบนมือถือ */
+    #btnToggleSidebar,
+    .nav-brand span,
+    /* ซ่อนคำว่า "ระบบตรวจสอบเอกสาร" */
+    .workload-wrap,
+    /* ซ่อนแถบ Progress */
+    #staffOnlineCount,
+    /* ซ่อนจำนวนสตาฟ */
+    #navStaffName {
+        /* ซ่อนชื่อสตาฟ (เหลือแต่รูป) */
+        display: none !important;
+    }
 
-            .nav-brand {
-                font-size: 14px;
-                /* ลดขนาดชื่อแอป */
-            }
+    .nav-brand {
+        font-size: 14px;
+        /* ลดขนาดชื่อแอป */
+    }
 
-            #btnRefresh {
-                padding: 5px 8px;
-                font-size: 10px;
-            }
+    #btnRefresh {
+        padding: 5px 8px;
+        font-size: 10px;
+    }
 
             /* --- 2. ทำให้หน้าเว็บ Scroll ได้ --- */
             body {
@@ -1510,8 +1512,10 @@
 
     <!-- Navbar -->
     <nav>
-        <div style="display:flex;align-items:center;gap:12px;">
-            <button onclick="toggleSidebar()" class="btn-icon"
+        <!-- ปรับความห่าง (Gap) ให้ยืดหยุ่นขึ้น (gap-1.5 บนมือถือ และ gap-3 บนเดสก์ท็อป) -->
+        <div class="flex items-center gap-1.5 md:gap-3">
+            <!-- เพิ่ม ID เพื่อนำไปควบคุมการซ่อนตัวผ่าน CSS Media Query -->
+            <button id="btnToggleSidebar" onclick="toggleSidebar()" class="btn-icon"
                 style="background:rgba(255,255,255,0.1); color:white; border:none; width:36px; height:36px;">
                 <i class="fa-solid fa-bars"></i>
             </button>
@@ -1521,12 +1525,21 @@
                 <span
                     style="font-size:11px;font-weight:400;opacity:0.6;border-left:1px solid rgba(255,255,255,0.25);padding-left:10px;">ระบบตรวจสอบเอกสาร</span>
             </div>
-            <div style="display:flex;gap:6px;">
-                <span class="nav-pill" id="fbStatus"><span class="dot-pulse dot-red"></span> Firebase</span>
-                <span class="nav-pill" id="gasStatus"><span class="dot-pulse dot-red"></span> GAS</span>
+            <!-- ปรับซ่อนตัวอักษรของสถานะ Firebase และ GAS บนหน้าจอขนาดเล็กมากเพื่อป้องกันปัญหากล่องล้น -->
+            <div class="flex gap-1">
+                <span class="nav-pill" id="fbStatus">
+                    <span class="dot-pulse dot-red"></span>
+                    <span class="hidden sm:inline">Firebase</span>
+                </span>
+                <span class="nav-pill" id="gasStatus">
+                    <span class="dot-pulse dot-red"></span>
+                    <span class="hidden sm:inline">GAS</span>
+                </span>
             </div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;">
+    
+        <!-- ปรับความห่าง (Gap) ของเมนูด้านขวาตามขนาดหน้าจอ -->
+        <div class="flex items-center gap-1.5 md:gap-3">
             <div class="workload-wrap">
                 <div style="display:flex;justify-content:space-between;font-size:10px;opacity:0.7;">
                     <span>ความคืบหน้า</span><span id="wlText">0/0 ทีม</span>
