@@ -3,14 +3,20 @@
 function getDrivePreviewUrl(url) {
     if (!url || typeof url !== 'string' || url.trim() === "") return null;
 
-    // ค้นหา File ID จาก URL รูปแบบต่างๆ ของ Google Drive
-    const match = url.match(/[-\w]{25,}/);
-    if (!match) return url;
+    // รองรับทั้ง /file/d/ID/view และ ?id=ID และ /open?id=ID
+    const patterns = [
+        /\/file\/d\/([-\w]{25,})/,
+        /[?&]id=([-\w]{25,})/,
+    ];
 
-    const fileId = match[0];
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+            return `https://drive.google.com/file/d/${match[1]}/preview`;
+        }
+    }
 
-    // สำคัญ: ต้องใช้ /preview เพื่อให้ Google อนุญาตให้ Embed ใน iframe ข้ามโดเมนได้
-    return `https://drive.google.com/file/d/${fileId}/preview`;
+    return null;
 }
 
 // ตัวอย่างการใช้งานใน Checking.html:
