@@ -1926,133 +1926,120 @@
     <script type="module">
         // ─── Import checking-logic ────────────────────────────────────────
 
-        import {
-            initCheckingSystem, loadAllTeams, allTeams, currentTeam, claimTeam,
-            releaseCurrentTeam, setTypingStatus, saveReview,
-            computeOverallStatus, callbacks
-        } from "../js/checking-logic.js";
-        import { auth } from "../js/firebase-config.js";
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+            import {
+                initCheckingSystem, loadAllTeams, allTeams, currentTeam, claimTeam,
+                releaseCurrentTeam, setTypingStatus, saveReview,
+                computeOverallStatus, callbacks
+            } from "../js/checking-logic.js";
+            import { auth, db, ref, update, get, escapeEmail } from "../js/firebase-config.js";
+            import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // ─── State ───────────────────────────────────────────────────────
-        let docScale = 1, docRotate = 0;
-        let currentFilter = 'all';
-        let localCurrentTeam = null;  // mirror for UI
-        let conflictPayload = null;   // ชั่วคราวสำหรับ force-overwrite
-        let typingTimer = null;
-        const historyLog = [];        // local history log (session-based)
-        let currentlyFilteredTeams = []; // เก็บผลลัพธ์ทีมที่ผ่านการ filter ล่าสุด เพื่อใช้ในการนำทาง (prev/next)
+            // ─── State ───────────────────────────────────────────────────────
+                let docScale = 1, docRotate = 0;
+                let currentFilter = 'all';
+                let localCurrentTeam = null;      // mirror for UI
+                let savePayload = null;           // payload สำหรับ save จริง (และเตรียมส่งอีเมล)
+                let conflictPayload = null;       // payload สำหรับ force overwrite โดยเฉพาะ ป้องกันโดนปนเปื้อน
+                let typingTimer = null;
+                const historyLog = [];            // local history log (session-based)
+                let currentlyFilteredTeams = [];  // เก็บผลลัพธ์ทีมที่ผ่านการ filter ล่าสุด เพื่อใช้ในการนำทาง (prev/next)
 
-        // ─── Register callbacks ──────────────────────────────────────────
-        callbacks.onTeamsLoaded = (teams) => {
-            window.renderStats(teams);
-            window.filterTeams();
-            hideLoader();
-            updateGasStatus(true);
-        };
-
-        callbacks.onStatusChange = (email, statusObj) => {
-            const card = document.querySelector(`[data-email="${email}"]`);
-            if (card) updateCardStatus(card, statusObj);
-            if (localCurrentTeam?.email === email) {
-                // อัปเดต UI panel ถ้าเป็นทีมที่เปิดอยู่ (แต่ไม่ override สิ่งที่สตาฟกำลังแก้ไข)
-            }
-            const t = allTeams.find(t => t.email === email);
-            if (t) renderStats(allTeams);
-        };
-
-        callbacks.onOccupancyChange = (email, occ) => {
-            if (!occ || !localCurrentTeam || localCurrentTeam.email !== email) {
-                document.getElementById('occupancyBanner').style.display = 'none';
-                return;
-            }
-            const meEmail = auth.currentUser?.email;
-            if (occ.staffEmail && occ.staffEmail !== meEmail) {
-                document.getElementById('occupancyBanner').style.display = 'flex';
-                document.getElementById('occupancyText').textContent = `${occ.staffName} กำลัง${occ.action === 'editing' ? 'แก้ไข' : 'ดู'}อยู่`;
-            } else {
-                document.getElementById('occupancyBanner').style.display = 'none';
-            }
-        };
-
-        callbacks.onStaffPresenceChange = (staffMap) => {
-            const online = Object.values(staffMap).filter(s => s.status === 'online');
-            document.getElementById('staffCountText').textContent = `${online.length} สตาฟ`;
-            renderStaffPanel(online);
-        };
-
-        callbacks.onSaveSuccess = (updatedTeam) => {
-                // 1. อัปเดตตัวแปร localCurrentTeam ให้เป็นข้อมูลใหม่
-                localCurrentTeam = { ...updatedTeam };
-
-                // 2. วาดสถิติใหม่ (ตัวเลข Done/Waiting จะเปลี่ยนทันที)
-                window.renderStats(allTeams);
-
-                // 3. วาดรายการทีมใหม่ (สถานะในการ์ดจะเปลี่ยนทันที)
+            // ─── Register callbacks ──────────────────────────────────────────
+            callbacks.onTeamsLoaded = (teams) => {
+                window.renderStats(teams);
                 window.filterTeams();
+                hideLoader();
+                updateGasStatus(true);
+            };
 
-                // 4. แสดง Toast แจ้งเตือน
+            callbacks.onStatusChange = (email, statusObj) => {
+                const card = document.querySelector(`[data-email="${email}"]`);
+                if (card) updateCardStatus(card, statusObj);
+                const t = allTeams.find(t => t.email === email);
+                if (t) renderStats(allTeams);
+            };
+
+            callbacks.onOccupancyChange = (email, occ) => {
+                if (!occ || !localCurrentTeam || localCurrentTeam.email !== email) {
+                    document.getElementById('occupancyBanner').style.display = 'none';
+                    return;
+                }
+                const meEmail = auth.currentUser?.email;
+                if (occ.staffEmail && occ.staffEmail !== meEmail) {
+                    document.getElementById('occupancyBanner').style.display = 'flex';
+                    document.getElementById('occupancyText').textContent = `${occ.staffName} กำลัง${occ.action === 'editing' ? 'แก้ไข' : 'ดู'}อยู่`;
+                } else {
+                    document.getElementById('occupancyBanner').style.display = 'none';
+                }
+            };
+
+            callbacks.onStaffPresenceChange = (staffMap) => {
+                const online = Object.values(staffMap).filter(s => s.status === 'online');
+                document.getElementById('staffCountText').textContent = `${online.length} สตาฟ`;
+                renderStaffPanel(online);
+            };
+
+            callbacks.onSaveSuccess = (updatedTeam) => {
+                localCurrentTeam = { ...updatedTeam };
+                window.renderStats(allTeams);
+                window.filterTeams();
                 showToast('✅ บันทึกข้อมูลและอัปเดตหน้าจอเรียบร้อย', 'success');
-
-                // 5. คืนค่าสถานะปุ่มบันทึก
                 resetSaveBtn();
 
-                // 6. ไฮไลท์การ์ดเดิมที่เคยเลือกไว้
-                 setTimeout(() => {
-                const activeCard = document.querySelector(`.team-card[data-id="${updatedTeam.id}"]`);
-                if (activeCard) {
-                    activeCard.classList.add('active');
-                    // เลื่อน Sidebar ให้มาที่ Card นี้ (กรณีอยู่ล่างๆ)
-                    activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-            }, 50);
-        };
-        callbacks.onSaveError = (msg) => {
-            showToast('❌ ' + msg, 'error');
-            resetSaveBtn();
-        };
+                setTimeout(() => {
+                    const activeCard = document.querySelector(`.team-card[data-id="${updatedTeam.id}"]`);
+                    if (activeCard) {
+                        activeCard.classList.add('active');
+                        activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }, 50);
+            };
 
-        callbacks.onConflict = (serverData, localData) => {
-            const d = new Date(serverData.lastModified);
-            document.getElementById('conflictLog').innerHTML =
-                `<div><b>แก้ไขล่าสุด:</b> ${d.toLocaleString('th-TH')}</div><div><b>ข้อมูลที่คุณโหลด:</b> ${new Date(localData.lastModified).toLocaleString('th-TH') || '(ไม่ทราบ)'}</div>`;
-            document.getElementById('modalConflict').classList.remove('hidden');
-            resetSaveBtn();
-        };
+            callbacks.onSaveError = (msg) => {
+                showToast('❌ ' + msg, 'error');
+                resetSaveBtn();
+            };
 
-        callbacks.onToast = (msg, type) => showToast(msg, type);
+            callbacks.onConflict = (serverData, localData) => {
+                const d = new Date(serverData.lastModified);
+                document.getElementById('conflictLog').innerHTML =
+                    `<div><b>แก้ไขล่าสุด:</b> ${d.toLocaleString('th-TH')}</div><div><b>ข้อมูลที่คุณโหลด:</b> ${new Date(localData.lastModified).toLocaleString('th-TH') || '(ไม่ทราบ)'}</div>`;
+                document.getElementById('modalConflict').classList.remove('hidden');
+                resetSaveBtn();
+            };
 
-        // ─── Auth guard ──────────────────────────────────────────────────
-        onAuthStateChanged(auth, async (user) => {
-            if (!user) { window.location.href = 'login.html'; return; }
-            document.getElementById('navStaffName').textContent = user.displayName || user.email;
-            const initials = (user.displayName || user.email).split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-            document.getElementById('navAvatar').textContent = initials;
-            updateLoaderText('กำลังเชื่อมต่อฐานข้อมูล...');
-            updateFbStatus(true);
-            await initCheckingSystem(user);
-        });
+            callbacks.onToast = (msg, type) => showToast(msg, type);
 
-        // ─── Filter & Render ─────────────────────────────────────────────
-        window.currentFilter = 'all';
+            // ─── Auth guard ──────────────────────────────────────────────────
+            onAuthStateChanged(auth, async (user) => {
+                if (!user) { window.location.href = 'login.html'; return; }
+                document.getElementById('navStaffName').textContent = user.displayName || user.email;
+                const initials = (user.displayName || user.email).split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                document.getElementById('navAvatar').textContent = initials;
+                updateLoaderText('กำลังเชื่อมต่อฐานข้อมูล...');
+                updateFbStatus(true);
+                await initCheckingSystem(user);
+            });
 
-        window.setFilter = (f, btn) => {
-            currentFilter = f;
-            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-            btn?.classList.add('active');
-            filterTeams();
-        };
+            // ─── Filter & Render ─────────────────────────────────────────────
+            window.currentFilter = 'all';
 
-        const originalFilterTeams = window.filterTeams;
-        window.resetRange = () => {
+            window.setFilter = (f, btn) => {
+                currentFilter = f;
+                document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+                btn?.classList.add('active');
+                filterTeams();
+            };
+
+            window.resetRange = () => {
                 document.getElementById('rangeStart').value = 1;
                 document.getElementById('rangeEnd').value = 500;
                 window.filterTeams();
             };
-        window.filterTeams = () => {
+
+            window.filterTeams = () => {
                 const q = document.getElementById('searchInput').value.toLowerCase();
 
-                // ดึงค่าจากช่อง Row และจัดการกรณีช่องว่าง (Empty Input)
                 let startRaw = document.getElementById('rangeStart').value;
                 let endRaw = document.getElementById('rangeEnd').value;
 
@@ -2064,29 +2051,22 @@
                 const fEmail = document.getElementById('filterEmail').value;
 
                 const filtered = allTeams.filter((t) => {
-                    // t.idx คือลำดับแถวใน Google Sheet ที่เราเก็บไว้ตั้งแต่ตอนโหลด data
                     const rowIdx = t.idx;
-
-                    // 1. ตรวจสอบช่วง Row (Real-time)
                     const inRange = rowIdx >= start && rowIdx <= end;
 
-                    // 2. ตรวจสอบการค้นหา (Search)
                     const matchQ = !q || t.teamName.toLowerCase().includes(q) ||
-                        t.email.includes(q) || t.members.some(m => m.name.toLowerCase().includes(q));
+                        t.email.toLowerCase().includes(q) || t.members.some(m => m.name.toLowerCase().includes(q));
 
-                    // 3. ตรวจสอบสถานะ
                     let matchStatus = true;
                     if (fStatus === 'waiting') matchStatus = t.overall === 'รอการตรวจสอบ';
                     else if (fStatus === 'done') matchStatus = t.overall === 'การสมัครสมบูรณ์';
                     else if (fStatus === 'bad') matchStatus = t.overall === 'การสมัครไม่เรียบร้อย';
                     else if (fStatus === 'updated') matchStatus = t.updated;
 
-                    // 4. ตรวจสอบประเภททีม
                     let matchCat = true;
                     if (fCategory === 'school') matchCat = t.category?.includes('โรงเรียน');
                     else if (fCategory === 'mixed') matchCat = t.category?.includes('ผสม');
 
-                    // 5. ตรวจสอบสถานะอีเมล
                     let matchEmail = true;
                     if (fEmail === 'sent') matchEmail = t.emailSentStatus === 'ส่งแล้ว';
                     else if (fEmail === 'unsent') matchEmail = t.emailSentStatus !== 'ส่งแล้ว';
@@ -2098,339 +2078,321 @@
                 renderTeamList(filtered);
                 updateNavButtons();
             };
-        // --- ฟังก์ชันนำทาง (Prev/Next) ---
-        window.navigateTeam = (direction) => {
-            if (currentlyFilteredTeams.length === 0) return;
 
-            // หา index ปัจจุบัน (ถ้าไม่มีทีมเปิดอยู่ให้เริ่มที่ 0)
-            let curIdx = localCurrentTeam ? currentlyFilteredTeams.findIndex(t => t.id === localCurrentTeam.id) : -1;
-            let newIdx = curIdx + direction;
+            window.navigateTeam = (direction) => {
+                if (currentlyFilteredTeams.length === 0) return;
 
-            // ป้องกัน index หลุดขอบ
-            if (newIdx < 0) newIdx = 0;
-            if (newIdx >= currentlyFilteredTeams.length) newIdx = currentlyFilteredTeams.length - 1;
+                let curIdx = localCurrentTeam ? currentlyFilteredTeams.findIndex(t => t.id === localCurrentTeam.id) : -1;
+                let newIdx = curIdx + direction;
 
-            const targetTeam = currentlyFilteredTeams[newIdx];
-            if (targetTeam) {
-                window.selectTeam(targetTeam.id);
+                if (newIdx < 0) newIdx = 0;
+                if (newIdx >= currentlyFilteredTeams.length) newIdx = currentlyFilteredTeams.length - 1;
 
-                // เลื่อน Sidebar ให้มาโฟกัสที่ทีมที่เลือก
-                setTimeout(() => {
-                    const el = document.querySelector(`.team-card[data-id="${targetTeam.id}"]`);
-                    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }, 100);
+                const targetTeam = currentlyFilteredTeams[newIdx];
+                if (targetTeam) {
+                    window.selectTeam(targetTeam.id);
+
+                    setTimeout(() => {
+                        const el = document.querySelector(`.team-card[data-id="${targetTeam.id}"]`);
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
+                }
+            };
+
+            function updateNavButtons() {
+                if (!localCurrentTeam) return;
+                const idx = currentlyFilteredTeams.findIndex(t => t.id === localCurrentTeam.id);
+                document.getElementById('btnPrev').disabled = (idx <= 0);
+                document.getElementById('btnNext').disabled = (idx === currentlyFilteredTeams.length - 1 || idx === -1);
             }
-        };
-        // --- ฟังก์ชันอัปเดตสถานะปุ่ม Prev/Next ---
-        function updateNavButtons() {
-            if (!localCurrentTeam) return;
-            const idx = currentlyFilteredTeams.findIndex(t => t.id === localCurrentTeam.id);
-            document.getElementById('btnPrev').disabled = (idx <= 0);
-            document.getElementById('btnNext').disabled = (idx === currentlyFilteredTeams.length - 1 || idx === -1);
-        }
 
-        // --- ฟังก์ชัน Toggle Sidebar ---
-        window.toggleSidebar = () => {
-            document.getElementById('sidebar').classList.toggle('collapsed');
-        };
+            window.toggleSidebar = () => {
+                document.getElementById('sidebar').classList.toggle('collapsed');
+            };
 
-        document.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-            if (e.key === '[') window.navigateTeam(-1);
-            if (e.key === ']') window.navigateTeam(1);
-            if (e.key === 'b' || e.key === 'B') window.toggleSidebar();
-        });
-        // อย่าลืมเรียก updateNavButtons() ใน window.selectTeam ด้วย
-        const originalSelectTeam = window.selectTeam;
-        window.selectTeam = async (id) => {
-            await originalSelectTeam(id);
-            updateNavButtons();
-        };
-        window.renderStats = (teams) => {
-                // 1. กรองเอาแถวที่ไม่มี Email ออกก่อน (กันแถวว่างจาก Google Sheet)
+            document.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+                if (e.key === '[') window.navigateTeam(-1);
+                if (e.key === ']') window.navigateTeam(1);
+                if (e.key === 'b' || e.key === 'B') window.toggleSidebar();
+            });
+
+            window.renderStats = (teams) => {
                 const validTeams = teams.filter(t => t.id && t.id.trim() !== "");
                 const all = validTeams.length;
 
-                // 2. ใช้ .trim() เพื่อตัดช่องว่างที่อาจติดมาจาก Sheet
                 const done = validTeams.filter(t => t.overall?.trim() === 'การสมัครสมบูรณ์').length;
                 const wait = validTeams.filter(t => t.overall?.trim() === 'รอการตรวจสอบ').length;
                 const bad = validTeams.filter(t => t.overall?.trim() === 'การสมัครไม่เรียบร้อย').length;
-
-                // 3. Updated (isUpdated) คือ "ไฟเตือน" ไม่ใช่ "สถานะหลัก" จึงนับแยกต่างหาก
                 const upd = validTeams.filter(t => t.updated === true).length;
-
-                // 4. หาพวกที่เหลือ (เช่น ค่าว่าง, พิมพ์ผิด, หรือสถานะอื่นๆ)
                 const others = all - (done + wait + bad);
 
                 document.getElementById('statsStrip').innerHTML = `
-        <div class="stat-pill"><span class="num">${all}</span><span class="lbl">ทั้งหมด</span></div>
-        <div class="stat-pill s-done"><span class="num">${done}</span><span class="lbl">สมบูรณ์</span></div>
-        <div class="stat-pill s-wait"><span class="num">${wait}</span><span class="lbl">รอตรวจ</span></div>
-        <div class="stat-pill s-bad"><span class="num">${bad}</span><span class="lbl">ไม่เรียบร้อย</span></div>
-        <!-- Pill พิเศษสำหรับทีมที่ส่งเพิ่ม (Updated) -->
-        <div class="stat-pill s-updated"><span class="num">${upd}</span><span class="lbl">Updated</span></div>
-        
-        ${others > 0 ? `
-            <div class="stat-pill" style="background:#475569; border-color:#1e293b;">
-                <span class="num" style="color:#fff;">${others}</span>
-                <span class="lbl" style="color:#cbd5e1;">อื่นๆ/ว่าง</span>
-            </div>` : ''}
-    `;
+                <div class="stat-pill"><span class="num">${all}</span><span class="lbl">ทั้งหมด</span></div>
+                <div class="stat-pill s-done"><span class="num">${done}</span><span class="lbl">สมบูรณ์</span></div>
+                <div class="stat-pill s-wait"><span class="num">${wait}</span><span class="lbl">รอตรวจ</span></div>
+                <div class="stat-pill s-bad"><span class="num">${bad}</span><span class="lbl">ไม่เรียบร้อย</span></div>
+                <div class="stat-pill s-updated"><span class="num">${upd}</span><span class="lbl">Updated</span></div>
+                ${others > 0 ? `
+                    <div class="stat-pill" style="background:#475569; border-color:#1e293b;">
+                        <span class="num" style="color:#fff;">${others}</span>
+                        <span class="lbl" style="color:#cbd5e1;">อื่นๆ/ว่าง</span>
+                    </div>` : ''}
+            `;
             }
+
             const renderTeamList = (teams) => {
-            const container = document.getElementById('teamList');
-            if (!teams.length) {
-                container.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#94a3b8;"><i class="fa-solid fa-inbox" style="font-size:32px;margin-bottom:8px;display:block;opacity:.3;"></i><span style="font-size:13px;">ไม่พบทีมที่ตรงกัน</span></div>`;
-                return;
-            }
-            const overallColors = {
-                'รอการตรวจสอบ': { bar: '#f59e0b', badge: 's-wait' },
-                'การสมัครสมบูรณ์': { bar: '#16a34a', badge: 's-done' },
-                'การสมัครไม่เรียบร้อย': { bar: '#dc2626', badge: 's-bad' },
-            };
-            container.innerHTML = teams.map(t => {
-                const oc = overallColors[t.overall] || { bar: '#94a3b8', badge: 's-na' };
-                const finalBarColor = t.updated ? '#2563eb' : oc.bar; // blue 
-                const isMixed = t.category?.includes('ผสม');
-                const catStyle = isMixed ? 'cat-mixed' : 'cat-school';
-                const catLabel = isMixed ? 'ทีมผสม' : 'ทีม รร.';
-                const membersList = t.members.map(m => `<span class="member-chip">${m.name.split(' ').pop()}</span>`).join('');
-                const emailBadge = t.emailSentStatus === 'ส่งแล้ว'
-                    ? `<span style="font-size:9px;background:#dcfce7;color:#166534;border:1px solid #86efac;padding:2px 7px;border-radius:99px;font-weight:700;">📧 ส่งแล้ว</span>`
-                    : `<span style="font-size:9px;background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;padding:2px 7px;border-radius:99px;">ยังไม่ส่ง</span>`;
-                    return `
-        <div onclick="selectTeam('${t.id}')" class="team-card" data-id="${t.id}" data-email="${t.email}">
-            <div class="cat-bar" style="background:${finalBarColor};"></div>
-            ${t.updated ? `<div class="upd-ring"></div><div class="upd-dot"></div>` : ''}
-            <div class="team-card-inner">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-                    <span class="tag ${catStyle}" style="font-size:9px;padding:2px 7px;">${catLabel}</span>
-                    <span class="card-idx mono">#${t.idx}</span>
-                </div>
-                <div class="card-team">${t.teamName}</div>
-                <div class="card-email">${t.email || '—'}</div>
-                <div class="card-sider">
-                    <span class="overall-badge ${oc.badge}">${t.overall}</span>
-                    ${emailBadge}
-                </div>
-            </div>
-        </div>`;
-            }).join('');
-        }
-
-        const updateCardStatus = (card, s) => {
-            const badge = card.querySelector('.overall-badge');
-            const bar = card.querySelector('.cat-bar');
-            const map = { 'รอการตรวจสอบ': { cls: 's-wait', color: '#f59e0b' }, 'การสมัครสมบูรณ์': { cls: 's-done', color: '#16a34a' }, 'การสมัครไม่เรียบร้อย': { cls: 's-bad', color: '#dc2626' } };
-            const m = map[s.overall] || { cls: 's-na', color: '#94a3b8' };
-            if (badge) { badge.className = `overall-badge ${m.cls}`; badge.textContent = s.overall; }
-            if (bar) bar.style.background = m.color;
-            const updRing = card.querySelector('.upd-ring');
-            const updDot = card.querySelector('.upd-dot');
-            if (s.updated) {
-                if (!updRing) card.insertAdjacentHTML('afterbegin', '<div class="upd-ring"></div><div class="upd-dot"></div>');
-            } else {
-                updRing?.remove(); updDot?.remove();
-            }
-        }
-
-        // ─── Select Team ─────────────────────────────────────────────────
-        window.selectTeam = async (id) => {
-            const team = allTeams.find(t => t.id === id);
-            if (!team) return;
-            localCurrentTeam = { ...team, _localLoadedAt: Date.now() };
-
-            document.querySelectorAll('.team-card').forEach(c => c.classList.remove('active'));
-            document.querySelector(`[data-id="${id}"]`)?.classList.add('active');
-
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('detailContent').style.display = 'flex';
-
-            // Claim occupancy
-            await claimTeam(localCurrentTeam);
-
-            // Header
-            const catEl = document.getElementById('dtCategory');
-            catEl.textContent = team.category;
-            catEl.className = `tag ${team.category?.includes('ผสม') ? 'cat-mixed' : 'cat-school'}`;
-            document.getElementById('dtId').textContent = `ROW: #${team.idx}`;
-            document.getElementById('dtVersionTag').textContent = `v${team.version}`;
-            document.getElementById('dtTeamName').textContent = team.teamName;
-            document.getElementById('dtEmail').textContent = team.email || '—';
-            document.getElementById('dtUpdatedTag').style.display = team.updated ? 'inline-flex' : 'none';
-
-            // Members
-            document.getElementById('dtMembersGrid').innerHTML = team.members.map((m, i) => `
-        <div class="member-row">
-            <div class="member-num">${i + 1}</div>
-            <div class="member-info">
-                <div class="member-name">${m.prefix} ${m.name}</div>
-                <div class="member-sub">
-                    <span class="member-level">${m.level}</span>
-                    <span style="color:#94a3b8;">|</span>
-                    <span>${m.school}</span>
-                </div>
-                ${m.email ? `<div style="font-size:10px;color:var(--blue);margin-top:1px;"><i class="fa-solid fa-envelope" style="margin-right:3px;font-size:9px;"></i>${m.email}</div>` : ''}
-                ${m.phone ? `<div style="font-size:10px;color:#64748b;"><i class="fa-solid fa-phone" style="margin-right:3px;font-size:9px;"></i>${m.phone}</div>` : ''}
-            </div>
-        </div>
-    `).join('');
-
-            document.getElementById('dtAdvisor').innerHTML =
-                `<b>${team.advisor.name}</b><br>📞 ${team.advisor.phone}${team.advisor.email ? `<br>✉️ ${team.advisor.email}` : ''}`;
-            document.getElementById('dtPayment').innerHTML =
-                `<b>ธนาคาร: ${team.payment.bank || '—'}</b><br>📅 ${team.payment.date} เวลา ${team.payment.time}<br>เลขท้าย: <span class="mono" style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${team.payment.last4 || '—'}</span>`;
-            document.getElementById('dtVersion').innerHTML =
-                `ส่งล่าสุด: ${formatDate(team.lastSubmit)} ${formatTime(team.lastSubmit)}<br>ตรวจครั้งที่: <b>${team.version}</b>`;
-
-            // Status dropdowns
-            document.getElementById('sel-cert').value = team.certStatus;
-            document.getElementById('sel-transcript').value = team.transcriptStatus;
-            document.getElementById('sel-slip').value = team.slipStatus;
-            document.getElementById('feedbackText').value = team.feedback;
-            document.getElementById('sendEmail').checked = false;
-
-            const isMixedTeam = team.category?.includes('ผสม');
-
-            // ถ้าเป็นทีมผสม ให้บังคับค่าสถานะใบรับรองเป็น "ไม่ต้องส่ง"
-            if (isMixedTeam) {
-                document.getElementById('sel-cert').value = "ไม่ต้องส่ง";
-                // ปรับสีปุ่ม Tab ให้ดูจางลงเพื่อให้สตาฟรู้ว่าไม่ต้องกด
-                document.getElementById('tab-cert').style.opacity = "0.5";
-                document.getElementById('tab-cert').innerText = "1. ไม่ต้องส่ง (ทีมผสม)";
-            } else {
-                document.getElementById('tab-cert').style.opacity = "1";
-                document.getElementById('tab-cert').innerText = "1. ใบรับรอง รร.";
-            }
-
-            if (team.updated) {
-                const escapedId = id.replace(/\./g, '_');
-                update(ref(db, `teams/${escapedId}/status`), { isUpdated: false });
-                // ในเครื่องก็จะถูกเปลี่ยนเป็น false อัตโนมัติผ่าน Listener ที่เราแก้ในข้อ 1
-            }
-
-            viewDoc('cert');
-
-            if (window.innerWidth < 768) {
-                document.getElementById('sidebar').style.display = 'none';
-                document.getElementById('detailView').classList.add('mobile-open');
-                document.getElementById('btnBack').style.display = 'flex';
-                document.body.style.overflow = 'hidden';
-            }
-        };
-
-        // ─── Doc Viewer ─────────────────────────────────────────────────
-        let currentDocType = 'cert';
-        window.viewDoc = function (type) {
-            currentDocType = type;
-
-            // 1. จัดการปุ่ม Tab
-            ['cert', 'transcript', 'slip'].forEach(t => {
-                const btn = document.getElementById(`tab-${t}`);
-                if (btn) btn.className = `doc-tab ${t === type ? 'active' : ''}`;
-            });
-
-            // 2. เปิดตัวโหลด และล้างค่าเก่า
-            const loader = document.getElementById('docLoading');
-            const img = document.getElementById('mainDocPreview');
-            const iframe = document.getElementById('mainDocIframe');
-            const noDoc = document.getElementById('noDocMsg');
-
-            loader.style.display = 'flex';
-            img.style.display = 'none';
-            iframe.style.display = 'none';
-            noDoc.style.display = 'none';
-
-            // 3. ดึง URL
-            const urlMap = {
-                cert: localCurrentTeam?.certUrl,
-                transcript: localCurrentTeam?.transcriptUrl,
-                slip: localCurrentTeam?.slipUrl
-            };
-            const rawUrl = urlMap[type];
-            const previewUrl = getDrivePreviewUrl(rawUrl);
-
-            if (document.getElementById('dtPopOut')) document.getElementById('dtPopOut').href = rawUrl || '#';
-
-            // 4. แสดงผล
-            if (type === 'cert' && localCurrentTeam?.category?.includes('ผสม')) {
-                loader.style.display = 'none';
-                noDoc.style.display = 'block';
-                noDoc.innerHTML = `
-        <i class="fa-solid fa-user-group" style="font-size:40px; margin-bottom:12px; display:block; opacity:.3;"></i>
-        <span style="font-size:14px; font-weight:700; color:var(--navy);">โควตาทีมผสม: ไม่ต้องใช้ใบรับรองโรงเรียน</span>
-    `;
-                return; // หยุดการทำงาน ไม่ต้องไปโหลด Iframe
-            }
-
-            if (!previewUrl) {
-                loader.style.display = 'none';
-                noDoc.style.display = 'block';
-                return;
-            }
-
-            if (previewUrl && (previewUrl.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) || !previewUrl.includes('drive.google.com'))) {
-                // ถ้าเป็นลิงก์รูปภาพตรงๆ หรือไม่ใช่ Drive
-                img.src = previewUrl;
-                img.style.display = 'block';
-                iframe.style.display = 'none';
-            } else {
-                // ถ้าเป็น Drive ให้ใช้ Iframe แบบ Preview
-                iframe.src = previewUrl;
-                iframe.style.display = 'block';
-                img.style.display = 'none';
-            }
-
-            setTimeout(() => {
-                if (document.getElementById('docLoading').style.display !== 'none') {
-                    console.warn("Loading timeout - hiding loader anyway");
-                    window.onDocLoaded();
+                const container = document.getElementById('teamList');
+                if (!teams.length) {
+                    container.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#94a3b8;"><i class="fa-solid fa-inbox" style="font-size:32px;margin-bottom:8px;display:block;opacity:.3;"></i><span style="font-size:13px;">ไม่พบทีมที่ตรงกัน</span></div>`;
+                    return;
                 }
-            }, 1000); // 1 วินาที
-        };
-        window.onDocLoaded = function () {
-            console.log("Document Loaded Successfully");
-            const loader = document.getElementById('docLoading');
-            if (loader) {
-                loader.style.display = 'none';
+                const overallColors = {
+                    'รอการตรวจสอบ': { bar: '#f59e0b', badge: 's-wait' },
+                    'การสมัครสมบูรณ์': { bar: '#16a34a', badge: 's-done' },
+                    'การสมัครไม่เรียบร้อย': { bar: '#dc2626', badge: 's-bad' },
+                };
+                container.innerHTML = teams.map(t => {
+                    const oc = overallColors[t.overall] || { bar: '#94a3b8', badge: 's-na' };
+                    const finalBarColor = t.updated ? '#2563eb' : oc.bar;
+                    const isMixed = t.category?.includes('ผสม');
+                    const catStyle = isMixed ? 'cat-mixed' : 'cat-school';
+                    const catLabel = isMixed ? 'ทีมผสม' : 'ทีม รร.';
+                    const emailBadge = t.emailSentStatus === 'ส่งแล้ว'
+                        ? `<span style="font-size:9px;background:#dcfce7;color:#166534;border:1px solid #86efac;padding:2px 7px;border-radius:99px;font-weight:700;">📧 ส่งแล้ว</span>`
+                        : `<span style="font-size:9px;background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;padding:2px 7px;border-radius:99px;">ยังไม่ส่ง</span>`;
+                    return `
+                    <div onclick="selectTeam('${t.id}')" class="team-card" data-id="${t.id}" data-email="${t.email}">
+                        <div class="cat-bar" style="background:${finalBarColor};"></div>
+                        ${t.updated ? `<div class="upd-ring"></div><div class="upd-dot"></div>` : ''}
+                        <div class="team-card-inner">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                                <span class="tag ${catStyle}" style="font-size:9px;padding:2px 7px;">${catLabel}</span>
+                                <span class="card-idx mono">#${t.idx}</span>
+                            </div>
+                            <div class="card-team">${t.teamName}</div>
+                            <div class="card-email">${t.email || '—'}</div>
+                            <div class="card-sider">
+                                <span class="overall-badge ${oc.badge}">${t.overall}</span>
+                                ${emailBadge}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
             }
-        };
-        window.onDocError = function () {
-            console.log("Document Load Failed");
-            const loader = document.getElementById('docLoading');
-            if (loader) {
-                loader.style.display = 'none';
-            }
-            // ซ่อนรูปและโชว์ข้อความ Error
-            document.getElementById('mainDocPreview').style.display = 'none';
-            document.getElementById('noDocMsg').style.display = 'block';
-        };
 
-        window.adjustDoc = function (action) {
-            const img = document.getElementById('mainDocPreview');
-            if (action === 'zoomIn') {
-                docScale = Math.min(docScale + 0.25, 4);
-            } else if (action === 'zoomOut') {
-                docScale = Math.max(docScale - 0.25, 0.5);
-            } else if (action === 'rotate') {
-                docRotate = (docRotate + 90) % 360;
+            const updateCardStatus = (card, s) => {
+                const badge = card.querySelector('.overall-badge');
+                const bar = card.querySelector('.cat-bar');
+                const map = { 'รอการตรวจสอบ': { cls: 's-wait', color: '#f59e0b' }, 'การสมัครสมบูรณ์': { cls: 's-done', color: '#16a34a' }, 'การสมัครไม่เรียบร้อย': { cls: 's-bad', color: '#dc2626' } };
+                const m = map[s.overall] || { cls: 's-na', color: '#94a3b8' };
+                if (badge) { badge.className = `overall-badge ${m.cls}`; badge.textContent = s.overall; }
+                if (bar) bar.style.background = m.color;
+                const updRing = card.querySelector('.upd-ring');
+                const updDot = card.querySelector('.upd-dot');
+                if (s.updated) {
+                    if (!updRing) card.insertAdjacentHTML('afterbegin', '<div class="upd-ring"></div><div class="upd-dot"></div>');
+                } else {
+                    updRing?.remove(); updDot?.remove();
+                }
             }
 
-            // อัปเดตการแสดงผล
-            img.style.transform = `scale(${docScale}) rotate(${docRotate}deg)`;
+            // ─── Select Team ─────────────────────────────────────────────────
+            window.selectTeam = async (id) => {
+                const team = allTeams.find(t => t.id === id);
+                if (!team) return;
+                localCurrentTeam = { ...team, _localLoadedAt: Date.now() };
 
-            if (docScale > 1) {
-                img.style.maxWidth = 'none';
-                img.style.maxHeight = 'none';
-            } else {
-                img.style.maxWidth = '100%';
-                img.style.maxHeight = '100%';
-            }
-        };
-        function resetDocTransform() { docScale = 1; docRotate = 0; document.getElementById('mainDocPreview').style.transform = ''; }
+                document.querySelectorAll('.team-card').forEach(c => c.classList.remove('active'));
+                document.querySelector(`[data-id="${id}"]`)?.classList.add('active');
 
-        // ─── Feedback ────────────────────────────────────────────────────
-        window.genBullets = function () {
+                document.getElementById('emptyState').style.display = 'none';
+                document.getElementById('detailContent').style.display = 'flex';
+
+                // Claim occupancy
+                await claimTeam(localCurrentTeam);
+
+                // Header
+                const catEl = document.getElementById('dtCategory');
+                catEl.textContent = team.category;
+                catEl.className = `tag ${team.category?.includes('ผสม') ? 'cat-mixed' : 'cat-school'}`;
+                document.getElementById('dtId').textContent = `ROW: #${team.idx}`;
+                document.getElementById('dtVersionTag').textContent = `v${team.version}`;
+                document.getElementById('dtTeamName').textContent = team.teamName;
+                document.getElementById('dtEmail').textContent = team.email || '—';
+                document.getElementById('dtUpdatedTag').style.display = team.updated ? 'inline-flex' : 'none';
+
+                // Members
+                document.getElementById('dtMembersGrid').innerHTML = team.members.map((m, i) => `
+                <div class="member-row">
+                    <div class="member-num">${i + 1}</div>
+                    <div class="member-info">
+                        <div class="member-name">${m.prefix} ${m.name}</div>
+                        <div class="member-sub">
+                            <span class="member-level">${m.level}</span>
+                            <span style="color:#94a3b8;">|</span>
+                            <span>${m.school}</span>
+                        </div>
+                        ${m.email ? `<div style="font-size:10px;color:var(--blue);margin-top:1px;"><i class="fa-solid fa-envelope" style="margin-right:3px;font-size:9px;"></i>${m.email}</div>` : ''}
+                        ${m.phone ? `<div style="font-size:10px;color:#64748b;"><i class="fa-solid fa-phone" style="margin-right:3px;font-size:9px;"></i>${m.phone}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+                document.getElementById('dtAdvisor').innerHTML =
+                    `<b>${team.advisor.name}</b><br>📞 ${team.advisor.phone}${team.advisor.email ? `<br>✉️ ${team.advisor.email}` : ''}`;
+                document.getElementById('dtPayment').innerHTML =
+                    `<b>ธนาคาร: ${team.payment.bank || '—'}</b><br>📅 ${team.payment.date} เวลา ${team.payment.time}<br>เลขท้าย: <span class="mono" style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${team.payment.last4 || '—'}</span>`;
+                document.getElementById('dtVersion').innerHTML =
+                    `ส่งล่าสุด: ${formatDate(team.lastSubmit)} ${formatTime(team.lastSubmit)}<br>ตรวจครั้งที่: <b>${team.version}</b>`;
+
+                // Status dropdowns
+                document.getElementById('sel-cert').value = team.certStatus;
+                document.getElementById('sel-transcript').value = team.transcriptStatus;
+                document.getElementById('sel-slip').value = team.slipStatus;
+                document.getElementById('feedbackText').value = team.feedback;
+                document.getElementById('sendEmail').checked = false;
+
+                const isMixedTeam = team.category?.includes('ผสม');
+
+                // ถ้าเป็นทีมผสม และในเครื่องยังไม่มีสถานะ cert ที่ถูกต้อง ให้เซ็ตเป็น "ไม่ต้องส่ง"
+                if (isMixedTeam) {
+                    if (!team.certStatus || team.certStatus === "รอตรวจเอกสาร" || team.certStatus === "") {
+                        document.getElementById('sel-cert').value = "ไม่ต้องส่ง";
+                    } else {
+                        document.getElementById('sel-cert').value = team.certStatus;
+                    }
+                    document.getElementById('tab-cert').style.opacity = "0.5";
+                    document.getElementById('tab-cert').innerText = "1. ไม่ต้องส่ง (ทีมผสม)";
+                } else {
+                    document.getElementById('sel-cert').value = team.certStatus;
+                    document.getElementById('tab-cert').style.opacity = "1";
+                    document.getElementById('tab-cert').innerText = "1. ใบรับรอง รร.";
+                }
+
+                if (team.updated) {
+                    const escapedId = escapeEmail(id);
+                    update(ref(db, `teams/${escapedId}/status`), { isUpdated: false });
+                }
+
+                viewDoc('cert');
+                updateNavButtons();
+
+                if (window.innerWidth < 768) {
+                    document.getElementById('sidebar').style.display = 'none';
+                    document.getElementById('detailView').classList.add('mobile-open');
+                    document.getElementById('btnBack').style.display = 'flex';
+                    document.body.style.overflow = 'hidden';
+                }
+            };
+
+            // ─── Doc Viewer ─────────────────────────────────────────────────
+            let currentDocType = 'cert';
+            window.viewDoc = function (type) {
+                currentDocType = type;
+
+                ['cert', 'transcript', 'slip'].forEach(t => {
+                    const btn = document.getElementById(`tab-${t}`);
+                    if (btn) btn.className = `doc-tab ${t === type ? 'active' : ''}`;
+                });
+
+                const loader = document.getElementById('docLoading');
+                const img = document.getElementById('mainDocPreview');
+                const iframe = document.getElementById('mainDocIframe');
+                const noDoc = document.getElementById('noDocMsg');
+
+                loader.style.display = 'flex';
+                img.style.display = 'none';
+                iframe.style.display = 'none';
+                noDoc.style.display = 'none';
+
+                const urlMap = {
+                    cert: localCurrentTeam?.certUrl,
+                    transcript: localCurrentTeam?.transcriptUrl,
+                    slip: localCurrentTeam?.slipUrl
+                };
+                const rawUrl = urlMap[type];
+                const previewUrl = getDrivePreviewUrl(rawUrl);
+
+                if (document.getElementById('dtPopOut')) document.getElementById('dtPopOut').href = rawUrl || '#';
+
+                if (type === 'cert' && localCurrentTeam?.category?.includes('ผสม')) {
+                    loader.style.display = 'none';
+                    noDoc.style.display = 'block';
+                    noDoc.innerHTML = `
+                    <i class="fa-solid fa-user-group" style="font-size:40px; margin-bottom:12px; display:block; opacity:.3;"></i>
+                    <span style="font-size:14px; font-weight:700; color:var(--navy);">โควตาทีมผสม: ไม่ต้องใช้ใบรับรองโรงเรียน</span>
+                `;
+                    return;
+                }
+
+                if (!previewUrl) {
+                    loader.style.display = 'none';
+                    noDoc.style.display = 'block';
+                    return;
+                }
+
+                if (previewUrl && (previewUrl.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) || !previewUrl.includes('drive.google.com'))) {
+                    img.src = previewUrl;
+                    img.style.display = 'block';
+                    iframe.style.display = 'none';
+                } else {
+                    iframe.src = previewUrl;
+                    iframe.style.display = 'block';
+                    img.style.display = 'none';
+                }
+
+                setTimeout(() => {
+                    if (document.getElementById('docLoading').style.display !== 'none') {
+                        console.warn("Loading timeout - hiding loader anyway");
+                        window.onDocLoaded();
+                    }
+                }, 1000);
+            };
+
+            window.onDocLoaded = function () {
+                console.log("Document Loaded Successfully");
+                const loader = document.getElementById('docLoading');
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+            };
+
+            window.onDocError = function () {
+                console.log("Document Load Failed");
+                const loader = document.getElementById('docLoading');
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+                document.getElementById('mainDocPreview').style.display = 'none';
+                document.getElementById('noDocMsg').style.display = 'block';
+            };
+
+            window.adjustDoc = function (action) {
+                const img = document.getElementById('mainDocPreview');
+                if (action === 'zoomIn') {
+                    docScale = Math.min(docScale + 0.25, 4);
+                } else if (action === 'zoomOut') {
+                    docScale = Math.max(docScale - 0.25, 0.5);
+                } else if (action === 'rotate') {
+                    docRotate = (docRotate + 90) % 360;
+                }
+
+                img.style.transform = `scale(${docScale}) rotate(${docRotate}deg)`;
+
+                if (docScale > 1) {
+                    img.style.maxWidth = 'none';
+                    img.style.maxHeight = 'none';
+                } else {
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '100%';
+                }
+            };
+
+            function resetDocTransform() { docScale = 1; docRotate = 0; document.getElementById('mainDocPreview').style.transform = ''; }
+
+            // ─── Feedback ────────────────────────────────────────────────────
+            window.genBullets = function () {
                 if (!localCurrentTeam) return;
                 const certVal = document.getElementById('sel-cert').value;
                 const tranVal = document.getElementById('sel-transcript').value;
@@ -2452,251 +2414,275 @@
 
                 document.getElementById('feedbackText').value = 'สรุปสถานะเอกสารการสมัคร:\n' + lines.join('\n');
             };
-        window.addFeedback = function (msg) {
-            const area = document.getElementById('feedbackText');
-            if (!area.value.includes(msg)) area.value += `\n  - ${msg}`;
-        };
 
-        window.onFeedbackType = function () {
+            window.addFeedback = function (msg) {
+                const area = document.getElementById('feedbackText');
+                if (!area.value.includes(msg)) area.value += `\n  - ${msg}`;
+            };
+
+            window.onFeedbackType = function () {
                 const indicator = document.getElementById('syncIndicator');
                 const syncText = document.getElementById('syncText');
                 const container = document.querySelector('.feedback-container');
 
-                // เปลี่ยนสถานะเป็น "กำลังพิมพ์/ซิงค์"
                 indicator.classList.add('syncing');
                 syncText.textContent = 'Typing...';
                 container.classList.add('typing');
 
                 clearTimeout(typingTimer);
-
-                // แจ้ง Firebase ว่าเรากำลังพิมพ์ (Occupancy Logic)
                 setTypingStatus(true);
 
                 typingTimer = setTimeout(() => {
-                    // เมื่อหยุดพิมพ์เกิน 2 วินาที
                     setTypingStatus(false);
                     indicator.classList.remove('syncing');
                     syncText.textContent = 'Auto-saved';
                     container.classList.remove('typing');
                 }, 2000);
             };
-        // ─── Save Flow ────────────────────────────────────────────────────
-        // ─── Save Flow & Email Preview ─────────────────────────────────────
-            window.startSaveFlow = async () => {
+
+    // ─── Save Flow & Email Preview ─────────────────────────────────────
+    window.startSaveFlow = async (isForce = false) => {
+        if (!localCurrentTeam) return;
+
+        const btn = document.getElementById('btnSave');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ตรวจสอบข้อมูล...`;
+
+        const certStatus = document.getElementById('sel-cert').value;
+        const transcriptStatus = document.getElementById('sel-transcript').value;
+        const slipStatus = document.getElementById('sel-slip').value;
+        const feedback = document.getElementById('feedbackText').value;
+        const sendEmail = document.getElementById('sendEmail').checked;
+        const overallStatus = computeOverallStatus(certStatus, transcriptStatus, slipStatus);
+
+        const activePayload = { certStatus, transcriptStatus, slipStatus, feedback, overallStatus, sendEmail };
+
+        // Pre-save version check (เช็คใน Firebase ก่อนว่ามีคนแก้ตัดหน้าไหม)
+        if (!isForce) {
+            try {
+                const escapedId = escapeEmail(localCurrentTeam.id);
+                const versionSnap = await get(ref(db, `teams/${escapedId}/status/reviewVersion`));
+                const fbVersion = versionSnap.val() || 1;
+
+                if (fbVersion > localCurrentTeam.version) {
+                    document.getElementById('conflictLog').innerHTML =
+                        `<div><b>ข้อมูลถูกแก้ไขโดยสตาฟคนอื่นแล้ว</b> (เวอร์ชันบนคลาวด์ v${fbVersion} > เวอร์ชันเครื่องคุณ v${localCurrentTeam.version})</div>`;
+                    document.getElementById('modalConflict').classList.remove('hidden');
+
+                    // บันทึก payload ล่าสุดลงใน conflictPayload เพื่อใช้หากมีการกดยืนยันเขียนทับ
+                    conflictPayload = { ...activePayload };
+
+                    window.resetSaveBtn();
+                    return;
+                }
+            } catch (e) {
+                console.error("Conflict check failed:", e);
+                window.resetSaveBtn(); // แก้ไข NEW-02: ปลดล็อคสถานะปุ่มกดเมื่อเกิดเน็ตเวิร์กเออเรอร์
+                showToast("ไม่สามารถตรวจสอบ version ได้ กรุณาลองใหม่", "error");
+                return;
+            }
+        }
+
+        // บันทึก Payload สำหรับการทำงานรอบปัจจุบันลงตัวแปรที่แยกกัน
+        savePayload = { ...activePayload };
+        conflictPayload = { ...activePayload };
+
+        // ถ้าสตาฟติ๊ก "ส่งอีเมล" ให้เปิดหน้าต่าง Preview ก่อน
+        if (sendEmail) {
+            window.prepareEmailPreview();
+        } else {
+            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก...`;
+            await saveReview(savePayload);
+        }
+    };
+
+    window.prepareEmailPreview = function () {
+        if (!localCurrentTeam) {
+            showToast("กรุณาเลือกทีมก่อน", "error");
+            return;
+        }
+
+        const certVal = document.getElementById('sel-cert').value;
+        const transVal = document.getElementById('sel-transcript').value;
+        const slipVal = document.getElementById('sel-slip').value;
+        const feedback = document.getElementById('feedbackText').value;
+
+        const overallStatus = computeOverallStatus(certVal, transVal, slipVal);
+
+        // บันทึกข้อมูลลง savePayload เพื่อการเตรียมพรีวิวอีเมลโดยตรง โดยไม่รบกวนค่าของ conflictPayload ดั้งเดิม
+        savePayload = {
+            certStatus: certVal,
+            transcriptStatus: transVal,
+            slipStatus: slipVal,
+            feedback: feedback,
+            overallStatus: overallStatus,
+            sendEmail: true
+        };
+
+        let subject = "";
+        let body = "";
+        const team = localCurrentTeam;
+        const lookerStudioLink = "https://lookerstudio.google.com/u/0/reporting/bb6f082b-c892-450f-ba35-416f9e749718/page/tW14D";
+        const formLink = team.additionalFormLink || "https://forms.gle/GQCrxDz3HWxybV3V6";
+
+        if (overallStatus === "การสมัครไม่เรียบร้อย") {
+            subject = `🚨 [ต้องแก้ไข] ผลการตรวจสอบเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+            body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
+                `ตามที่ท่านได้สมัครเข้าร่วมการแข่งขัน MedQuiz KKU 2026 นั้น\n\n` +
+                `จากการตรวจสอบพบว่าเอกสารของทีมท่าน "ยังไม่สมบูรณ์" โดยมีรายละเอียดดังนี้:\n\n` +
+                `${feedback}\n\n` +
+                `👉 โปรดส่งเอกสารที่แก้ไขได้ที่: ${formLink}\n\n` +
+                `ตรวจสอบสถานะล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
+                `จึงเรียนมาเพื่อโปรดดำเนินการแก้ไขภายในระยะเวลาที่กำหนด`;
+        } else if (overallStatus === "การสมัครสมบูรณ์") {
+            subject = `✅ [สมบูรณ์] ยืนยันเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+            body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
+                `คณะกรรมการได้ตรวจสอบเอกสารและการชำระเงินของทีมท่านเรียบร้อยแล้ว\n\n` +
+                `ขณะนี้สถานะของท่านคือ: "การสมัครสมบูรณ์" 🎉\n\n` +
+                `โปรดรอติดตามประกาศลำดับที่นั่งสอบและลิงก์เข้าสอบทางอีเมลนี้\n\n` +
+                `ตรวจสอบสถานะล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
+                `ขอบคุณที่ร่วมสนุกกับเราครับ`;
+        } else {
+            subject = `[แจ้งสถานะ] การสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+            body = `เรียน หัวหน้าทีม ${team.teamName}\n\nขณะนี้ทีมของท่านอยู่ในสถานะ: ${overallStatus}\n\nข้อความจากเจ้าหน้าที่: ${feedback}`;
+        }
+
+        document.getElementById('emailTo').value = team.email;
+        document.getElementById('emailSubject').value = subject;
+        document.getElementById('emailBody').value = body;
+        document.getElementById('modalEmailPreview').classList.remove('hidden');
+    };
+
+    window.executeSaveAndSend = async () => {
+        const btn = document.getElementById('btnConfirmSendEmail');
+        const mainSaveBtn = document.getElementById('btnSave');
+
+        if (!savePayload) return;
+
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังส่งและบันทึก...`;
+        mainSaveBtn.disabled = true;
+
+        const finalPayload = {
+            ...savePayload,
+            emailSubject: document.getElementById('emailSubject').value,
+            emailBody: document.getElementById('emailBody').value
+        };
+
+        try {
+            await saveReview(finalPayload);
+            closeModal('modalEmailPreview');
+            showToast("บันทึกและส่งอีเมลสำเร็จ", "success");
+        } catch (e) {
+            showToast("เกิดข้อผิดพลาด: " + e.message, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ยืนยันบันทึก และส่งอีเมล`;
+            resetSaveBtn();
+        }
+    };
+
+    window.forceOverwrite = async function () {
+        closeModal('modalConflict');
+        if (!conflictPayload || !localCurrentTeam) return;
+        localCurrentTeam._localLoadedAt = Date.now();
+        const btn = document.getElementById('btnSave');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังเขียนทับ...`;
+        await saveReview(conflictPayload);
+    };
+            
+    window.reloadCurrentTeam = async function () {
+                closeModal('modalConflict');
                 if (!localCurrentTeam) return;
+                showToast('กำลังโหลดข้อมูลใหม่...', '');
+                await loadAllTeams(true);
+                await selectTeam(localCurrentTeam.id);
+            };
 
-                const certStatus = document.getElementById('sel-cert').value;
-                const transcriptStatus = document.getElementById('sel-transcript').value;
-                const slipStatus = document.getElementById('sel-slip').value;
-                const feedback = document.getElementById('feedbackText').value;
-                const sendEmail = document.getElementById('sendEmail').checked;
-                const overallStatus = computeOverallStatus(certStatus, transcriptStatus, slipStatus, localCurrentTeam.category);
+            window.resetSaveBtn = resetSaveBtn;
+            function resetSaveBtn() {
+                const btn = document.getElementById('btnSave');
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล`;
+            }
 
-                // เก็บ Payload ชั่วคราวไว้
-                conflictPayload = { certStatus, transcriptStatus, slipStatus, feedback, overallStatus, sendEmail };
+            // ─── History Modal ────────────────────────────────────────────────
+            window.showHistoryModal = function () {
+                const filtered = localCurrentTeam ? historyLog.filter(h => h.team === localCurrentTeam.teamName) : historyLog;
+                document.getElementById('historyList').innerHTML = filtered.length ? filtered.map(h => `
+                <div class="history-item">
+                    <div class="history-item-header">
+                        <span class="history-item-staff">${h.staff}</span>
+                        <span class="history-item-time">${h.time}</span>
+                    </div>
+                    <div class="history-item-action">${h.action}</div>
+                </div>
+            `).join('') : '<div style="text-align:center;color:#94a3b8;font-size:13px;padding:20px;">ไม่มีประวัติในเซสชันนี้</div>';
+                document.getElementById('modalHistory').classList.remove('hidden');
+            };
 
-                // ถ้าสตาฟติ๊ก "ส่งอีเมล" ให้เปิดหน้าต่าง Preview ก่อน
-                if (sendEmail) {
-                    window.prepareEmailPreview(overallStatus, feedback);
+            // ─── Additional Form Link ─────────────────────────────────────────
+            window.openAdditionalFormLink = function () {
+                if (localCurrentTeam?.additionalFormLink) {
+                    window.open(localCurrentTeam.additionalFormLink, '_blank');
                 } else {
-                    // ถ้าไม่ส่งเมล ให้เซฟลงระบบเลย
-                    const btn = document.getElementById('btnSave');
-                    btn.disabled = true;
-                    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังบันทึก...`;
-                    await saveReview(conflictPayload);
+                    showToast('ไม่พบลิงก์ฟอร์มเอกสารเพิ่มเติม', 'error');
                 }
             };
 
-                window.prepareEmailPreview = function () {
-                    if (!localCurrentTeam) {
-                        showToast("กรุณาเลือกทีมก่อน", "error");
-                        return;
-                    }
-
-                    // 1. ดึงค่าจากหน้าจอ ณ ปัจจุบัน (เผื่อสตาฟเปลี่ยน dropdown แต่ยังไม่กด save)
-                    const certVal = document.getElementById('sel-cert').value;
-                    const transVal = document.getElementById('sel-transcript').value;
-                    const slipVal = document.getElementById('sel-slip').value;
-                    const feedback = document.getElementById('feedbackText').value;
-
-                    // 2. คำนวณสถานะภาพรวม
-                    const overallStatus = computeOverallStatus(certVal, transVal, slipVal, localCurrentTeam.category);
-
-                    // 3. เตรียมข้อมูล Payload ไว้สำหรับตอนกดส่งจริง
-                    conflictPayload = {
-                        certStatus: certVal,
-                        transcriptStatus: transVal,
-                        slipStatus: slipVal,
-                        feedback: feedback,
-                        overallStatus: overallStatus,
-                        sendEmail: true
-                    };
-
-                    let subject = "";
-                    let body = "";
-                    const team = localCurrentTeam;
-                    const lookerStudioLink = "https://lookerstudio.google.com/u/0/reporting/bb6f082b-c892-450f-ba35-416f9e749718/page/tW14D";
-                    const formLink = team.additionalFormLink || "https://forms.gle/GQCrxDz3HWxybV3V6";
-
-                    // 4. สร้าง Template เนื้อหาตามสถานะ
-                    if (overallStatus === "การสมัครไม่เรียบร้อย") {
-                        subject = `🚨 [ต้องแก้ไข] ผลการตรวจสอบเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
-                        body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
-                            `ตามที่ท่านได้สมัครเข้าร่วมการแข่งขัน MedQuiz KKU 2026 นั้น\n\n` +
-                            `จากการตรวจสอบพบว่าเอกสารของทีมท่าน "ยังไม่สมบูรณ์" โดยมีรายละเอียดดังนี้:\n\n` +
-                            `${feedback}\n\n` +
-                            `👉 โปรดส่งเอกสารที่แก้ไขได้ที่: ${formLink}\n\n` +
-                            `ตรวจสอบสถานะล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
-                            `จึงเรียนมาเพื่อโปรดดำเนินการแก้ไขภายในระยะเวลาที่กำหนด`;
-                    } else if (overallStatus === "การสมัครสมบูรณ์") {
-                        subject = `✅ [สมบูรณ์] ยืนยันเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
-                        body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
-                            `คณะกรรมการได้ตรวจสอบเอกสารและการชำระเงินของทีมท่านเรียบร้อยแล้ว\n\n` +
-                            `ขณะนี้สถานะของท่านคือ: "การสมัครสมบูรณ์" 🎉\n\n` +
-                            `โปรดรอติดตามประกาศลำดับที่นั่งสอบและลิงก์เข้าสอบทางอีเมลนี้\n\n` +
-                            `ตรวจสอบสถานะล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
-                            `ขอบคุณที่ร่วมสนุกกับเราครับ`;
-                    } else {
-                        subject = `[แจ้งสถานะ] การสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
-                        body = `เรียน หัวหน้าทีม ${team.teamName}\n\nขณะนี้ทีมของท่านอยู่ในสถานะ: ${overallStatus}\n\nข้อความจากเจ้าหน้าที่: ${feedback}`;
-                    }
-
-                    // 5. นำข้อมูลไปใส่ใน Modal และแสดงผล
-                    document.getElementById('emailTo').value = team.email;
-                    document.getElementById('emailSubject').value = subject;
-                    document.getElementById('emailBody').value = body;
-                    document.getElementById('modalEmailPreview').classList.remove('hidden');
-                };
-            // แทนที่ฟังก์ชัน executeSaveAndSend เดิม
-                window.executeSaveAndSend = async () => {
-                    const btn = document.getElementById('btnConfirmSendEmail');
-                    const mainSaveBtn = document.getElementById('btnSave');
-
-                    if (!conflictPayload) return;
-
-                    btn.disabled = true;
-                    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังส่งและบันทึก...`;
-                    mainSaveBtn.disabled = true;
-
-                    // ดึงเนื้อหาอีเมลล่าสุดที่มีการแก้ไขใน Modal
-                    const finalPayload = {
-                        ...conflictPayload,
-                        emailSubject: document.getElementById('emailSubject').value,
-                        emailBody: document.getElementById('emailBody').value
-                    };
-
-                    try {
-                        await saveReview(finalPayload);
-                        closeModal('modalEmailPreview');
-                        showToast("บันทึกและส่งอีเมลสำเร็จ", "success");
-                    } catch (e) {
-                        showToast("เกิดข้อผิดพลาด: " + e.message, "error");
-                    } finally {
-                        btn.disabled = false;
-                        btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ยืนยันบันทึก และส่งอีเมล`;
-                        resetSaveBtn();
-                    }
-                };
-            window.forceOverwrite = async function () {
-            closeModal('modalConflict');
-            if (!conflictPayload || !localCurrentTeam) return;
-            // บังคับ: set _localLoadedAt ให้เก่ากว่า server เพื่อข้าม conflict check ต่อไป
-            localCurrentTeam._localLoadedAt = Date.now();
-            const btn = document.getElementById('btnSave');
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังเขียนทับ...`;
-            await saveReview(conflictPayload);
-        };
-
-        window.reloadCurrentTeam = async function () {
-            closeModal('modalConflict');
-            if (!localCurrentTeam) return;
-            showToast('กำลังโหลดข้อมูลใหม่...', '');
-            await loadAllTeams(true);
-            await selectTeam(localCurrentTeam.id);
-        };
-
-        window.resetSaveBtn = resetSaveBtn;
-        function resetSaveBtn() {
-            const btn = document.getElementById('btnSave');
-            btn.disabled = false;
-            btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล`;
-        }
-
-        // ─── History Modal ────────────────────────────────────────────────
-        window.showHistoryModal = function () {
-            const filtered = localCurrentTeam ? historyLog.filter(h => h.team === localCurrentTeam.teamName) : historyLog;
-            document.getElementById('historyList').innerHTML = filtered.length ? filtered.map(h => `
-        <div class="history-item">
-            <div class="history-item-header">
-                <span class="history-item-staff">${h.staff}</span>
-                <span class="history-item-time">${h.time}</span>
-            </div>
-            <div class="history-item-action">${h.action}</div>
-        </div>
-    `).join('') : '<div style="text-align:center;color:#94a3b8;font-size:13px;padding:20px;">ไม่มีประวัติในเซสชันนี้</div>';
-            document.getElementById('modalHistory').classList.remove('hidden');
-        };
-
-        // ─── Additional Form Link ─────────────────────────────────────────
-        window.openAdditionalFormLink = function () {
-            if (localCurrentTeam?.additionalFormLink) {
-                window.open(localCurrentTeam.additionalFormLink, '_blank');
-            } else {
-                showToast('ไม่พบลิงก์ฟอร์มเอกสารเพิ่มเติม', 'error');
+            // ─── Staff Panel ─────────────────────────────────────────────────
+            function renderStaffPanel(staffList) {
+                document.getElementById('staffListPanel').innerHTML = staffList.map(s => `
+                <div class="staff-row">
+                    <div class="staff-dot ${s.status === 'online' ? '' : 'offline'}"></div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.name}</div>
+                        ${s.currentTeam ? `<div style="font-size:10px;color:#64748b;">ดูทีม: ${s.currentTeam}</div>` : ''}
+                    </div>
+                    <div style="font-size:10px;color:var(--green);font-weight:700;">${s.totalReviewed || 0}</div>
+                </div>
+            `).join('') || '<div style="font-size:12px;color:#94a3b8;text-align:center;">ไม่มีสตาฟออนไลน์</div>';
             }
-        };
 
-        // ─── Staff Panel ─────────────────────────────────────────────────
-        function renderStaffPanel(staffList) {
-            document.getElementById('staffListPanel').innerHTML = staffList.map(s => `
-        <div class="staff-row">
-            <div class="staff-dot ${s.status === 'online' ? '' : 'offline'}"></div>
-            <div style="flex:1;min-width:0;">
-                <div style="font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.name}</div>
-                ${s.currentTeam ? `<div style="font-size:10px;color:#64748b;">ดูทีม: ${s.currentTeam}</div>` : ''}
-            </div>
-            <div style="font-size:10px;color:var(--green);font-weight:700;">${s.totalReviewed || 0}</div>
-        </div>
-    `).join('') || '<div style="font-size:12px;color:#94a3b8;text-align:center;">ไม่มีสตาฟออนไลน์</div>';
-        }
+            // ─── Global refresh ──────────────────────────────────────────────
+            window.refreshData = async function () {
+                const btn = document.getElementById('btnRefresh');
+                btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...`;
+                await loadAllTeams(true);
+                btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> รีเฟรช`;
+                showToast('✅ โหลดข้อมูลล่าสุดแล้ว', 'success');
+            };
 
-        // ─── Global refresh ──────────────────────────────────────────────
-        window.refreshData = async function () {
-            const btn = document.getElementById('btnRefresh');
-            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...`;
-            await loadAllTeams(true);
-            btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> รีเฟรช`;
-            showToast('✅ โหลดข้อมูลล่าสุดแล้ว', 'success');
-        };
+            // ─── Misc ─────────────────────────────────────────────────────────
+            window.closeModal = function (id) { document.getElementById(id).classList.add('hidden'); };
+            window.closeMobileDetail = function () {
+                document.getElementById('detailView').classList.remove('mobile-open');
+                document.getElementById('sidebar').style.display = 'flex';
+                document.body.style.overflow = '';
+                releaseCurrentTeam();
+            };
 
-        // ─── Misc ─────────────────────────────────────────────────────────
-        window.closeModal = function (id) { document.getElementById(id).classList.add('hidden'); };
-        window.closeMobileDetail = function () {
-            document.getElementById('detailView').classList.remove('mobile-open');
-            document.getElementById('sidebar').style.display = 'flex';
-            document.body.style.overflow = '';
-            releaseCurrentTeam();
-        };
+            function showToast(msg, type = '') {
+                const t = document.getElementById('toast');
+                if (t) {
+                    t.textContent = msg;
+                    t.className = `${type}`;
+                    t.classList.add('show');
+                    setTimeout(() => t.classList.remove('show'), 3000);
+                }
+            }
 
-        function showToast(msg, type = '') {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.className = `${type}`;
-            t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 3000);
-        }
-
-        function hideLoader() { document.getElementById('globalLoader').classList.add('hidden'); }
-        function updateLoaderText(text) { document.getElementById('loaderText').textContent = text; }
-        function updateFbStatus(ok) {
-            const el = document.getElementById('fbStatus');
-            el.innerHTML = ok ? `<span class="dot-pulse"></span> Firebase` : `<span class="dot-pulse dot-red"></span> Firebase`;
-        }
-        function updateGasStatus(ok) {
-            const el = document.getElementById('gasStatus');
-            el.innerHTML = ok ? `<span class="dot-pulse"></span> GAS` : `<span class="dot-pulse dot-red"></span> GAS`;
-        }
+            function hideLoader() { document.getElementById('globalLoader').classList.add('hidden'); }
+            function updateLoaderText(text) { document.getElementById('loaderText').textContent = text; }
+            function updateFbStatus(ok) {
+                const el = document.getElementById('fbStatus');
+                el.innerHTML = ok ? `<span class="dot-pulse"></span> Firebase` : `<span class="dot-pulse dot-red"></span> Firebase`;
+            }
+            function updateGasStatus(ok) {
+                const el = document.getElementById('gasStatus');
+                el.innerHTML = ok ? `<span class="dot-pulse"></span> GAS` : `<span class="dot-pulse dot-red"></span> GAS`;
+            }
     </script>
 </body>
 
