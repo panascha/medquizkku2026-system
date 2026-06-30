@@ -2255,7 +2255,7 @@
                 document.getElementById('dtAdvisor').innerHTML =
                     `<b>${team.advisor.name}</b><br>📞 ${team.advisor.phone}${team.advisor.email ? `<br>✉️ ${team.advisor.email}` : ''}`;
                 document.getElementById('dtPayment').innerHTML =
-                    `<b>ธนาคาร: ${team.payment.bank || '—'}</b><br>📅 ${team.payment.date} เวลา ${team.payment.time}<br>เลขท้าย: <span class="mono" style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${team.payment.last4 || '—'}</span>`;
+                    `<b>ธนาคาร: ${team.payment.bank || '—'}</b><br>📅 ${formatDate(team.payment.date)} เวลา ${formatTime(team.payment.time)}<br>เลขท้าย: <span class="mono" style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${team.payment.last4 || '—'}</span>`;
                 document.getElementById('dtVersion').innerHTML =
                     `ส่งล่าสุด: ${formatDate(team.lastSubmit)} ${formatTime(team.lastSubmit)}<br>ตรวจครั้งที่: <b>${team.version}</b>`;
 

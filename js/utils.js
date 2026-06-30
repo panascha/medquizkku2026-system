@@ -26,11 +26,17 @@ function getDrivePreviewUrl(url) {
 function formatDate(dateStr) {
     if (!dateStr) return "—";
     const d = new Date(dateStr);
-    return isNaN(d) ? dateStr : d.toLocaleDateString('th-TH');
+    if (isNaN(d)) return dateStr;
+    return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function formatTime(timeStr) {
     if (!timeStr) return "—";
+    if (typeof timeStr === 'string' && /^\d{2}:\d{2}(:\d{2})?$/.test(timeStr.trim())) {
+        return timeStr.trim().slice(0, 5) + " น.";
+    }
     const d = new Date(timeStr);
-    return isNaN(d) ? timeStr : d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    if (isNaN(d)) return timeStr;
+    const timeFormatted = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    return timeFormatted + " น.";
 }
