@@ -1826,7 +1826,7 @@
                         </div>
 
                         <label class="email-toggle">
-                            <input type="checkbox" id="sendEmail">
+                            <input type="checkbox" id="sendEmail" checked>
                             <span>📧 ส่งอีเมลแจ้งเตือนทันที</span>
                         </label>
 
@@ -2264,7 +2264,7 @@
                 document.getElementById('sel-transcript').value = team.transcriptStatus;
                 document.getElementById('sel-slip').value = team.slipStatus;
                 document.getElementById('feedbackText').value = team.feedback;
-                document.getElementById('sendEmail').checked = false;
+                document.getElementById('sendEmail').checked = true;
 
                 const isMixedTeam = team.category?.includes('ผสม');
 
