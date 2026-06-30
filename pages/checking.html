@@ -915,6 +915,12 @@
             color: #1d4ed8;
         }
 
+        .quick-btn.active {
+            background: var(--blue) !important;
+            color: white !important;
+            border-color: var(--blue) !important;
+        }
+
         #feedbackText {
     scrollbar-width: thin;
     scrollbar-color: #e2e8f0 transparent;
@@ -2318,6 +2324,7 @@
                 viewDoc('cert');
                 updateNavButtons();
                 window.updateQuickBtns();
+                window.updateButtonStates();
 
                 if (window.innerWidth < 768) {
                     document.getElementById('sidebar').style.display = 'none';
@@ -2455,6 +2462,7 @@
 
                     document.getElementById('feedbackText').value = 'สรุปสถานะเอกสารการสมัคร:\n' + lines.join('\n');
                     window.updateQuickBtns();
+                    window.updateButtonStates();
                 };
 
                 window.updateQuickBtns = function () {
@@ -2491,6 +2499,44 @@
                     }
                 };
 
+                window.updateButtonStates = function () {
+                    const area = document.getElementById('feedbackText');
+                    if (!area) return;
+                    const text = area.value;
+
+                    const labelMap = {
+                        cert: '• หนังสือรับรองจากโรงเรียน',
+                        transcript: '• ใบรับรองผลการศึกษา (ปพ.7)',
+                        slip: '• หลักฐานการชำระเงิน'
+                    };
+
+                    document.querySelectorAll('.quick-btn').forEach(btn => {
+                        const onclickAttr = btn.getAttribute('onclick');
+                        if (!onclickAttr) return;
+
+                        const match = onclickAttr.match(/addDocFeedback\s*\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)/);
+                        if (!match) return;
+
+                        const docType = match[1];
+                        const message = match[2];
+
+                        const label = labelMap[docType];
+                        if (!label) return;
+
+                        const docIndex = text.indexOf(label);
+                        if (docIndex === -1) {
+                            btn.classList.remove('active');
+                            return;
+                        }
+
+                        const nextBulletIndex = text.indexOf('•', docIndex + label.length);
+                        const sectionEnd = nextBulletIndex !== -1 ? nextBulletIndex : text.length;
+                        const sectionText = text.substring(docIndex, sectionEnd);
+
+                        btn.classList.toggle('active', sectionText.includes(message));
+                    });
+                };
+
                 window.addDocFeedback = function (docType, message) {
                     const area = document.getElementById('feedbackText');
                     let text = area.value;
@@ -2505,12 +2551,15 @@
                     if (!label) return;
 
                     const docIndex = text.indexOf(label);
-                    // หากหาหัวข้อเอกสารไม่พบ ให้เพิ่มต่อท้ายแบบเดิม
+                    // หากหาหัวข้อเอกสารไม่พบ ให้ทำการ Toggle ทั่วไปแบบต่อท้าย
                     if (docIndex === -1) {
-                        if (!text.includes(message)) {
+                        if (text.includes(message)) {
+                            area.value = text.replace(new RegExp(`\\n?\\s*-\\s*${message}`, 'g'), '').trim();
+                        } else {
                             area.value = text + (text ? '\n' : '') + `  - ${message}`;
                         }
                         window.onFeedbackType();
+                        window.updateButtonStates();
                         return;
                     }
 
@@ -2524,57 +2573,78 @@
 
                     if (phraseIndex !== -1) {
                         const absolutePhraseEnd = docIndex + phraseIndex + targetPhrase.length;
+                        const rawReasonText = text.substring(absolutePhraseEnd, sectionEnd);
 
-                        // ป้องกันการบันทึกข้อความผิดซ้ำในหัวข้อเอกสารเดิม
-                        if (sectionText.includes(message)) return;
+                        // แยกรายการคำศัพท์เดิมด้วยเครื่องหมายจุลภาค
+                        let reasons = rawReasonText.split(',')
+                            .map(r => r.trim())
+                            .filter(r => r.length > 0);
 
-                        const afterPhrase = text.substring(absolutePhraseEnd, sectionEnd);
-                        const hasContent = afterPhrase.trim().length > 0 && !afterPhrase.trim().startsWith('•');
-
-                        let insertion = "";
-                        if (hasContent) {
-                            insertion = `, ${message}`;
+                        const msgIdx = reasons.indexOf(message);
+                        if (msgIdx !== -1) {
+                            // ทำการ Toggle Off (ลบออก)
+                            reasons.splice(msgIdx, 1);
                         } else {
-                            insertion = ` ${message}`;
+                            // ทำการ Toggle On (เพิ่มเข้า)
+                            reasons.push(message);
                         }
 
-                        area.value = text.substring(0, absolutePhraseEnd) + insertion + text.substring(absolutePhraseEnd);
+                        // ประกอบข้อความใหม่ โดยคั่นด้วย ", " ยกเว้นคำสุดท้ายจะไม่มีลูกน้ำต่อท้ายตามเงื่อนไข
+                        let newReasonText = "";
+                        if (reasons.length > 0) {
+                            newReasonText = " " + reasons.join(', ') + "\n";
+                        } else {
+                            newReasonText = " \n";
+                        }
+
+                        area.value = text.substring(0, absolutePhraseEnd) + newReasonText + text.substring(sectionEnd);
                     } else {
-                        // กรณีไม่มีคำว่า "เหตุผลที่ต้องแก้ไข:" (เกิดจากสเตตัสไม่ใช่ "เอกสารไม่เรียบร้อย") ให้แทรกบรรทัดเพิ่มท้ายกลุ่มเอกสารนี้
-                        if (!sectionText.includes(message)) {
-                            const insertion = `\n   - ${message}`;
-                            area.value = text.substring(0, sectionEnd).trimEnd() + insertion + '\n' + text.substring(sectionEnd);
+                        // หากสเตตัสขณะนั้นยังไม่ใช่ "เอกสารไม่เรียบร้อย" ให้ปรับอัตโนมัติแล้วเรียกฟังก์ชันซ้ำ
+                        const selectId = `sel-${docType}`;
+                        const selectEl = document.getElementById(selectId);
+                        if (selectEl) {
+                            selectEl.value = "เอกสารไม่เรียบร้อย";
+                            window.genBullets();
+                            window.addDocFeedback(docType, message);
+                            return;
                         }
                     }
 
                     window.onFeedbackType();
+                    window.updateButtonStates();
                 };
 
                 window.addFeedback = function (msg) {
                     const area = document.getElementById('feedbackText');
-                    if (!area.value.includes(msg)) area.value += `\n  - ${msg}`;
+                    if (area.value.includes(msg)) {
+                        area.value = area.value.replace(new RegExp(`\\n?\\s*-\\s*${msg}`, 'g'), '').trim();
+                    } else {
+                        area.value += `\n  - ${msg}`;
+                    }
                     window.onFeedbackType();
+                    window.updateButtonStates();
                 };
 
             window.onFeedbackType = function () {
-                const indicator = document.getElementById('syncIndicator');
-                const syncText = document.getElementById('syncText');
-                const container = document.querySelector('.feedback-container');
+                    const indicator = document.getElementById('syncIndicator');
+                    const syncText = document.getElementById('syncText');
+                    const container = document.querySelector('.feedback-container');
 
-                indicator.classList.add('syncing');
-                syncText.textContent = 'Typing...';
-                container.classList.add('typing');
+                    indicator.classList.add('syncing');
+                    syncText.textContent = 'Typing...';
+                    container.classList.add('typing');
 
-                clearTimeout(typingTimer);
-                setTypingStatus(true);
+                    clearTimeout(typingTimer);
+                    setTypingStatus(true);
 
-                typingTimer = setTimeout(() => {
-                    setTypingStatus(false);
-                    indicator.classList.remove('syncing');
-                    syncText.textContent = 'Auto-saved';
-                    container.classList.remove('typing');
-                }, 2000);
-            };
+                    typingTimer = setTimeout(() => {
+                        setTypingStatus(false);
+                        indicator.classList.remove('syncing');
+                        syncText.textContent = 'Auto-saved';
+                        container.classList.remove('typing');
+                        window.updateButtonStates();
+                    }, 2000);
+                };
 
     // ─── Save Flow & Email Preview ─────────────────────────────────────
     window.startSaveFlow = async (isForce = false) => {
