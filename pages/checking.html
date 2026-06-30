@@ -1785,16 +1785,48 @@
 
                         <div class="feedback-area">
                             <label>Feedback ถึงน้อง <span onclick="genBullets()">↺ รีเซ็ต</span></label>
-                            <div class="quick-btns">
-                                <button class="quick-btn" onclick="addFeedback('รูปถ่ายไม่ชัดเจน')">+ รูปไม่ชัด</button>
-                                <button class="quick-btn" onclick="addFeedback('แนบไฟล์ผิด')">+ ไฟล์ผิด</button>
-                                <button class="quick-btn" onclick="addFeedback('ปพ.7 ไม่ครบทุกคน')">+ ปพ7
-                                    ไม่ครบ</button>
-                                <button class="quick-btn" onclick="addFeedback('ปพ.7 หมดอายุ')">+ ปพ7 หมดอายุ</button>
-                                <button class="quick-btn" onclick="addFeedback('ลายเซ็นอาจารย์ไม่ครบ')">+
-                                    ไม่มีลายเซ็น</button>
-                                <button class="quick-btn" onclick="addFeedback('สมัครผิดประเภท')">+ สมัครผิดประเภท</button>
+                        
+                            <!-- กลุ่ม Quick Feedback: ใบรับรอง รร. (แสดงเฉพาะเมื่อไม่เรียบร้อย) -->
+                            <div id="quick-btns-cert" class="quick-btns-group hidden" style="margin-bottom: 8px;">
+                                <div style="font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 4px;">ระบุปัญหาใบรับรอง รร.:</div>
+                                <div class="quick-btns">
+                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'ลายเซ็นอาจารย์ไม่ครบ')">+ ไม่มีลายเซ็น</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'สมัครผิดประเภท')">+ สมัครผิดประเภท</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'รูปถ่ายไม่ชัดเจน')">+ รูปไม่ชัด</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'แนบไฟล์ผิด')">+ ไฟล์ผิด</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'กรอกข้อมูลไม่ครบ')">+ กรอกข้อมูลไม่ครบ</button>
+
+                                </div>
                             </div>
+                        
+                            <!-- กลุ่ม Quick Feedback: ปพ.7 (แสดงเฉพาะเมื่อไม่เรียบร้อย) -->
+                            <div id="quick-btns-transcript" class="quick-btns-group hidden" style="margin-bottom: 8px;">
+                                <div style="font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 4px;">ระบุปัญหา ปพ.7:</div>
+                                <div class="quick-btns">
+                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'ปพ.7 ไม่ครบทุกคน')">+ ปพ7 ไม่ครบทุกคน</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'ปพ.7 หมดอายุ')">+ ปพ7 หมดอายุ</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'สมัครผิดประเภท')">+ สมัครผิดประเภท</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'รูปถ่ายไม่ชัดเจน')">+ รูปไม่ชัด</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'แนบไฟล์ผิด')">+ แนบไฟล์ผิด</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'ลายเซ็นอาจารย์ไม่ครบ')">+ ไม่มีลายเซ็น</button>
+
+                                </div>
+                            </div>
+                        
+                            <!-- กลุ่ม Quick Feedback: สลิปโอนเงิน (แสดงเฉพาะเมื่อไม่เรียบร้อย) -->
+                            <div id="quick-btns-slip" class="quick-btns-group hidden" style="margin-bottom: 8px;">
+                                <div style="font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 4px;">ระบุปัญหาหลักฐานโอนเงิน:
+                                </div>
+                                <div class="quick-btns">
+                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'ชื่อทีมในสลิปไม่ตรงกัน')">+
+                                        ชื่อไม่ตรงสลิป</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'ยอดเงินโอนไม่ถูกต้อง')">+ ยอดโอนผิด</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'โอนผิดบัญชี')">+ โอนผิดบัญชี</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'รูปถ่ายไม่ชัดเจน')">+ รูปไม่ชัด</button>
+                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'แนบไฟล์ผิด')">+ แนบไฟล์ผิด</button>
+                                </div>
+                            </div>
+                        
                             <div
                                 class="feedback-container mt-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
                                 <!-- Header ของช่อง Feedback -->
@@ -2285,6 +2317,7 @@
 
                 viewDoc('cert');
                 updateNavButtons();
+                window.updateQuickBtns();
 
                 if (window.innerWidth < 768) {
                     document.getElementById('sidebar').style.display = 'none';
@@ -2400,33 +2433,128 @@
             function resetDocTransform() { docScale = 1; docRotate = 0; document.getElementById('mainDocPreview').style.transform = ''; }
 
             // ─── Feedback ────────────────────────────────────────────────────
-            window.genBullets = function () {
-                if (!localCurrentTeam) return;
-                const certVal = document.getElementById('sel-cert').value;
-                const tranVal = document.getElementById('sel-transcript').value;
-                const slipVal = document.getElementById('sel-slip').value;
+                window.genBullets = function () {
+                    if (!localCurrentTeam) return;
+                    const certVal = document.getElementById('sel-cert').value;
+                    const tranVal = document.getElementById('sel-transcript').value;
+                    const slipVal = document.getElementById('sel-slip').value;
 
-                const emojiMap = {
-                    'เอกสารเรียบร้อย': '✅ เรียบร้อย',
-                    'รอตรวจเอกสาร': '⏳ อยู่ระหว่างตรวจสอบ',
-                    'ยังไม่ได้รับเอกสาร': '❌ ยังไม่ได้รับข้อมูล',
-                    'เอกสารไม่เรียบร้อย': '⚠️ โปรดดำเนินการแก้ไข',
-                    'ไม่ต้องส่ง': '➖ (ไม่ต้องส่ง)'
+                    const emojiMap = {
+                        'เอกสารเรียบร้อย': '✅ เรียบร้อย',
+                        'รอตรวจเอกสาร': '⏳ อยู่ระหว่างตรวจสอบ',
+                        'ยังไม่ได้รับเอกสาร': '❌ ยังไม่ได้รับข้อมูล',
+                        'เอกสารไม่เรียบร้อย': '⚠️ โปรดดำเนินการแก้ไข',
+                        'ไม่ต้องส่ง': '➖ (ไม่ต้องส่ง)'
+                    };
+
+                    const lines = [
+                        { label: 'หนังสือรับรองจากโรงเรียน', val: certVal },
+                        { label: 'ใบรับรองผลการศึกษา (ปพ.7)', val: tranVal },
+                        { label: 'หลักฐานการชำระเงิน', val: slipVal },
+                    ].map(item => `• ${item.label}: [${emojiMap[item.val] || '⏳'}]${item.val === 'เอกสารไม่เรียบร้อย' ? '\n   เหตุผลที่ต้องแก้ไข: ' : ''}`);
+
+                    document.getElementById('feedbackText').value = 'สรุปสถานะเอกสารการสมัคร:\n' + lines.join('\n');
+                    window.updateQuickBtns();
                 };
 
-                const lines = [
-                    { label: 'หนังสือรับรองจากโรงเรียน', val: certVal },
-                    { label: 'ใบรับรองผลการศึกษา (ปพ.7)', val: tranVal },
-                    { label: 'หลักฐานการชำระเงิน', val: slipVal },
-                ].map(item => `• ${item.label}: [${emojiMap[item.val] || '⏳'}]${item.val === 'เอกสารไม่เรียบร้อย' ? '\n   เหตุผลที่ต้องแก้ไข: ' : ''}`);
+                window.updateQuickBtns = function () {
+                    const certVal = document.getElementById('sel-cert').value;
+                    const tranVal = document.getElementById('sel-transcript').value;
+                    const slipVal = document.getElementById('sel-slip').value;
 
-                document.getElementById('feedbackText').value = 'สรุปสถานะเอกสารการสมัคร:\n' + lines.join('\n');
-            };
+                    const certGroup = document.getElementById('quick-btns-cert');
+                    const tranGroup = document.getElementById('quick-btns-transcript');
+                    const slipGroup = document.getElementById('quick-btns-slip');
 
-            window.addFeedback = function (msg) {
-                const area = document.getElementById('feedbackText');
-                if (!area.value.includes(msg)) area.value += `\n  - ${msg}`;
-            };
+                    if (certGroup) {
+                        if (certVal === "เอกสารไม่เรียบร้อย") {
+                            certGroup.classList.remove('hidden');
+                        } else {
+                            certGroup.classList.add('hidden');
+                        }
+                    }
+
+                    if (tranGroup) {
+                        if (tranVal === "เอกสารไม่เรียบร้อย") {
+                            tranGroup.classList.remove('hidden');
+                        } else {
+                            tranGroup.classList.add('hidden');
+                        }
+                    }
+
+                    if (slipGroup) {
+                        if (slipVal === "เอกสารไม่เรียบร้อย") {
+                            slipGroup.classList.remove('hidden');
+                        } else {
+                            slipGroup.classList.add('hidden');
+                        }
+                    }
+                };
+
+                window.addDocFeedback = function (docType, message) {
+                    const area = document.getElementById('feedbackText');
+                    let text = area.value;
+
+                    const labelMap = {
+                        cert: '• หนังสือรับรองจากโรงเรียน',
+                        transcript: '• ใบรับรองผลการศึกษา (ปพ.7)',
+                        slip: '• หลักฐานการชำระเงิน'
+                    };
+
+                    const label = labelMap[docType];
+                    if (!label) return;
+
+                    const docIndex = text.indexOf(label);
+                    // หากหาหัวข้อเอกสารไม่พบ ให้เพิ่มต่อท้ายแบบเดิม
+                    if (docIndex === -1) {
+                        if (!text.includes(message)) {
+                            area.value = text + (text ? '\n' : '') + `  - ${message}`;
+                        }
+                        window.onFeedbackType();
+                        return;
+                    }
+
+                    // ค้นหาช่วงสิ้นสุดของเอกสารหัวข้อนี้ (สิ้นสุดเมื่อเจอหัวข้อถัดไปที่มีสัญลักษณ์ • หรือสิ้นสุดข้อความทั้งหมด)
+                    const nextBulletIndex = text.indexOf('•', docIndex + label.length);
+                    const sectionEnd = nextBulletIndex !== -1 ? nextBulletIndex : text.length;
+                    const sectionText = text.substring(docIndex, sectionEnd);
+
+                    const targetPhrase = 'เหตุผลที่ต้องแก้ไข:';
+                    const phraseIndex = sectionText.indexOf(targetPhrase);
+
+                    if (phraseIndex !== -1) {
+                        const absolutePhraseEnd = docIndex + phraseIndex + targetPhrase.length;
+
+                        // ป้องกันการบันทึกข้อความผิดซ้ำในหัวข้อเอกสารเดิม
+                        if (sectionText.includes(message)) return;
+
+                        const afterPhrase = text.substring(absolutePhraseEnd, sectionEnd);
+                        const hasContent = afterPhrase.trim().length > 0 && !afterPhrase.trim().startsWith('•');
+
+                        let insertion = "";
+                        if (hasContent) {
+                            insertion = `, ${message}`;
+                        } else {
+                            insertion = ` ${message}`;
+                        }
+
+                        area.value = text.substring(0, absolutePhraseEnd) + insertion + text.substring(absolutePhraseEnd);
+                    } else {
+                        // กรณีไม่มีคำว่า "เหตุผลที่ต้องแก้ไข:" (เกิดจากสเตตัสไม่ใช่ "เอกสารไม่เรียบร้อย") ให้แทรกบรรทัดเพิ่มท้ายกลุ่มเอกสารนี้
+                        if (!sectionText.includes(message)) {
+                            const insertion = `\n   - ${message}`;
+                            area.value = text.substring(0, sectionEnd).trimEnd() + insertion + '\n' + text.substring(sectionEnd);
+                        }
+                    }
+
+                    window.onFeedbackType();
+                };
+
+                window.addFeedback = function (msg) {
+                    const area = document.getElementById('feedbackText');
+                    if (!area.value.includes(msg)) area.value += `\n  - ${msg}`;
+                    window.onFeedbackType();
+                };
 
             window.onFeedbackType = function () {
                 const indicator = document.getElementById('syncIndicator');
