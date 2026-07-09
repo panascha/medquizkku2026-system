@@ -1,3 +1,853 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+404.html
+assets/logokku.png
+css/style.css
+index.html
+js/auth.js
+js/checking-logic.js
+js/firebase-config.js
+js/utils.js
+pages/checking.html
+pages/login.html
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="404.html">
+<script>location.href='index.html'</script>
+</file>
+
+<file path="css/style.css">
+/* Custom CSS */
+</file>
+
+<file path="index.html">
+<!-- Portal -->
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Portal — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: #f8faff;
+            color: #1e293b;
+        }
+
+        .nav-gradient {
+            background: linear-gradient(to right, #0f1f4b, #1e3a8a);
+        }
+
+        .menu-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="nav-gradient text-white p-4 shadow-lg">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-shield-heart text-yellow-400"></i>
+                <span class="font-bold tracking-tight">MedQuiz KKU 2026 Portal</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden sm:block">
+                    <p class="text-[10px] opacity-60 leading-none">Welcome,</p>
+                    <p class="text-xs font-bold" id="staffName">Staff Name</p>
+                </div>
+                <button onclick="handleLogout()"
+                    class="bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white px-3 py-1.5 rounded-lg text-xs transition-all font-bold">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-5xl mx-auto w-full p-6 md:p-12">
+        <header class="mb-10 text-center md:text-left">
+            <h2 class="text-3xl font-800 text-slate-800 mb-2">ระบบจัดการงานสตาฟ</h2>
+            <p class="text-slate-500">กรุณาเลือกโมดูลที่ต้องการดำเนินการตามระยะเวลาของโครงการ</p>
+        </header>
+
+        <!-- Menu Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            <!-- Module 1: Document Checking -->
+            <a href="pages/checking.html"
+                class="menu-card bg-white border border-slate-200 p-6 rounded-3xl flex flex-col gap-4 group">
+                <div
+                    class="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                    <i class="fa-solid fa-file-circle-check"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-slate-800">ตรวจสอบเอกสาร</h3>
+                    <p class="text-sm text-slate-500">ตรวจสอบ ปพ.7, สลิปโอนเงิน และใบรับรองโรงเรียน (Phase 1)</p>
+                </div>
+                <div class="mt-auto pt-4 flex items-center text-blue-600 font-bold text-xs uppercase tracking-widest">
+                    ดำเนินการ <i
+                        class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                </div>
+            </a>
+
+            <!-- Module 2: Exam System (Future) -->
+            <div class="bg-slate-50 border border-slate-100 p-6 rounded-3xl flex flex-col gap-4 opacity-60">
+                <div class="w-12 h-12 bg-slate-200 text-slate-400 rounded-2xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-laptop-code"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-slate-400">ระบบสอบออนไลน์</h3>
+                    <p class="text-sm text-slate-400">จัดการลิงก์ข้อสอบรอบ 0 และตรวจคะแนนอัตโนมัติ (Phase 2)</p>
+                </div>
+                <div class="mt-auto pt-4 text-slate-400 font-bold text-xs italic">
+                    COMING SOON
+                </div>
+            </div>
+
+            <!-- Module 3: Logs & Settings -->
+            <div class="bg-slate-50 border border-slate-100 p-6 rounded-3xl flex flex-col gap-4 opacity-60">
+                <div class="w-12 h-12 bg-slate-200 text-slate-400 rounded-2xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-slate-400">System Logs</h3>
+                    <p class="text-sm text-slate-400">ประวัติการเข้าใช้งานและการบันทึกข้อมูลย้อนหลัง</p>
+                </div>
+                <div class="mt-auto pt-4 text-slate-400 font-bold text-xs italic">
+                    ADMIN ONLY
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest">
+        &copy; 2026 IT Team | MedQuiz KKU 52 Project
+    </footer>
+
+    <script type="module">
+        import { auth, logout } from './js/auth.js';
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('staffName').textContent = user.displayName || user.email;
+            }
+        });
+
+        window.handleLogout = () => {
+            if (confirm("ยืนยันการออกจากระบบ?")) logout();
+        };
+    </script>
+</body>
+
+</html>
+</file>
+
+<file path="js/auth.js">
+// js/auth.js
+import { auth, db, ref, get, escapeEmail } from "./firebase-config.js";
+import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: 'select_account' }); // ให้เลือกบัญชีทุกครั้ง
+
+// ฟังก์ชัน Login: ตรวจสอบโดเมน และ Whitelist (ถ้ามี)
+export const loginWithKKU = async () => {
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        // 1. ตรวจสอบ Domain
+        const isKKU = user.email.endsWith("@kku.ac.th") || user.email.endsWith("@kkumail.com");
+
+        if (isKKU) {
+            // 2. [Optional] ตรวจสอบ Whitelist ใน Firebase (เพิ่มความปลอดภัยอีกชั้น)
+            const staffRef = ref(db, `staff_whitelist/${escapeEmail(user.email)}`);
+            const snapshot = await get(staffRef);
+
+            if (snapshot.exists()) {
+                console.log("Welcome Staff:", user.displayName);
+                window.location.href = "checking.html";
+                return user;
+            } else {
+                alert("คุณไม่มีสิทธิ์เข้าถึงระบบ Staff กรุณาติดต่อฝ่าย IT");
+                await signOut(auth);
+            }
+        } else {
+            alert("ไม่อนุญาต! กรุณาใช้ kkumail (@kku.ac.th หรือ @kkumail.com) เท่านั้น");
+            await signOut(auth);
+        }
+        return null;
+    } catch (error) {
+        console.error("Login Error:", error.message);
+        throw error;
+    }
+};
+
+export const logout = () => signOut(auth).then(() => window.location.href = "login.html");
+
+// ตรวจสอบสถานะ Login อัตโนมัติ
+onAuthStateChanged(auth, (user) => {
+    const isLoginPage = window.location.pathname.includes("login.html");
+
+    if (user) {
+        const isValidEmail = user.email.endsWith("@kku.ac.th") || user.email.endsWith("@kkumail.com");
+        if (!isValidEmail) {
+            signOut(auth);
+        } else if (isLoginPage) {
+            window.location.href = "checking.html";
+        }
+    } else {
+        if (!isLoginPage) {
+            window.location.href = "login.html";
+        }
+    }
+});
+</file>
+
+<file path="pages/login.html">
+<!-- Login Page -->
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: #0f1f4b;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+
+<body class="h-screen flex items-center justify-center p-4">
+    <div class="max-w-md w-full glass-card rounded-[2rem] p-8 text-center shadow-2xl">
+        <!-- Logo -->
+        <div class="mb-6">
+            <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <i class="fa-solid fa-stethoscope text-3xl text-blue-900"></i>
+            </div>
+            <h1 class="text-white text-2xl font-800 tracking-tight">MedQuiz KKU 2026</h1>
+            <p class="text-blue-200 text-sm opacity-70">Staff Internal Management System</p>
+        </div>
+
+        <!-- Login Button -->
+        <div class="space-y-4">
+            <button id="btnLogin" onclick="handleLogin()"
+                class="w-full bg-white text-slate-800 font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-50 transition-all active:scale-95 shadow-lg">
+                <img src="../assets/logokku.png" width="25">
+                Sign in with KKU Mail
+            </button>
+            <p class="text-[11px] text-blue-300 opacity-60 leading-relaxed">
+                กรุณาใช้บัญชี <b class="text-white">@kku.ac.th</b> หรือ <b class="text-white">@kkumail.com</b>
+                ในการเข้าสู่ระบบเท่านั้น<br>
+                ระบบนี้สงวนสิทธิ์สำหรับคณะทำงาน MedQuiz 2026
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-12 pt-6 border-t border-white/10 text-blue-300/40 text-[10px] uppercase tracking-widest">
+            Faculty of Medicine, Khon Kaen University
+        </div>
+    </div>
+
+    <script type="module">
+        import { loginWithKKU } from '../js/auth.js';
+        window.handleLogin = async () => {
+            const btn = document.getElementById('btnLogin');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังตรวจสอบ...';
+            try {
+                await loginWithKKU();
+            } catch (e) {
+                btn.disabled = false;
+                btn.innerHTML = '<img src="..." width="18"> Sign in with KKU Mail';
+            }
+        };
+    </script>
+</body>
+
+</html>
+</file>
+
+<file path="js/firebase-config.js">
+// js/firebase-config.js
+
+// 1. นำเข้า Firebase SDK (ใช้แบบ Modular v9+)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, update, remove, onDisconnect }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+// 2. ตั้งค่า Config
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+    apiKey: "AIzaSyC2RSce9kCA9TZ1BgjiAfk2pgE41VnOPY4",
+    authDomain: "medquiz-kku-2026.firebaseapp.com",
+    databaseURL: "https://medquiz-kku-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "medquiz-kku-2026",
+    storageBucket: "medquiz-kku-2026.firebasestorage.app",
+    messagingSenderId: "210776025383",
+    appId: "1:210776025383:web:c391a04b826fefecf66102",
+    measurementId: "G-VJVDG2D7TT"
+};
+
+export const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwKSn21RnyxaHv6oCZGytCM2gCwvt_jaAOS_EFw9TJk1IZATD0-90PG8SKTXB6tqT-a_g/exec";
+
+
+// 3. Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+
+// 4. Utility Function สำหรับจัดการ Email (แปลง . เป็น _)
+const escapeEmail = (email) => {
+    if (!email || typeof email !== 'string') return "unknown_email";
+    return email.replace(/\./g, '_');
+};
+// 5. ส่งออกตัวแปรเพื่อให้ไฟล์อื่น (checking-logic.js) เรียกใช้ได้
+export { db, auth, ref, set, get, onValue, update, remove, onDisconnect, escapeEmail };
+</file>
+
+<file path="js/utils.js">
+// Utils Logic
+
+function getDrivePreviewUrl(url) {
+    if (!url || typeof url !== 'string' || url.trim() === "") return null;
+
+    // รองรับทั้ง /file/d/ID/view และ ?id=ID และ /open?id=ID
+    const patterns = [
+        /\/file\/d\/([-\w]{25,})/,
+        /[?&]id=([-\w]{25,})/,
+    ];
+
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+            return `https://drive.google.com/file/d/${match[1]}/preview`;
+        }
+    }
+
+    return null;
+}
+
+// ตัวอย่างการใช้งานใน Checking.html:
+// document.getElementById('mainDocPreview').src = getDrivePreviewUrl(team.slipUrl);
+
+
+function formatDate(dateStr) {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    return isNaN(d) ? dateStr : d.toLocaleDateString('th-TH');
+}
+
+function formatTime(timeStr) {
+    if (!timeStr) return "—";
+    const d = new Date(timeStr);
+    return isNaN(d) ? timeStr : d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+}
+</file>
+
+<file path="js/checking-logic.js">
+// js/checking-logic.js
+
+import { auth, db, ref, set, get, onValue, update, remove, onDisconnect, escapeEmail, WEB_APP_URL } from "./firebase-config.js";
+
+// ============================================================================
+// STATE MANAGEMENT (จัดการตัวแปรส่วนกลาง)
+// ============================================================================
+let currentUser = null;
+export let allTeams = [];
+let teamsData = [];       // เก็บข้อมูลทั้งหมดจาก GAS
+let currentFilter = 'all';
+export let currentTeam = null;
+export const callbacks = {
+    onTeamsLoaded: null,
+    onStatusChange: null,
+    onOccupancyChange: null,
+    onStaffPresenceChange: null,
+    onSaveSuccess: null,
+    onSaveError: null,
+    onConflict: null,
+    onToast: null
+};
+
+// ============================================================================
+// UTILS (ฟังก์ชันช่วยเหลือทั่วไป)
+// ===========================================================================
+
+function triggerToast(msg, type) {
+    if (callbacks.onToast) callbacks.onToast(msg, type);
+}
+
+// ============================================================================
+// INITIALIZATION & DATA FETCHING
+// ============================================================================
+
+export async function initCheckingSystem(user) {
+    currentUser = user; // กำหนดข้อมูลผู้ใช้งานของเซสชันปัจจุบัน
+    setupStaffPresence(user);
+    await loadDataFromGAS(); // ดึงข้อมูลทีมทั้งหมดและแสดงตัวโหลดเริ่มต้น
+    setupFirebaseListeners();
+
+    // ตัวบอกสถานะการพิมพ์ (Typing indicator) — ทำงานเมื่อแน่ใจว่า DOM โหลดขึ้นมาแล้ว
+    const feedbackEl = document.getElementById('feedbackText');
+    if (feedbackEl) {
+        feedbackEl.addEventListener('input', () => {
+            if (currentTeam) {
+                update(ref(db, `occupancy/${escapeEmail(currentTeam.id)}`), { isTyping: true, lastActive: Date.now() });
+            }
+        });
+        feedbackEl.addEventListener('blur', () => {
+            if (currentTeam) {
+                update(ref(db, `occupancy/${escapeEmail(currentTeam.id)}`), { isTyping: false });
+            }
+        });
+    }
+}
+
+async function syncUpdatedStatusFromFirebase() {
+    const snapshot = await get(ref(db, 'teams'));
+    const fbTeams = snapshot.val();
+    if (!fbTeams) return;
+
+    teamsData.forEach(t => {
+        const fbData = fbTeams[escapeEmail(t.id)];
+        if (fbData) {
+            t.updated = fbData.status.isUpdated;
+        }
+    });
+}
+
+async function loadDataFromGAS() {
+    triggerToast("กำลังดึงข้อมูลจากฐานข้อมูล...", "loading");
+    try {
+        await loadAllTeams();
+        triggerToast("ดึงข้อมูลสำเร็จ ✅", "success");
+    } catch (error) {
+        console.error("Fetch Error:", error);
+        triggerToast("❌ โหลดข้อมูลล้มเหลว", "error");
+    }
+}
+
+export async function loadAllTeams(forceRefresh = false) {
+    try {
+        const response = await fetch(WEB_APP_URL);
+        const result = await response.json();
+        if (result.status === "success") {
+            allTeams = result.data.map((row, i) => {
+                const existingTeam = allTeams.find(t => t.id === row["Member 1 Email"]);
+                return {
+                    idx: i + 1,
+                    id: row["Member 1 Email"],
+                    email: row["Member 1 Email"],
+                    teamName: row["Team Name"],
+                    category: row["Team Category"],
+                    overall: row["Registration Status Overall"],
+                    updated: existingTeam ? existingTeam.updated : false,
+                    emailSentStatus: row["Additional Form Sent Status"],
+                    version: parseInt(row["Review Version"]) || 1,
+                    lastModified: new Date(row["Last Review Timestamp"]).getTime(),
+                    lastSubmit: row["Last Form Submit Timestamp"] ? new Date(row["Last Form Submit Timestamp"]).getTime() : null,
+                    members: [
+                        { prefix: row["Member 1 Prefix"], name: row["Member 1 Name"], email: row["Member 1 Email"], phone: row["Member 1 Phone"], school: row["Member 1 School Name"], level: row["Member 1 Level"] },
+                        { prefix: row["Member 2 Prefix"], name: row["Member 2 Name"], email: row["Member 2 Email"], phone: row["Member 2 Phone"], school: row["Member 2 School Name"], level: row["Member 2 Level"] },
+                        { prefix: row["Member 3 Prefix"], name: row["Member 3 Name"], email: row["Member 3 Email"], phone: row["Member 3 Phone"], school: row["Member 3 School Name"], level: row["Member 3 Level"] }
+                    ],
+                    advisor: { name: row["Advisor Name"], phone: row["Advisor Phone"], email: row["Advisor Email"] },
+                    payment: { bank: row["Transferring Bank"], date: row["Transfer Date"], time: row["Transfer Time"], last4: row["Account Last 4 Digits"] },
+                    certUrl: row["Latest School Cert"],
+                    transcriptUrl: row["Latest Transcript"],
+                    slipUrl: row["Latest Payment Slip"],
+                    certStatus: row["School Cert Review Status"],
+                    transcriptStatus: row["Transcript Review Status"],
+                    slipStatus: row["Payment Slip Review Status"],
+                    feedback: row["Feedback for Student"],
+                    additionalFormLink: row["Additional Form Link"],
+                    reviewer: row["Reviewer Email"]
+                };
+            });
+
+            teamsData = allTeams; // Sync both states to point to the exact same array reference
+
+            await syncUpdatedStatusFromFirebase();
+            
+            if (window.renderStats) window.renderStats(allTeams);
+            if (window.filterTeams) window.filterTeams();
+
+            if (callbacks.onTeamsLoaded) callbacks.onTeamsLoaded(allTeams);
+        }
+    } catch (e) {
+        console.error("Load failed", e);
+    }
+}
+
+// ============================================================================
+// FIREBASE REAL-TIME LISTENERS
+// ============================================================================
+
+function setupStaffPresence(user) {
+    const pRef = ref(db, `staff_presence/${escapeEmail(user.email)}`);
+    set(pRef, {
+        name: user.displayName || user.email,
+        status: "online",
+        lastOnline: Date.now(),
+        currentTeam: ""
+    });
+    onDisconnect(pRef).update({ status: "offline", currentTeam: "" });
+}
+
+function setupFirebaseListeners() {
+    const teamsRef = ref(db, 'teams');
+    onValue(teamsRef, (snapshot) => {
+        const fbTeams = snapshot.val();
+        if (!fbTeams) return;
+
+        let needsRender = false;
+
+        teamsData.forEach(t => {
+            const fbData = fbTeams[escapeEmail(t.id)];
+            if (fbData) {
+                if (t.updated !== fbData.status.isUpdated) {
+                    t.updated = fbData.status.isUpdated;
+                    needsRender = true;
+                }
+
+                if (fbData.status.reviewVersion > t.version) {
+                    t.overall = fbData.status.overall;
+                    t.version = fbData.status.reviewVersion;
+
+                    if (fbData.docs) {
+                        t.certStatus = fbData.docs.cert?.status || t.certStatus;
+                        t.transcriptStatus = fbData.docs.transcript?.status || t.transcriptStatus;
+                        t.slipStatus = fbData.docs.slip?.status || t.slipStatus;
+
+                        // ← เพิ่ม 3 บรรทัดนี้
+                        t.certUrl = fbData.docs.cert?.url || t.certUrl;
+                        t.transcriptUrl = fbData.docs.transcript?.url || t.transcriptUrl;
+                        t.slipUrl = fbData.docs.slip?.url || t.slipUrl;
+                    }
+
+                    if (fbData.communication?.note) t.feedback = fbData.communication.note;
+                    if (fbData.communication?.additionalForm) t.emailSentStatus = fbData.communication.additionalForm.sentStatus;
+
+                    needsRender = true;
+                }
+            }
+        });
+
+        if (needsRender) {
+            console.log("Firebase Update detected - Rerendering list...");
+            if (window.renderStats) window.renderStats(teamsData);
+            if (window.filterTeams) window.filterTeams();
+        }
+    });
+
+    // 3.2 ฟังระบบ Occupancy (ไฟบอกสถานะคนตรวจซ้อน)
+    const occRef = ref(db, 'occupancy');
+    onValue(occRef, (snapshot) => {
+        const allOcc = snapshot.val() || {};
+
+        // ล้างป้าย Eye (กำลังดู) ออกจากทุกลิสต์ก่อน
+        document.querySelectorAll('.occupancy-dot').forEach(el => el.remove());
+
+        for (const [escapedEmail, occData] of Object.entries(allOcc)) {
+            // ไม่ต้องโชว์ชื่อตัวเอง
+            if (occData.staffEmail === currentUser.email) continue;
+
+            // แปะป้ายที่ Sidebar
+            const cardEl = document.querySelector(`.team-card[data-email="${escapedEmail}"]`);
+            if (cardEl) {
+                const footer = cardEl.querySelector('.card-footer') || cardEl.querySelector('.team-card-inner');
+                if (footer && !footer.querySelector('.occupancy-dot')) {
+                    footer.innerHTML += `<span class="occupancy-dot" style="font-size:10px; color:#ea580c; margin-left:8px;"><i class="fa-solid fa-eye fa-pulse"></i> ${occData.staffName} ดูอยู่</span>`;
+                }
+            }
+
+            // ถ้ากำลังเปิดดูทีมเดียวกัน ให้โชว์แจ้งเตือนในหน้า Detail ด้วย
+            if (currentTeam && escapeEmail(currentTeam.id) === escapedEmail) {
+                const banner = document.getElementById('occupancyBanner');
+                const text = document.getElementById('occupancyText'); // ดึง ID text มาด้วย
+
+                if (banner) {
+                    banner.style.display = 'inline-flex';
+                    if (text) {
+                        text.textContent = `${occData.staffName} กำลัง${occData.action === 'editing' ? 'พิมพ์...' : 'ดูอยู่'}`;
+                    }
+                }
+            }
+        }
+
+        // ปิด Banner ถ้าไม่มีคนดูแล้ว
+        if (currentTeam && !allOcc[escapeEmail(currentTeam.id)]) {
+            const banner = document.getElementById('occupancyBanner');
+            if (banner) banner.style.display = 'none';
+        }
+    });
+}
+
+// ============================================================================
+// OCCUPANCY & PRESENCE LOGIC
+// ============================================================================
+
+async function updateStaffPresence(status) {
+    const presenceRef = ref(db, `staff_presence/${escapeEmail(currentUser.email)}`);
+    await update(presenceRef, {
+        name: currentUser.displayName || "Staff",
+        status: status,
+        lastOnline: Date.now()
+    });
+    // ถ้าปิดเว็บให้ลบชื่อออกอัตโนมัติ
+    onDisconnect(presenceRef).update({ status: "offline" });
+}
+
+export async function claimTeam(team) {
+    if (currentTeam) await releaseCurrentTeam();
+    currentTeam = team;
+    const escapedEmail = escapeEmail(team.email);
+    const occRef = ref(db, `occupancy/${escapedEmail}`);
+
+    await set(occRef, {
+        staffEmail: auth.currentUser.email,
+        staffName: auth.currentUser.displayName || "Staff",
+        action: "viewing",
+        lastActive: Date.now()
+    });
+
+    onDisconnect(occRef).remove();
+    // อัปเดตสถานะ Presence ว่ากำลังดูทีมไหน
+    update(ref(db, `staff_presence/${escapeEmail(auth.currentUser.email)}`), {
+        currentTeam: team.teamName
+    });
+}
+
+export async function releaseCurrentTeam() {
+    if (!currentTeam) return;
+    await remove(ref(db, `occupancy/${escapeEmail(currentTeam.email)}`));
+    currentTeam = null;
+}
+
+export function setTypingStatus(isTyping) {
+    if (!currentTeam) return;
+    update(ref(db, `occupancy/${escapeEmail(currentTeam.email)}`), {
+        action: isTyping ? "editing" : "viewing"
+    });
+}
+
+async function setTeamOccupancy(teamEmail) {
+    const escaped = escapeEmail(teamEmail);
+    const occRef = ref(db, `occupancy/${escaped}`);
+
+    await set(occRef, {
+        staffEmail: currentUser.email,
+        staffName: currentUser.displayName || "Staff",
+        action: "viewing",
+        isTyping: false,
+        lastActive: Date.now()
+    });
+
+    // ถ้าปิดแท็บ หรือเน็ตหลุด ให้ปลดล็อกทีมนี้ทันที
+    onDisconnect(occRef).remove();
+}
+
+async function clearTeamOccupancy(teamEmail) {
+    if (!teamEmail) return;
+    const occRef = ref(db, `occupancy/${escapeEmail(teamEmail)}`);
+    await remove(occRef);
+}
+
+// ============================================================================
+// SAVE & CONFLICT LOGIC (เชื่อม GAS)
+// ============================================================================
+
+export async function saveReview(payload) {
+    if (!currentTeam) {
+        console.error("No team selected to save");
+        return;
+    }
+
+    try {
+        const body = {
+            ...payload,
+            email: currentTeam.id, // ใช้ id ซึ่งเก็บอีเมลหัวหน้าทีมไว้
+            reviewerEmail: auth.currentUser.email
+        };
+
+        // ส่งไปที่ GAS
+        const response = await fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify(body)
+        });
+
+        // ตรวจสอบและแปลงข้อมูลตอบกลับจาก GAS
+        const result = await response.json();
+        if (result.status !== "success") {
+            throw new Error(result.message || "ระบบหลังบ้าน GAS ปฏิเสธการบันทึกข้อมูล");
+        }
+
+        // อัปเดต Firebase Realtime เฉพาะกรณีที่ GAS บันทึกผ่านแล้วเท่านั้น
+        const escaped = escapeEmail(currentTeam.id);
+        const teamRef = ref(db, `teams/${escaped}`);
+
+        await update(teamRef, {
+            "status/overall": payload.overallStatus,
+            "status/reviewVersion": (currentTeam.version || 1) + 1,
+            "status/isUpdated": false,
+            "communication/note": payload.feedback,
+            "communication/additionalForm/sentStatus": payload.sendEmail ? "ส่งแล้ว" : (currentTeam.emailSentStatus || "ยังไม่ส่ง")
+        });
+
+        // อัปเดตข้อมูลในอาร์เรย์ allTeams เพื่อให้สถิติเปลี่ยนทันที
+        const teamIdx = allTeams.findIndex(t => t.id === currentTeam.id);
+        if (teamIdx !== -1) {
+            allTeams[teamIdx].overall = payload.overallStatus;
+            allTeams[teamIdx].certStatus = payload.certStatus;
+            allTeams[teamIdx].transcriptStatus = payload.transcriptStatus;
+            allTeams[teamIdx].slipStatus = payload.slipStatus;
+            allTeams[teamIdx].feedback = payload.feedback;
+            allTeams[teamIdx].version = (currentTeam.version || 1) + 1;
+            allTeams[teamIdx].updated = false;
+
+            if (payload.sendEmail) {
+                allTeams[teamIdx].emailSentStatus = 'ส่งแล้ว';
+            }
+
+            currentTeam = { ...allTeams[teamIdx] };
+        }
+
+        if (callbacks.onSaveSuccess) callbacks.onSaveSuccess(currentTeam);
+
+    } catch (e) {
+        console.error("Save Error:", e);
+        if (callbacks.onSaveError) callbacks.onSaveError(e.message);
+    }
+}
+
+export function computeOverallStatus(cert, trans, slip) {
+    const isCertOk  = cert  === "เอกสารเรียบร้อย" || cert  === "ไม่ต้องส่ง";
+    const isTransOk = trans === "เอกสารเรียบร้อย" || trans === "ไม่ต้องส่ง";
+    const isSlipOk  = slip  === "เอกสารเรียบร้อย"; // สลิปทุกทีมต้องส่ง
+
+    if (isCertOk && isTransOk && isSlipOk) return "การสมัครสมบูรณ์";
+
+    const BAD = ["เอกสารไม่เรียบร้อย", "ยังไม่ได้รับเอกสาร"];
+    if (BAD.includes(cert) || BAD.includes(trans) || BAD.includes(slip))
+        return "การสมัครไม่เรียบร้อย";
+
+    return "รอการตรวจสอบ";
+}
+
+// ============================================================================
+// WINDOW BINDINGS (ทำให้เรียกใช้จาก HTML ได้)
+// ============================================================================
+
+window.selectTeamData = async function (email, element) {
+    if (currentTeam) await clearTeamOccupancy(currentTeam.id); // ลบ occupancy ทีมเก่า
+
+    const team = teamsData.find(t => t.id === email);
+    currentTeam = team;
+
+    await setTeamOccupancy(email); // แจ้งเพื่อนว่ากำลังดู
+    return team; // ส่งข้อมูลคืนให้ HTML วาดต่อ
+};
+
+// เปลี่ยนให้ filter ใช้อ่านจากตัวแปรกลาง teamsData
+window.getTeamsData = () => teamsData;
+
+window.forceSave = function () {
+    document.getElementById('modalConflict').classList.add('hidden');
+    window.startSaveFlow(true); // เซฟทับเวอร์ชันใหม่
+};
+
+window.reloadTeamData = async function () {
+    document.getElementById('modalConflict').classList.add('hidden');
+    await loadDataFromGAS(); // ดึงข้อมูลใหม่
+    // โหลดหน้าจอทีมเดิมใหม่
+    const t = teamsData.find(x => x.id === currentTeam.id);
+    if (t) window.selectTeam(t.id);
+};
+
+// จัดการหน้าต่างปิดเบราว์เซอร์
+window.addEventListener('beforeunload', () => {
+    if (currentTeam) clearTeamOccupancy(currentTeam.id);
+    updateStaffPresence("offline");
+});
+</file>
+
+<file path="pages/checking.html">
 <!-- Checking Page -->
 
 <!DOCTYPE html>
@@ -915,12 +1765,6 @@
             color: #1d4ed8;
         }
 
-        .quick-btn.active {
-            background: var(--blue) !important;
-            color: white !important;
-            border-color: var(--blue) !important;
-        }
-
         #feedbackText {
     scrollbar-width: thin;
     scrollbar-color: #e2e8f0 transparent;
@@ -1791,48 +2635,16 @@
 
                         <div class="feedback-area">
                             <label>Feedback ถึงน้อง <span onclick="genBullets()">↺ รีเซ็ต</span></label>
-                        
-                            <!-- กลุ่ม Quick Feedback: ใบรับรอง รร. (แสดงเฉพาะเมื่อไม่เรียบร้อย) -->
-                            <div id="quick-btns-cert" class="quick-btns-group hidden" style="margin-bottom: 8px;">
-                                <div style="font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 4px;">ระบุปัญหาใบรับรอง รร.:</div>
-                                <div class="quick-btns">
-                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'ลายเซ็นอาจารย์ไม่ครบ')">+ ไม่มีลายเซ็น</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'สมัครผิดประเภท')">+ สมัครผิดประเภท</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'รูปถ่ายไม่ชัดเจน')">+ รูปไม่ชัด</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'แนบไฟล์ผิด')">+ ไฟล์ผิด</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('cert', 'กรอกข้อมูลไม่ครบ')">+ กรอกข้อมูลไม่ครบ</button>
-
-                                </div>
+                            <div class="quick-btns">
+                                <button class="quick-btn" onclick="addFeedback('รูปถ่ายไม่ชัดเจน')">+ รูปไม่ชัด</button>
+                                <button class="quick-btn" onclick="addFeedback('ชื่อทีมในสลิปไม่ตรงกัน')">+
+                                    สลิปผิด</button>
+                                <button class="quick-btn" onclick="addFeedback('แนบไฟล์ผิดประเภท')">+ ไฟล์ผิด</button>
+                                <button class="quick-btn" onclick="addFeedback('ปพ.7 ไม่ครบทุกคน')">+ ปพ7
+                                    ไม่ครบ</button>
+                                <button class="quick-btn" onclick="addFeedback('ลายเซ็นอาจารย์ไม่ครบ')">+
+                                    ไม่มีลายเซ็น</button>
                             </div>
-                        
-                            <!-- กลุ่ม Quick Feedback: ปพ.7 (แสดงเฉพาะเมื่อไม่เรียบร้อย) -->
-                            <div id="quick-btns-transcript" class="quick-btns-group hidden" style="margin-bottom: 8px;">
-                                <div style="font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 4px;">ระบุปัญหา ปพ.7:</div>
-                                <div class="quick-btns">
-                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'ปพ.7 ไม่ครบทุกคน')">+ ปพ7 ไม่ครบทุกคน</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'ปพ.7 หมดอายุ')">+ ปพ7 หมดอายุ</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'สมัครผิดประเภท')">+ สมัครผิดประเภท</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'รูปถ่ายไม่ชัดเจน')">+ รูปไม่ชัด</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'แนบไฟล์ผิด')">+ แนบไฟล์ผิด</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('transcript', 'ลายเซ็นอาจารย์ไม่ครบ')">+ ไม่มีลายเซ็น</button>
-
-                                </div>
-                            </div>
-                        
-                            <!-- กลุ่ม Quick Feedback: สลิปโอนเงิน (แสดงเฉพาะเมื่อไม่เรียบร้อย) -->
-                            <div id="quick-btns-slip" class="quick-btns-group hidden" style="margin-bottom: 8px;">
-                                <div style="font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 4px;">ระบุปัญหาหลักฐานโอนเงิน:
-                                </div>
-                                <div class="quick-btns">
-                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'ชื่อทีมในสลิปไม่ตรงกัน')">+
-                                        ชื่อไม่ตรงสลิป</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'ยอดเงินโอนไม่ถูกต้อง')">+ ยอดโอนผิด</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'โอนผิดบัญชี')">+ โอนผิดบัญชี</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'รูปถ่ายไม่ชัดเจน')">+ รูปไม่ชัด</button>
-                                    <button class="quick-btn" onclick="addDocFeedback('slip', 'แนบไฟล์ผิด')">+ แนบไฟล์ผิด</button>
-                                </div>
-                            </div>
-                        
                             <div
                                 class="feedback-container mt-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
                                 <!-- Header ของช่อง Feedback -->
@@ -1864,7 +2676,7 @@
                         </div>
 
                         <label class="email-toggle">
-                            <input type="checkbox" id="sendEmail" checked>
+                            <input type="checkbox" id="sendEmail">
                             <span>📧 ส่งอีเมลแจ้งเตือนทันที</span>
                         </label>
 
@@ -2293,7 +3105,7 @@
                 document.getElementById('dtAdvisor').innerHTML =
                     `<b>${team.advisor.name}</b><br>📞 ${team.advisor.phone}${team.advisor.email ? `<br>✉️ ${team.advisor.email}` : ''}`;
                 document.getElementById('dtPayment').innerHTML =
-                    `<b>ธนาคาร: ${team.payment.bank || '—'}</b><br>📅 ${formatDate(team.payment.date)} เวลา ${formatTime(team.payment.time)}<br>เลขท้าย: <span class="mono" style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${team.payment.last4 || '—'}</span>`;
+                    `<b>ธนาคาร: ${team.payment.bank || '—'}</b><br>📅 ${team.payment.date} เวลา ${team.payment.time}<br>เลขท้าย: <span class="mono" style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${team.payment.last4 || '—'}</span>`;
                 document.getElementById('dtVersion').innerHTML =
                     `ส่งล่าสุด: ${formatDate(team.lastSubmit)} ${formatTime(team.lastSubmit)}<br>ตรวจครั้งที่: <b>${team.version}</b>`;
 
@@ -2302,7 +3114,7 @@
                 document.getElementById('sel-transcript').value = team.transcriptStatus;
                 document.getElementById('sel-slip').value = team.slipStatus;
                 document.getElementById('feedbackText').value = team.feedback;
-                document.getElementById('sendEmail').checked = true;
+                document.getElementById('sendEmail').checked = false;
 
                 const isMixedTeam = team.category?.includes('ผสม');
 
@@ -2323,8 +3135,6 @@
 
                 viewDoc('cert');
                 updateNavButtons();
-                window.updateQuickBtns();
-                window.updateButtonStates();
 
                 if (window.innerWidth < 768) {
                     document.getElementById('sidebar').style.display = 'none';
@@ -2440,211 +3250,53 @@
             function resetDocTransform() { docScale = 1; docRotate = 0; document.getElementById('mainDocPreview').style.transform = ''; }
 
             // ─── Feedback ────────────────────────────────────────────────────
-                window.genBullets = function () {
-                    if (!localCurrentTeam) return;
-                    const certVal = document.getElementById('sel-cert').value;
-                    const tranVal = document.getElementById('sel-transcript').value;
-                    const slipVal = document.getElementById('sel-slip').value;
+            window.genBullets = function () {
+                if (!localCurrentTeam) return;
+                const certVal = document.getElementById('sel-cert').value;
+                const tranVal = document.getElementById('sel-transcript').value;
+                const slipVal = document.getElementById('sel-slip').value;
 
-                    const emojiMap = {
-                        'เอกสารเรียบร้อย': '✅ เรียบร้อย',
-                        'รอตรวจเอกสาร': '⏳ อยู่ระหว่างตรวจสอบ',
-                        'ยังไม่ได้รับเอกสาร': '❌ ยังไม่ได้รับข้อมูล',
-                        'เอกสารไม่เรียบร้อย': '⚠️ โปรดดำเนินการแก้ไข',
-                        'ไม่ต้องส่ง': '➖ (ไม่ต้องส่ง)'
-                    };
-
-                    const lines = [
-                        { label: 'หนังสือรับรองจากโรงเรียน', val: certVal },
-                        { label: 'ใบรับรองผลการศึกษา (ปพ.7)', val: tranVal },
-                        { label: 'หลักฐานการชำระเงิน', val: slipVal },
-                    ].map(item => `• ${item.label}: [${emojiMap[item.val] || '⏳'}]${item.val === 'เอกสารไม่เรียบร้อย' ? '\n   เหตุผลที่ต้องแก้ไข: ' : ''}`);
-
-                    document.getElementById('feedbackText').value = 'สรุปสถานะเอกสารการสมัคร:\n' + lines.join('\n');
-                    window.updateQuickBtns();
-                    window.updateButtonStates();
+                const emojiMap = {
+                    'เอกสารเรียบร้อย': '✅ เรียบร้อย',
+                    'รอตรวจเอกสาร': '⏳ อยู่ระหว่างตรวจสอบ',
+                    'ยังไม่ได้รับเอกสาร': '❌ ยังไม่ได้รับข้อมูล',
+                    'เอกสารไม่เรียบร้อย': '⚠️ โปรดดำเนินการแก้ไข',
+                    'ไม่ต้องส่ง': '➖ (ไม่ต้องส่ง)'
                 };
 
-                window.updateQuickBtns = function () {
-                    const certVal = document.getElementById('sel-cert').value;
-                    const tranVal = document.getElementById('sel-transcript').value;
-                    const slipVal = document.getElementById('sel-slip').value;
+                const lines = [
+                    { label: 'หนังสือรับรองจากโรงเรียน', val: certVal },
+                    { label: 'ใบรับรองผลการศึกษา (ปพ.7)', val: tranVal },
+                    { label: 'หลักฐานการชำระเงิน', val: slipVal },
+                ].map(item => `• ${item.label}: [${emojiMap[item.val] || '⏳'}]${item.val === 'เอกสารไม่เรียบร้อย' ? '\n   เหตุผลที่ต้องแก้ไข: ' : ''}`);
 
-                    const certGroup = document.getElementById('quick-btns-cert');
-                    const tranGroup = document.getElementById('quick-btns-transcript');
-                    const slipGroup = document.getElementById('quick-btns-slip');
+                document.getElementById('feedbackText').value = 'สรุปสถานะเอกสารการสมัคร:\n' + lines.join('\n');
+            };
 
-                    if (certGroup) {
-                        if (certVal === "เอกสารไม่เรียบร้อย") {
-                            certGroup.classList.remove('hidden');
-                        } else {
-                            certGroup.classList.add('hidden');
-                        }
-                    }
-
-                    if (tranGroup) {
-                        if (tranVal === "เอกสารไม่เรียบร้อย") {
-                            tranGroup.classList.remove('hidden');
-                        } else {
-                            tranGroup.classList.add('hidden');
-                        }
-                    }
-
-                    if (slipGroup) {
-                        if (slipVal === "เอกสารไม่เรียบร้อย") {
-                            slipGroup.classList.remove('hidden');
-                        } else {
-                            slipGroup.classList.add('hidden');
-                        }
-                    }
-                };
-
-                window.updateButtonStates = function () {
-                    const area = document.getElementById('feedbackText');
-                    if (!area) return;
-                    const text = area.value;
-
-                    const labelMap = {
-                        cert: '• หนังสือรับรองจากโรงเรียน',
-                        transcript: '• ใบรับรองผลการศึกษา (ปพ.7)',
-                        slip: '• หลักฐานการชำระเงิน'
-                    };
-
-                    document.querySelectorAll('.quick-btn').forEach(btn => {
-                        const onclickAttr = btn.getAttribute('onclick');
-                        if (!onclickAttr) return;
-
-                        const match = onclickAttr.match(/addDocFeedback\s*\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)/);
-                        if (!match) return;
-
-                        const docType = match[1];
-                        const message = match[2];
-
-                        const label = labelMap[docType];
-                        if (!label) return;
-
-                        const docIndex = text.indexOf(label);
-                        if (docIndex === -1) {
-                            btn.classList.remove('active');
-                            return;
-                        }
-
-                        const nextBulletIndex = text.indexOf('•', docIndex + label.length);
-                        const sectionEnd = nextBulletIndex !== -1 ? nextBulletIndex : text.length;
-                        const sectionText = text.substring(docIndex, sectionEnd);
-
-                        btn.classList.toggle('active', sectionText.includes(message));
-                    });
-                };
-
-                window.addDocFeedback = function (docType, message) {
-                    const area = document.getElementById('feedbackText');
-                    let text = area.value;
-
-                    const labelMap = {
-                        cert: '• หนังสือรับรองจากโรงเรียน',
-                        transcript: '• ใบรับรองผลการศึกษา (ปพ.7)',
-                        slip: '• หลักฐานการชำระเงิน'
-                    };
-
-                    const label = labelMap[docType];
-                    if (!label) return;
-
-                    const docIndex = text.indexOf(label);
-                    // หากหาหัวข้อเอกสารไม่พบ ให้ทำการ Toggle ทั่วไปแบบต่อท้าย
-                    if (docIndex === -1) {
-                        if (text.includes(message)) {
-                            area.value = text.replace(new RegExp(`\\n?\\s*-\\s*${message}`, 'g'), '').trim();
-                        } else {
-                            area.value = text + (text ? '\n' : '') + `  - ${message}`;
-                        }
-                        window.onFeedbackType();
-                        window.updateButtonStates();
-                        return;
-                    }
-
-                    // ค้นหาช่วงสิ้นสุดของเอกสารหัวข้อนี้ (สิ้นสุดเมื่อเจอหัวข้อถัดไปที่มีสัญลักษณ์ • หรือสิ้นสุดข้อความทั้งหมด)
-                    const nextBulletIndex = text.indexOf('•', docIndex + label.length);
-                    const sectionEnd = nextBulletIndex !== -1 ? nextBulletIndex : text.length;
-                    const sectionText = text.substring(docIndex, sectionEnd);
-
-                    const targetPhrase = 'เหตุผลที่ต้องแก้ไข:';
-                    const phraseIndex = sectionText.indexOf(targetPhrase);
-
-                    if (phraseIndex !== -1) {
-                        const absolutePhraseEnd = docIndex + phraseIndex + targetPhrase.length;
-                        const rawReasonText = text.substring(absolutePhraseEnd, sectionEnd);
-
-                        // แยกรายการคำศัพท์เดิมด้วยเครื่องหมายจุลภาค
-                        let reasons = rawReasonText.split(',')
-                            .map(r => r.trim())
-                            .filter(r => r.length > 0);
-
-                        const msgIdx = reasons.indexOf(message);
-                        if (msgIdx !== -1) {
-                            // ทำการ Toggle Off (ลบออก)
-                            reasons.splice(msgIdx, 1);
-                        } else {
-                            // ทำการ Toggle On (เพิ่มเข้า)
-                            reasons.push(message);
-                        }
-
-                        // ประกอบข้อความใหม่ โดยคั่นด้วย ", " ยกเว้นคำสุดท้ายจะไม่มีลูกน้ำต่อท้ายตามเงื่อนไข
-                        let newReasonText = "";
-                        if (reasons.length > 0) {
-                            newReasonText = " " + reasons.join(', ') + "\n";
-                        } else {
-                            newReasonText = " \n";
-                        }
-
-                        area.value = text.substring(0, absolutePhraseEnd) + newReasonText + text.substring(sectionEnd);
-                    } else {
-                        // หากสเตตัสขณะนั้นยังไม่ใช่ "เอกสารไม่เรียบร้อย" ให้ปรับอัตโนมัติแล้วเรียกฟังก์ชันซ้ำ
-                        const selectId = `sel-${docType}`;
-                        const selectEl = document.getElementById(selectId);
-                        if (selectEl) {
-                            selectEl.value = "เอกสารไม่เรียบร้อย";
-                            window.genBullets();
-                            window.addDocFeedback(docType, message);
-                            return;
-                        }
-                    }
-
-                    window.onFeedbackType();
-                    window.updateButtonStates();
-                };
-
-                window.addFeedback = function (msg) {
-                    const area = document.getElementById('feedbackText');
-                    if (area.value.includes(msg)) {
-                        area.value = area.value.replace(new RegExp(`\\n?\\s*-\\s*${msg}`, 'g'), '').trim();
-                    } else {
-                        area.value += `\n  - ${msg}`;
-                    }
-                    window.onFeedbackType();
-                    window.updateButtonStates();
-                };
+            window.addFeedback = function (msg) {
+                const area = document.getElementById('feedbackText');
+                if (!area.value.includes(msg)) area.value += `\n  - ${msg}`;
+            };
 
             window.onFeedbackType = function () {
-                    const indicator = document.getElementById('syncIndicator');
-                    const syncText = document.getElementById('syncText');
-                    const container = document.querySelector('.feedback-container');
+                const indicator = document.getElementById('syncIndicator');
+                const syncText = document.getElementById('syncText');
+                const container = document.querySelector('.feedback-container');
 
-                    indicator.classList.add('syncing');
-                    syncText.textContent = 'Typing...';
-                    container.classList.add('typing');
+                indicator.classList.add('syncing');
+                syncText.textContent = 'Typing...';
+                container.classList.add('typing');
 
-                    clearTimeout(typingTimer);
-                    setTypingStatus(true);
+                clearTimeout(typingTimer);
+                setTypingStatus(true);
 
-                    typingTimer = setTimeout(() => {
-                        setTypingStatus(false);
-                        indicator.classList.remove('syncing');
-                        syncText.textContent = 'Auto-saved';
-                        container.classList.remove('typing');
-                        window.updateButtonStates();
-                    }, 2000);
-                };
+                typingTimer = setTimeout(() => {
+                    setTypingStatus(false);
+                    indicator.classList.remove('syncing');
+                    syncText.textContent = 'Auto-saved';
+                    container.classList.remove('typing');
+                }, 2000);
+            };
 
     // ─── Save Flow & Email Preview ─────────────────────────────────────
     window.startSaveFlow = async (isForce = false) => {
@@ -2728,34 +3380,29 @@
         let subject = "";
         let body = "";
         const team = localCurrentTeam;
-        const lookerStudioLink = "https://datastudio.google.com/u/0/reporting/c0f39889-5eaa-41a9-ae63-0a642a7255b3/page/YbD1F";
+        const lookerStudioLink = "https://lookerstudio.google.com/u/0/reporting/bb6f082b-c892-450f-ba35-416f9e749718/page/tW14D";
         const formLink = team.additionalFormLink || "https://forms.gle/GQCrxDz3HWxybV3V6";
 
         if (overallStatus === "การสมัครไม่เรียบร้อย") {
-            subject = `[แจ้งแก้ไขเอกสาร] ผลการตรวจสอบเอกสารการสมัครเข้าแข่งขัน MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+            subject = `🚨 [ต้องแก้ไข] ผลการตรวจสอบเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
             body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
-                `ตามที่ท่านได้สมัครเข้าร่วมการแข่งขันตอบปัญหาวิทยาศาสตร์การแพทย์และทักษะการคิด ประจำปีการศึกษา 2569 (MedQuiz KKU 2026) นั้น\n\n` +
-                `จากการตรวจสอบเอกสารและหลักฐานการสมัครของทีมท่าน พบว่าเอกสารยังไม่สมบูรณ์ โดยมีรายละเอียดข้อผิดพลาดที่ต้องดำเนินการแก้ไขเพิ่มเติมดังต่อไปนี้:\n\n` +
+                `ตามที่ท่านได้สมัครเข้าร่วมการแข่งขัน MedQuiz KKU 2026 นั้น\n\n` +
+                `จากการตรวจสอบพบว่าเอกสารของทีมท่าน "ยังไม่สมบูรณ์" โดยมีรายละเอียดดังนี้:\n\n` +
                 `${feedback}\n\n` +
-                `ขอความกรุณาผู้สมัครดำเนินการแก้ไขและจัดส่งเอกสารหรือหลักฐานที่ถูกต้องเพิ่มเติมระหว่างวันที่ 25 กรกฎาคม – 20 สิงหาคม พ.ศ. 2569 ได้ที่: ${formLink}\n\n` +
-                `ทั้งนี้ ผู้สมัครสามารถตรวจสอบสถานะการสมัครล่าสุดได้ที่เว็บไซต์ Looker Studio:\n${lookerStudioLink}\n\n` +
-                `จึงเรียนมาเพื่อทราบและขอความร่วมมือให้ผู้สมัครหมั่นตรวจสอบสถานะการสมัครของตนเองผ่านเว็บไซต์และทาง e-mail หากไม่ได้รับข้อมูลตามช่วงเวลาที่กำหนดข้างต้น สามารถติดตามรายละเอียดข้อมูลเพิ่มเติมได้ทาง Instagram @medquizkku`;
+                `👉 โปรดส่งเอกสารที่แก้ไขได้ที่: ${formLink}\n\n` +
+                `ตรวจสอบสถานะล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
+                `จึงเรียนมาเพื่อโปรดดำเนินการแก้ไขภายในระยะเวลาที่กำหนด`;
         } else if (overallStatus === "การสมัครสมบูรณ์") {
-            subject = `[ยืนยันผลการตรวจสอบ] ยืนยันเอกสารการสมัครเข้าแข่งขัน MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+            subject = `✅ [สมบูรณ์] ยืนยันเอกสารการสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
             body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
-                `ขอบคุณที่สนใจเข้าร่วมการแข่งขันตอบปัญหาวิทยาศาสตร์การแพทย์และทักษะการคิด ประจำปีการศึกษา 2569 (MedQuiz KKU 2026)\n\n` +
-                `ขณะนี้คณะผู้ดำเนินโครงการได้ดำเนินการตรวจสอบเอกสารและหลักฐานการชำระเงินของทีมท่านเสร็จสิ้นแล้ว สถานะของท่านคือ: "การสมัครสมบูรณ์"\n\n` +
-                `ทางผู้จัดทำโครงการจะดำเนินการติดต่อส่งข้อมูลรายละเอียดการเข้าทำข้อสอบคัดเลือกให้ผู้สมัครผ่านช่องทาง e-mail ที่ระบุไว้ เพื่อเตรียมตัวเข้าทำข้อสอบคัดเลือกพร้อมกันในวันที่ 5 กันยายน พ.ศ. 2569\n\n` +
-                `ทั้งนี้ ผู้สมัครสามารถเข้าตรวจสอบสถานะการสมัครได้ที่เว็บไซต์ Looker Studio:\n${lookerStudioLink}\n\n` +
-                `จึงเรียนมาเพื่อทราบและขอความร่วมมือให้ผู้สมัครตรวจสอบสถานะการสมัครของตนอย่างสม่ำเสมอผ่านเว็บไซต์และทาง e-mail หากไม่ได้รับข้อมูลตามกำหนดการข้างต้น สามารถติดตามรายละเอียดหรือสอบถามข้อสงสัยเพิ่มเติมได้ทาง Instagram @medquizkku`;
+                `คณะกรรมการได้ตรวจสอบเอกสารและการชำระเงินของทีมท่านเรียบร้อยแล้ว\n\n` +
+                `ขณะนี้สถานะของท่านคือ: "การสมัครสมบูรณ์" 🎉\n\n` +
+                `โปรดรอติดตามประกาศลำดับที่นั่งสอบและลิงก์เข้าสอบทางอีเมลนี้\n\n` +
+                `ตรวจสอบสถานะล่าสุดได้ที่: ${lookerStudioLink}\n\n` +
+                `ขอบคุณที่ร่วมสนุกกับเราครับ`;
         } else {
-            subject = `[แจ้งสถานะการสมัคร] การสมัครเข้าแข่งขัน MedQuiz KKU 2026 - ทีม ${team.teamName}`;
-            body = `เรียน หัวหน้าทีม ${team.teamName}\n\n` +
-                `ตามที่ท่านได้สมัครเข้าร่วมการแข่งขันตอบปัญหาวิทยาศาสตร์การแพทย์และทักษะการคิด ประจำปีการศึกษา 2569 (MedQuiz KKU 2026) นั้น\n\n` +
-                `ขณะนี้ทีมของท่านมีสถานะการดำเนินงานอยู่ในขั้นตอน: ${overallStatus}\n\n` +
-                `รายละเอียดและคำชี้แจงเพิ่มเติมจากเจ้าหน้าที่ผู้ตรวจสอบ: ${feedback}\n\n` +
-                `ผู้สมัครสามารถตรวจสอบรายละเอียดสถานะการสมัครล่าสุดได้ที่เว็บไซต์ Looker Studio:\n${lookerStudioLink}\n\n` +
-                `หากพ้นช่วงเวลาที่กำหนดแล้วยังไม่ได้รับอีเมลหรือต้องการสอบถามเพิ่มเติม สามารถติดต่อคณะทำงานได้ทาง Instagram @medquizkku`;
+            subject = `[แจ้งสถานะ] การสมัคร MedQuiz KKU 2026 - ทีม ${team.teamName}`;
+            body = `เรียน หัวหน้าทีม ${team.teamName}\n\nขณะนี้ทีมของท่านอยู่ในสถานะ: ${overallStatus}\n\nข้อความจากเจ้าหน้าที่: ${feedback}`;
         }
 
         document.getElementById('emailTo').value = team.email;
@@ -2898,3 +3545,6 @@
 </body>
 
 </html>
+</file>
+
+</files>
