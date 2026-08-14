@@ -30,7 +30,7 @@ const auth = getAuth(app);
 // 4. Utility Function สำหรับจัดการ Email (แปลง . เป็น _)
 const escapeEmail = (email) => {
     if (!email || typeof email !== 'string') return "unknown_email";
-    return email.replace(/\./g, '_');
+    return email.trim().toLowerCase().replace(/\./g, '_');
 };
 // 5. ส่งออกตัวแปรเพื่อให้ไฟล์อื่น (checking-logic.js) เรียกใช้ได้
 export { db, auth, ref, set, get, onValue, update, remove, onDisconnect, escapeEmail };
