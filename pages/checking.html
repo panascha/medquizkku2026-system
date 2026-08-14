@@ -1587,7 +1587,7 @@
                     <label>Row</label>
                     <input type="number" id="rangeStart" value="1" min="1" style="width:65px" oninput="filterTeams()">
                     <span style="color:#94a3b8;font-size:12px;">–</span>
-                    <input type="number" id="rangeEnd" value="500" min="1" style="width:65px" oninput="filterTeams()">
+                    <input type="number" id="rangeEnd" value="1000" min="1" style="width:65px" oninput="filterTeams()">
                 
                     <!-- ปุ่มนี้อาจจะเปลี่ยนเป็นปุ่มรีเซ็ตค่าแทนเพื่อความสะดวก -->
                     <button onclick="resetRange()" class="btn-icon" style="width:30px; height:30px; font-size:10px;">
@@ -2084,7 +2084,7 @@
 
             window.resetRange = () => {
                 document.getElementById('rangeStart').value = 1;
-                document.getElementById('rangeEnd').value = 500;
+                document.getElementById('rangeEnd').value = 1000;
                 window.filterTeams();
             };
 
