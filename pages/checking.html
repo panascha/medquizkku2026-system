@@ -1710,14 +1710,8 @@
                         <div class="doc-tabs">
                             <button class="doc-tab active" id="tab-cert" onclick="viewDoc('cert')">1. ใบรับรอง
                                 รร.</button>
-                            <a id="link-cert" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ในแท็บใหม่ (ดูควบคู่กับเอกสารที่แสดงอยู่)" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#64748b;background:#f1f5f9;text-decoration:none;font-size:11px;opacity:.3;pointer-events:none;flex:0 0 auto;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                            <a id="link-cert-prev" href="#" target="_blank" rel="noopener" title="ไฟล์เดิมก่อนแก้ไข" style="display:none;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#b45309;background:#fef3c7;text-decoration:none;font-size:11px;flex:0 0 auto;"><i class="fa-solid fa-clock-rotate-left"></i></a>
                             <button class="doc-tab" id="tab-transcript" onclick="viewDoc('transcript')">2. ปพ.7</button>
-                            <a id="link-transcript" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ในแท็บใหม่ (ดูควบคู่กับเอกสารที่แสดงอยู่)" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#64748b;background:#f1f5f9;text-decoration:none;font-size:11px;opacity:.3;pointer-events:none;flex:0 0 auto;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                            <a id="link-transcript-prev" href="#" target="_blank" rel="noopener" title="ไฟล์เดิมก่อนแก้ไข" style="display:none;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#b45309;background:#fef3c7;text-decoration:none;font-size:11px;flex:0 0 auto;"><i class="fa-solid fa-clock-rotate-left"></i></a>
                             <button class="doc-tab" id="tab-slip" onclick="viewDoc('slip')">3. สลิปโอนเงิน</button>
-                            <a id="link-slip" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ในแท็บใหม่ (ดูควบคู่กับเอกสารที่แสดงอยู่)" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#64748b;background:#f1f5f9;text-decoration:none;font-size:11px;opacity:.3;pointer-events:none;flex:0 0 auto;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                            <a id="link-slip-prev" href="#" target="_blank" rel="noopener" title="ไฟล์เดิมก่อนแก้ไข" style="display:none;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#b45309;background:#fef3c7;text-decoration:none;font-size:11px;flex:0 0 auto;"><i class="fa-solid fa-clock-rotate-left"></i></a>
                         </div>
                         <div class="doc-viewer" id="docViewer">
                             <!-- ปุ่มควบคุม (ลอยอยู่บนภาพ) -->
@@ -1755,6 +1749,30 @@
                                     <i class="fa-solid fa-file-circle-xmark"
                                         style="font-size:40px; margin-bottom:12px; display:block; opacity:.3;"></i>
                                     <span>ไม่พบไฟล์เอกสาร</span>
+                                </div>
+                            </div>
+
+                            <!-- เทียบไฟล์เดิม vs ล่าสุด (แสดงเมื่อมีไฟล์เวอร์ชันก่อนหน้า) -->
+                            <div id="docCompareView" class="flex-1 w-full" style="display:none;">
+                                <div class="flex flex-col w-1/2 h-full" style="border-right:1px solid rgba(0,0,0,.15);">
+                                    <div class="flex items-center justify-between" style="padding:6px 12px;font-size:11px;font-weight:700;background:#fef3c7;color:#b45309;">
+                                        <span>🕒 ไฟล์เดิมก่อนแก้ไข (Previous)</span>
+                                        <a id="comparePrevPopOut" href="#" target="_blank" rel="noopener" title="เปิดในแท็บใหม่" style="color:#b45309;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                                    </div>
+                                    <div class="doc-content" style="flex:1;">
+                                        <img id="comparePrevImg" src="" alt="Previous Document" onerror="this.style.display='none'">
+                                        <iframe id="comparePrevIframe" src=""></iframe>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col w-1/2 h-full">
+                                    <div class="flex items-center justify-between" style="padding:6px 12px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;">
+                                        <span>✨ ไฟล์ปัจจุบันล่าสุด (Latest)</span>
+                                        <a id="compareLatestPopOut" href="#" target="_blank" rel="noopener" title="เปิดในแท็บใหม่" style="color:#15803d;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                                    </div>
+                                    <div class="doc-content" style="flex:1;">
+                                        <img id="compareLatestImg" src="" alt="Latest Document" onerror="this.style.display='none'">
+                                        <iframe id="compareLatestIframe" src=""></iframe>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2328,7 +2346,6 @@
                 }
 
                 viewDoc('cert');
-                window.updateDocLinks();
                 updateNavButtons();
                 window.updateQuickBtns();
                 window.updateButtonStates();
@@ -2344,45 +2361,24 @@
             // ─── Doc Viewer ─────────────────────────────────────────────────
             let currentDocType = 'cert';
 
-            // เปิดให้กดดูเอกสารอีก 2 ประเภทที่ไม่ได้แสดงอยู่ในแท็บหลักได้เสมอ (เปิดแท็บใหม่)
-            // กันปัญหาเดิม: สลับแท็บแล้วเอกสารที่ดูอยู่หายไปจาก iframe ทันที ไม่มีทางเทียบข้างกัน
-            window.updateDocLinks = function () {
-                const urlMap = {
-                    cert: localCurrentTeam?.certUrl,
-                    transcript: localCurrentTeam?.transcriptUrl,
-                    slip: localCurrentTeam?.slipUrl
-                };
-                const prevUrlMap = {
-                    cert: localCurrentTeam?.certPrevUrl,
-                    transcript: localCurrentTeam?.transcriptPrevUrl,
-                    slip: localCurrentTeam?.slipPrevUrl
-                };
-                ['cert', 'transcript', 'slip'].forEach(t => {
-                    const a = document.getElementById(`link-${t}`);
-                    if (!a) return;
-                    const url = urlMap[t];
-                    if (url) {
-                        a.href = url;
-                        a.style.opacity = '1';
-                        a.style.pointerEvents = 'auto';
-                    } else {
-                        a.href = '#';
-                        a.style.opacity = '.3';
-                        a.style.pointerEvents = 'none';
-                    }
+            // เติมรูป/PDF ลงแต่ละคอลัมน์ของโหมดเทียบไฟล์ (Previous vs Latest)
+            function renderComparePane(prefix, rawUrl) {
+                const img = document.getElementById(`${prefix}Img`);
+                const iframe = document.getElementById(`${prefix}Iframe`);
+                const popOut = document.getElementById(`${prefix}PopOut`);
+                if (popOut) popOut.href = rawUrl || '#';
 
-                    const prevA = document.getElementById(`link-${t}-prev`);
-                    if (!prevA) return;
-                    const prevUrl = prevUrlMap[t];
-                    if (prevUrl) {
-                        prevA.href = prevUrl;
-                        prevA.style.display = 'inline-flex';
-                    } else {
-                        prevA.href = '#';
-                        prevA.style.display = 'none';
-                    }
-                });
-            };
+                const previewUrl = getDrivePreviewUrl(rawUrl);
+                if (previewUrl && (previewUrl.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) || !previewUrl.includes('drive.google.com'))) {
+                    img.src = previewUrl;
+                    img.style.display = 'block';
+                    iframe.style.display = 'none';
+                } else {
+                    iframe.src = previewUrl;
+                    iframe.style.display = 'block';
+                    img.style.display = 'none';
+                }
+            }
 
             window.viewDoc = function (type) {
                 currentDocType = type;
@@ -2396,19 +2392,28 @@
                 const img = document.getElementById('mainDocPreview');
                 const iframe = document.getElementById('mainDocIframe');
                 const noDoc = document.getElementById('noDocMsg');
+                const docContent = document.getElementById('docContent');
+                const compareView = document.getElementById('docCompareView');
 
                 loader.style.display = 'flex';
                 img.style.display = 'none';
                 iframe.style.display = 'none';
                 noDoc.style.display = 'none';
+                compareView.style.display = 'none';
+                docContent.style.display = 'flex';
 
                 const urlMap = {
                     cert: localCurrentTeam?.certUrl,
                     transcript: localCurrentTeam?.transcriptUrl,
                     slip: localCurrentTeam?.slipUrl
                 };
+                const prevUrlMap = {
+                    cert: localCurrentTeam?.certPrevUrl,
+                    transcript: localCurrentTeam?.transcriptPrevUrl,
+                    slip: localCurrentTeam?.slipPrevUrl
+                };
                 const rawUrl = urlMap[type];
-                const previewUrl = getDrivePreviewUrl(rawUrl);
+                const rawPrevUrl = prevUrlMap[type];
 
                 if (document.getElementById('dtPopOut')) document.getElementById('dtPopOut').href = rawUrl || '#';
 
@@ -2422,20 +2427,28 @@
                     return;
                 }
 
-                if (!previewUrl) {
+                if (!rawUrl) {
                     loader.style.display = 'none';
                     noDoc.style.display = 'block';
                     return;
                 }
 
-                if (previewUrl && (previewUrl.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) || !previewUrl.includes('drive.google.com'))) {
-                    img.src = previewUrl;
-                    img.style.display = 'block';
-                    iframe.style.display = 'none';
+                if (rawPrevUrl) {
+                    docContent.style.display = 'none';
+                    compareView.style.display = 'flex';
+                    renderComparePane('comparePrev', rawPrevUrl);
+                    renderComparePane('compareLatest', rawUrl);
                 } else {
-                    iframe.src = previewUrl;
-                    iframe.style.display = 'block';
-                    img.style.display = 'none';
+                    const previewUrl = getDrivePreviewUrl(rawUrl);
+                    if (previewUrl.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) || !previewUrl.includes('drive.google.com')) {
+                        img.src = previewUrl;
+                        img.style.display = 'block';
+                        iframe.style.display = 'none';
+                    } else {
+                        iframe.src = previewUrl;
+                        iframe.style.display = 'block';
+                        img.style.display = 'none';
+                    }
                 }
 
                 setTimeout(() => {
