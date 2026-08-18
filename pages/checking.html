@@ -1710,8 +1710,11 @@
                         <div class="doc-tabs">
                             <button class="doc-tab active" id="tab-cert" onclick="viewDoc('cert')">1. ใบรับรอง
                                 รร.</button>
+                            <a id="link-cert" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ในแท็บใหม่ (ดูควบคู่กับเอกสารที่แสดงอยู่)" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#64748b;background:#f1f5f9;text-decoration:none;font-size:11px;opacity:.3;pointer-events:none;flex:0 0 auto;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                             <button class="doc-tab" id="tab-transcript" onclick="viewDoc('transcript')">2. ปพ.7</button>
+                            <a id="link-transcript" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ในแท็บใหม่ (ดูควบคู่กับเอกสารที่แสดงอยู่)" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#64748b;background:#f1f5f9;text-decoration:none;font-size:11px;opacity:.3;pointer-events:none;flex:0 0 auto;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                             <button class="doc-tab" id="tab-slip" onclick="viewDoc('slip')">3. สลิปโอนเงิน</button>
+                            <a id="link-slip" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ในแท็บใหม่ (ดูควบคู่กับเอกสารที่แสดงอยู่)" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#64748b;background:#f1f5f9;text-decoration:none;font-size:11px;opacity:.3;pointer-events:none;flex:0 0 auto;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                         </div>
                         <div class="doc-viewer" id="docViewer">
                             <!-- ปุ่มควบคุม (ลอยอยู่บนภาพ) -->
@@ -2322,6 +2325,7 @@
                 }
 
                 viewDoc('cert');
+                window.updateDocLinks();
                 updateNavButtons();
                 window.updateQuickBtns();
                 window.updateButtonStates();
@@ -2336,6 +2340,31 @@
 
             // ─── Doc Viewer ─────────────────────────────────────────────────
             let currentDocType = 'cert';
+
+            // เปิดให้กดดูเอกสารอีก 2 ประเภทที่ไม่ได้แสดงอยู่ในแท็บหลักได้เสมอ (เปิดแท็บใหม่)
+            // กันปัญหาเดิม: สลับแท็บแล้วเอกสารที่ดูอยู่หายไปจาก iframe ทันที ไม่มีทางเทียบข้างกัน
+            window.updateDocLinks = function () {
+                const urlMap = {
+                    cert: localCurrentTeam?.certUrl,
+                    transcript: localCurrentTeam?.transcriptUrl,
+                    slip: localCurrentTeam?.slipUrl
+                };
+                ['cert', 'transcript', 'slip'].forEach(t => {
+                    const a = document.getElementById(`link-${t}`);
+                    if (!a) return;
+                    const url = urlMap[t];
+                    if (url) {
+                        a.href = url;
+                        a.style.opacity = '1';
+                        a.style.pointerEvents = 'auto';
+                    } else {
+                        a.href = '#';
+                        a.style.opacity = '.3';
+                        a.style.pointerEvents = 'none';
+                    }
+                });
+            };
+
             window.viewDoc = function (type) {
                 currentDocType = type;
 
