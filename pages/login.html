@@ -43,11 +43,31 @@
                 <img src="../assets/logokku.png" width="25">
                 Sign in with KKU Mail
             </button>
-            <p class="text-[11px] text-blue-300 opacity-60 leading-relaxed">
-                กรุณาใช้บัญชี <b class="text-white">@kku.ac.th</b> หรือ <b class="text-white">@kkumail.com</b>
-                ในการเข้าสู่ระบบเท่านั้น<br>
-                ระบบนี้สงวนสิทธิ์สำหรับคณะทำงาน MedQuiz 2026
+            <!-- Stern security / audit warning -->
+            <div class="text-left bg-red-500/10 border border-red-400/30 rounded-xl p-4 text-[11.5px] leading-relaxed text-red-200 space-y-1.5">
+                <p class="font-bold text-red-100">
+                    ⚠️ ระบบนี้สงวนสิทธิ์สำหรับคณะทำงาน MedQuiz 2026 เท่านั้น
+                </p>
+                <p>
+                    การพยายามเข้าสู่ระบบโดยไม่ได้รับอนุญาตจะถูกบันทึกประวัติ
+                    <b class="text-red-100">(Audit Log)</b> ทั้งชื่อและอีเมลทั้งหมด
+                </p>
+                <p>
+                    กรุณาใช้บัญชี <b class="text-white">@kku.ac.th</b> หรือ
+                    <b class="text-white">@kkumail.com</b> ที่ได้รับอนุญาตเท่านั้น
+                </p>
+            </div>
+        </div>
+
+        <!-- Student redirect: exam-link self-service (no login needed) -->
+        <div class="mt-6 bg-white/5 border border-white/15 rounded-xl p-4 text-left">
+            <p class="text-[12px] text-blue-100 leading-relaxed mb-3">
+                👉 ผู้เข้าแข่งขันที่ต้องการดูหรือขอรับลิงก์ข้อสอบรอบ 0
             </p>
+            <a href="/get-exam-link.html"
+                class="w-full inline-flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-all active:scale-95 shadow">
+                <i class="fa-solid fa-file-lines"></i> ไปหน้าค้นหาลิงก์ข้อสอบรอบ 0
+            </a>
         </div>
 
         <!-- Footer -->
