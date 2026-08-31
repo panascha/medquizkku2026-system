@@ -1,0 +1,283 @@
+<!-- Public Self-Service: Round 0 Exam Link Lookup & Resend -->
+<!-- ZERO-AUTH public page — no auth.js, no Firebase, no Google Sign-in. -->
+<!-- Isolated from the Staff Portal (pages/*) on purpose: @kkumail.com students -->
+<!-- must NOT be able to reach internal staff routes. Only talks to the GAS -->
+<!-- Registration Web App via public lookupExamTeam / resendExamEmail actions. -->
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ค้นหาลิงก์ข้อสอบรอบ 0 — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: linear-gradient(160deg, #eef2ff 0%, #f8fafc 55%, #eff6ff 100%);
+            min-height: 100vh;
+        }
+        .card { background: #fff; border: 1px solid #e2e8f0; }
+        .spin { animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+
+<body class="flex items-start justify-center p-4 sm:p-6">
+    <div class="w-full max-w-xl mt-6 mb-16">
+
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <i class="fa-solid fa-file-lines text-2xl text-white"></i>
+            </div>
+            <h1 class="text-slate-800 text-2xl font-extrabold tracking-tight">ค้นหาลิงก์ข้อสอบรอบคัดเลือก (รอบ 0)</h1>
+            <p class="text-slate-500 text-sm mt-1">MedQuiz KKU 2026 — กรอกอีเมลของสมาชิกคนใดในทีมเพื่อดูลิงก์ข้อสอบและอีเมลหัวหน้าทีม</p>
+        </div>
+
+        <!-- Lookup form -->
+        <div class="card rounded-2xl p-5 sm:p-6 shadow-sm">
+            <label for="emailInput" class="block text-sm font-semibold text-slate-700 mb-2">
+                <i class="fa-solid fa-envelope text-blue-600 mr-1"></i> อีเมลของสมาชิกในทีม (หรืออาจารย์ที่ปรึกษา)
+            </label>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input id="emailInput" type="email" inputmode="email" autocomplete="email"
+                    placeholder="you@gmail.com"
+                    class="flex-1 border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <button id="btnLookup" onclick="doLookup()"
+                    class="bg-blue-700 hover:bg-blue-800 text-white font-bold px-6 py-3 rounded-xl transition-all active:scale-95 shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    <i id="lookupIcon" class="fa-solid fa-magnifying-glass"></i>
+                    <span>ค้นหาทีม</span>
+                </button>
+            </div>
+            <p class="text-[12px] text-slate-400 mt-2">ใช้ได้เฉพาะทีมที่ตรวจเอกสารครบและผ่านการคัดกรองแล้วเท่านั้น</p>
+        </div>
+
+        <!-- Message (not found / not eligible / error) -->
+        <div id="msgBox" class="hidden mt-4 rounded-2xl p-4 text-sm leading-relaxed"></div>
+
+        <!-- Result card -->
+        <div id="resultCard" class="hidden card rounded-2xl p-5 sm:p-6 shadow-sm mt-4">
+            <div class="flex items-center gap-2 text-green-700 font-bold mb-4">
+                <i class="fa-solid fa-circle-check"></i> พบทีมของคุณ — เอกสารครบเรียบร้อย
+            </div>
+
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500">ชื่อทีม</dt>
+                    <dd id="rTeam" class="font-semibold text-slate-800 text-right"></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500">ประเภท/โควตา</dt>
+                    <dd id="rCat" class="font-semibold text-slate-800 text-right"></dd>
+                </div>
+            </dl>
+
+            <!-- Registered Leader Gmail — prominent, must sign in with this -->
+            <div class="mt-4 border-2 border-blue-600 bg-blue-50 rounded-xl p-4 text-center">
+                <p class="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                    <i class="fa-solid fa-right-to-bracket mr-1"></i> อีเมลหัวหน้าทีมสำหรับ Sign in
+                </p>
+                <p id="rLeader" class="text-lg font-extrabold text-blue-900 break-all"></p>
+                <p class="text-[12px] text-blue-700 mt-1">ต้องใช้อีเมลนี้เท่านั้นในการเข้าและส่งข้อสอบ</p>
+            </div>
+
+            <!-- Open exam button -->
+            <a id="rOpen" href="#" target="_blank" rel="noopener"
+                class="mt-4 w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดข้อสอบรอบคัดเลือก
+            </a>
+
+            <!-- Red warning banner (wording from official exam email) -->
+            <div class="mt-4 border-2 border-red-600 bg-red-50 rounded-xl p-4">
+                <p class="font-bold text-red-800 mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> คำเตือนสำคัญ — โปรดอ่านก่อนเปิดข้อสอบ</p>
+                <p class="text-red-700 text-sm leading-relaxed">
+                    ต้อง <b>Sign in บัญชี Google ด้วยอีเมล <span id="rLeaderWarn" class="break-all"></span> เท่านั้น</b>
+                    ก่อนเปิดฟอร์มข้อสอบ หากส่งคำตอบจากอีเมลอื่น <b>จะถูกตัดสิทธิ์ทันที</b> ตามระเบียบการแข่งขัน
+                </p>
+            </div>
+
+            <!-- Resend block -->
+            <div class="mt-6 pt-5 border-t border-slate-200">
+                <p class="font-semibold text-slate-700 mb-1"><i class="fa-solid fa-paper-plane text-blue-600 mr-1"></i> ส่งอีเมลข้อสอบซ้ำ</p>
+                <p class="text-[12px] text-slate-400 mb-3">เลือกผู้รับที่ต้องการให้ระบบส่งอีเมลลิงก์ข้อสอบไปให้อีกครั้ง (จำกัดการส่งซ้ำ 1 ครั้งต่อ 15 นาที)</p>
+
+                <div id="contactList" class="space-y-2 mb-4"></div>
+
+                <button id="btnResend" onclick="doResend()"
+                    class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i id="resendIcon" class="fa-solid fa-paper-plane"></i>
+                    <span id="resendLabel">ส่งอีเมลไปยังที่เลือก</span>
+                </button>
+                <div id="resendMsg" class="hidden mt-3 text-sm rounded-xl p-3"></div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <p class="text-center text-[11px] text-slate-400 mt-8 uppercase tracking-widest">
+            Faculty of Medicine, Khon Kaen University
+        </p>
+    </div>
+
+    <script>
+        // เดียวกับ WEB_APP_URL ใน js/firebase-config.js — GAS Registration Web App
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwKSn21RnyxaHv6oCZGytCM2gCwvt_jaAOS_EFw9TJk1IZATD0-90PG8SKTXB6tqT-a_g/exec";
+
+        let currentEmail = "";       // อีเมลที่ใช้ค้น (ส่งกลับตอน resend เพื่อ resolve แถวฝั่ง server)
+        let cooldownTimer = null;
+
+        const $ = (id) => document.getElementById(id);
+
+        function showMsg(html, tone) {
+            const box = $("msgBox");
+            const tones = {
+                warn: "bg-amber-50 border border-amber-300 text-amber-800",
+                error: "bg-red-50 border border-red-300 text-red-800",
+                info: "bg-blue-50 border border-blue-200 text-blue-800"
+            };
+            box.className = "mt-4 rounded-2xl p-4 text-sm leading-relaxed " + (tones[tone] || tones.info);
+            box.innerHTML = html;
+            box.classList.remove("hidden");
+        }
+        function hideMsg() { $("msgBox").classList.add("hidden"); }
+
+        function setLookupLoading(on) {
+            $("btnLookup").disabled = on;
+            $("lookupIcon").className = on ? "fa-solid fa-spinner spin" : "fa-solid fa-magnifying-glass";
+        }
+
+        // POST ด้วย body string ล้วน (ไม่ตั้ง Content-Type) = text/plain, ไม่เกิด CORS preflight
+        // (รูปแบบเดียวกับ checking-logic.js)
+        async function postAction(payload) {
+            const res = await fetch(WEB_APP_URL, { method: "POST", body: JSON.stringify(payload) });
+            return res.json();
+        }
+
+        async function doLookup() {
+            const email = $("emailInput").value.trim();
+            hideMsg();
+            $("resultCard").classList.add("hidden");
+            if (!email || email.indexOf("@") === -1) {
+                showMsg("กรุณากรอกอีเมลให้ถูกต้อง", "warn");
+                return;
+            }
+            setLookupLoading(true);
+            try {
+                const r = await postAction({ action: "lookupExamTeam", email });
+                if (r.status !== "success") { showMsg(r.message || "เกิดข้อผิดพลาด กรุณาลองใหม่", "error"); return; }
+                if (!r.found) {
+                    showMsg("<b>ไม่พบทีมจากอีเมลนี้</b><br>ตรวจสอบว่าพิมพ์อีเมลถูกต้อง และเป็นอีเมลที่ใช้สมัคร (สมาชิก 1/2/3 หรืออาจารย์ที่ปรึกษา)", "warn");
+                    return;
+                }
+                if (!r.eligible) {
+                    showMsg("<b>ยังไม่สามารถแสดงลิงก์ข้อสอบได้</b><br>" + (r.message || "กรุณาติดต่อทีมงาน"), "warn");
+                    return;
+                }
+                currentEmail = email;
+                renderResult(r);
+            } catch (err) {
+                showMsg("เชื่อมต่อระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
+            } finally {
+                setLookupLoading(false);
+            }
+        }
+
+        function renderResult(r) {
+            $("rTeam").textContent = r.teamName || "-";
+            $("rCat").textContent = r.category || "-";
+            $("rLeader").textContent = r.leaderEmailFull || "-";
+            $("rLeaderWarn").textContent = r.leaderEmailFull || "-";
+            $("rOpen").href = r.examLink || "#";
+
+            // contact checkboxes
+            const list = $("contactList");
+            list.innerHTML = "";
+            (r.contacts || []).forEach((c, i) => {
+                const wrap = document.createElement("label");
+                wrap.className = "flex items-center gap-3 border border-slate-200 rounded-xl px-3 py-2.5 cursor-pointer hover:bg-slate-50";
+                wrap.innerHTML =
+                    '<input type="checkbox" value="' + c.key + '" ' + (i === 0 ? "checked" : "") +
+                    ' class="w-4 h-4 accent-blue-700">' +
+                    '<span class="text-sm text-slate-700">' + c.label +
+                    ' <span class="text-slate-400">— ' + c.emailMasked + '</span></span>';
+                list.appendChild(wrap);
+            });
+
+            $("resultCard").classList.remove("hidden");
+            $("resendMsg").classList.add("hidden");
+            startCooldown(r.cooldownRemainingSec || 0);
+        }
+
+        function selectedKeys() {
+            return Array.from($("contactList").querySelectorAll('input[type=checkbox]:checked')).map(c => c.value);
+        }
+
+        function setResendMsg(html, tone) {
+            const box = $("resendMsg");
+            const tones = {
+                ok: "bg-green-50 border border-green-300 text-green-800",
+                error: "bg-red-50 border border-red-300 text-red-800"
+            };
+            box.className = "mt-3 text-sm rounded-xl p-3 " + (tones[tone] || tones.ok);
+            box.innerHTML = html;
+            box.classList.remove("hidden");
+        }
+
+        function startCooldown(sec) {
+            if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
+            const btn = $("btnResend");
+            const label = $("resendLabel");
+            if (!sec || sec <= 0) {
+                btn.disabled = false;
+                $("resendIcon").className = "fa-solid fa-paper-plane";
+                label.textContent = "ส่งอีเมลไปยังที่เลือก";
+                return;
+            }
+            btn.disabled = true;
+            $("resendIcon").className = "fa-solid fa-clock";
+            let remain = sec;
+            const tick = () => {
+                if (remain <= 0) { startCooldown(0); return; }
+                const m = Math.floor(remain / 60), s = remain % 60;
+                label.textContent = "ส่งได้อีกครั้งใน " + m + ":" + String(s).padStart(2, "0");
+                remain--;
+            };
+            tick();
+            cooldownTimer = setInterval(tick, 1000);
+        }
+
+        async function doResend() {
+            const keys = selectedKeys();
+            if (keys.length === 0) { setResendMsg("กรุณาเลือกผู้รับอย่างน้อย 1 คน", "error"); return; }
+            const btn = $("btnResend");
+            btn.disabled = true;
+            $("resendIcon").className = "fa-solid fa-spinner spin";
+            $("resendLabel").textContent = "กำลังส่ง...";
+            try {
+                const r = await postAction({ action: "resendExamEmail", email: currentEmail, recipientKeys: keys });
+                if (r.status === "success") {
+                    let m = "ส่งอีเมลสำเร็จ " + r.sentCount + " ฉบับ";
+                    if (r.failedCount) m += " (ส่งไม่สำเร็จ " + r.failedCount + " ฉบับ)";
+                    m += " — โปรดตรวจกล่องจดหมาย (รวมถึง Spam/Junk)";
+                    setResendMsg("<b>" + m + "</b>", "ok");
+                    startCooldown(r.cooldownRemainingSec || 900);
+                } else {
+                    setResendMsg(r.message || "ส่งไม่สำเร็จ กรุณาลองใหม่", "error");
+                    startCooldown(r.cooldownRemainingSec || 0);
+                }
+            } catch (err) {
+                setResendMsg("เชื่อมต่อระบบไม่สำเร็จ กรุณาลองใหม่", "error");
+                startCooldown(0);
+            }
+        }
+
+        // Enter = ค้นหา
+        $("emailInput").addEventListener("keydown", (e) => { if (e.key === "Enter") doLookup(); });
+    </script>
+</body>
+
+</html>
