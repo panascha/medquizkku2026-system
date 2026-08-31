@@ -30,10 +30,25 @@
             transform: translateY(-5px);
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
         }
+
+        .spin { animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 
-<body class="min-h-screen flex flex-col">
+<body class="min-h-screen">
+
+    <!-- Auth gate: shown until Firebase confirms a valid staff session. Fail-closed —
+         staff modules stay hidden (and the page redirects) for anyone not signed in. -->
+    <div id="authGate" class="fixed inset-0 z-50 flex items-center justify-center bg-[#f8faff]">
+        <div class="text-center text-slate-500">
+            <i class="fa-solid fa-spinner spin text-2xl text-blue-700"></i>
+            <p class="mt-3 text-sm">กำลังตรวจสอบสิทธิ์...</p>
+        </div>
+    </div>
+
+    <!-- Staff portal — hidden until authorized -->
+    <div id="portalContent" class="hidden min-h-screen flex flex-col">
 
     <!-- Navbar -->
     <nav class="nav-gradient text-white p-4 shadow-lg">
@@ -82,7 +97,25 @@
                 </div>
             </a>
 
-            <!-- Module 2: Exam System (Future) -->
+            <!-- Module 2: Department Dashboard -->
+            <a href="pages/dashboard.html"
+                class="menu-card bg-white border border-slate-200 p-6 rounded-3xl flex flex-col gap-4 group">
+                <div
+                    class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                    <i class="fa-solid fa-chart-column"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-slate-800">Dashboard สรุปข้อมูลรายฝ่าย</h3>
+                    <p class="text-sm text-slate-500">ข้อมูล Final 100 ทีม แยกตามฝ่าย พร้อมส่งออก Excel / PDF (Phase 3)
+                    </p>
+                </div>
+                <div
+                    class="mt-auto pt-4 flex items-center text-emerald-600 font-bold text-xs uppercase tracking-widest">
+                    เปิดดู <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                </div>
+            </a>
+
+            <!-- Module 3: Exam System (Future) -->
             <div class="bg-slate-50 border border-slate-100 p-6 rounded-3xl flex flex-col gap-4 opacity-60">
                 <div class="w-12 h-12 bg-slate-200 text-slate-400 rounded-2xl flex items-center justify-center text-xl">
                     <i class="fa-solid fa-laptop-code"></i>
@@ -96,7 +129,7 @@
                 </div>
             </div>
 
-            <!-- Module 3: Logs & Settings -->
+            <!-- Module 4: Logs & Settings -->
             <div class="bg-slate-50 border border-slate-100 p-6 rounded-3xl flex flex-col gap-4 opacity-60">
                 <div class="w-12 h-12 bg-slate-200 text-slate-400 rounded-2xl flex items-center justify-center text-xl">
                     <i class="fa-solid fa-clock-rotate-left"></i>
@@ -117,18 +150,41 @@
         &copy; 2026 IT Team | MedQuiz KKU 52 Project
     </footer>
 
+    </div><!-- /portalContent -->
+
     <script type="module">
-        import { auth, logout } from './js/auth.js';
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        // ใช้ auth จาก firebase-config โดยตรง — ไม่ import auth.js เพราะ guard ในนั้น
+        // redirect ไป "login.html" แบบ relative (ถูกสำหรับหน้าใน pages/* แต่ผิดสำหรับ
+        // index.html ที่อยู่ราก ซึ่งต้องเด้งไป "pages/login.html")
+        import { auth } from './js/firebase-config.js';
+        import { onAuthStateChanged, signOut }
+            from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const LOGIN_URL = "pages/login.html";
 
         onAuthStateChanged(auth, (user) => {
-            if (user) {
-                document.getElementById('staffName').textContent = user.displayName || user.email;
+            const isValidStaff = !!user &&
+                (user.email.endsWith("@kku.ac.th") || user.email.endsWith("@kkumail.com"));
+
+            if (!isValidStaff) {
+                // ยังไม่ล็อกอิน หรือไม่ใช่บัญชี staff → เด้งออกทันที (fail-closed)
+                // replace() กัน back button ย้อนกลับมาหน้าพอร์ทัลที่ยังไม่ผ่านสิทธิ์
+                if (user) signOut(auth);
+                window.location.replace(LOGIN_URL);
+                return;
             }
+
+            // ผ่านสิทธิ์ → เผยเนื้อหาพอร์ทัล
+            document.getElementById('staffName').textContent = user.displayName || user.email;
+            const gate = document.getElementById('authGate');
+            if (gate) gate.remove();
+            document.getElementById('portalContent').classList.remove('hidden');
         });
 
         window.handleLogout = () => {
-            if (confirm("ยืนยันการออกจากระบบ?")) logout();
+            if (confirm("ยืนยันการออกจากระบบ?")) {
+                signOut(auth).then(() => window.location.replace(LOGIN_URL));
+            }
         };
     </script>
 </body>
