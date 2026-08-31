@@ -86,12 +86,6 @@
                 <p class="text-[12px] text-blue-700 mt-1">ต้องใช้อีเมลนี้เท่านั้นในการเข้าและส่งข้อสอบ</p>
             </div>
 
-            <!-- Open exam button -->
-            <a id="rOpen" href="#" target="_blank" rel="noopener"
-                class="mt-4 w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดข้อสอบรอบคัดเลือก
-            </a>
-
             <!-- Red warning banner (wording from official exam email) -->
             <div class="mt-4 border-2 border-red-600 bg-red-50 rounded-xl p-4">
                 <p class="font-bold text-red-800 mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> คำเตือนสำคัญ — โปรดอ่านก่อนเปิดข้อสอบ</p>
@@ -191,8 +185,6 @@
             $("rCat").textContent = r.category || "-";
             $("rLeader").textContent = r.leaderEmailFull || "-";
             $("rLeaderWarn").textContent = r.leaderEmailFull || "-";
-            $("rOpen").href = r.examLink || "#";
-
             // contact checkboxes
             const list = $("contactList");
             list.innerHTML = "";
