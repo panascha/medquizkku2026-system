@@ -81,6 +81,10 @@
                 </span>
             </div>
             <div class="flex items-center gap-4">
+                <button onclick="toggleBlind()" id="blindBtn"
+                    class="bg-amber-500/20 hover:bg-amber-500/40 text-amber-100 px-3 py-1.5 rounded-lg text-xs transition-all font-bold border border-white/10">
+                    🔒 โหมดไม่แสดงชื่อทีม (Blind)
+                </button>
                 <div class="text-right hidden sm:block">
                     <p class="text-[10px] opacity-60 leading-none">ผู้ตรวจ,</p>
                     <p class="text-xs font-bold" id="staffName">Staff</p>
@@ -238,6 +242,8 @@
         </div>
     </section>
 
+    <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-lg"></div>
+
     <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest">
         &copy; 2026 IT Team | MedQuiz KKU 2026
     </footer>
@@ -278,6 +284,14 @@
         let qSlot = 0;                                    // ข้อที่เลือกในโหมด By-Question
         const qDirty = new Set();                         // email ที่แก้คะแนนแล้วยังไม่บันทึก
         const qDraftTimers = new Map();                  // debounce draft ต่อทีม (คีย์ = email)
+
+        // ── Blind Grading (ปกปิดชื่อทีม/โรงเรียน/อีเมล กันตรวจแบบมีอคติ) ────
+        // หมายเหตุ: prompt เทียบสตริงฝั่ง client เป็นแค่การกันเผลอเห็นชื่อ ไม่ใช่การคุมสิทธิ์
+        // (รหัสอยู่ใน HTML ที่ push ขึ้น repo สาธารณะ) — email ยังอยู่ใน memory/payload เสมอ
+        const DEV_UNMASK_PW = 'medquizkku2026';
+        let isBlindMode = true;
+        let blindNum = new Map();                        // email -> เลขสุ่มตรวจ (คงที่ต่อทีม เรียงตาม email)
+        let toastTimer = null;
         let sheetTab = 'โรงเรียน';                        // 'โรงเรียน' | 'ผสม'
         const sheetData = { 'โรงเรียน': null, 'ผสม': null };  // cached payloads
         const QUOTA_CUTOFF = { 'โรงเรียน': 75, 'ผสม': 25 };
@@ -333,6 +347,7 @@
                 currentScores: [...(t.currentScores || Array(t.essayAnswers?.length || 6).fill(0))],
             }));
             slots = data.essaySlots || [];
+            rebuildBlindNumbers();
             renderQueue();
         }
 
@@ -361,6 +376,7 @@
                 if (data.status !== 'success') throw new Error(data.message || 'โหลดคิวไม่สำเร็จ');
                 slots = data.essaySlots || [];
                 teams = data.teams || [];
+                rebuildBlindNumbers();
                 showBanner(teams.length ? '' : 'sky', 'fa-circle-info',
                     teams.length ? '' : 'ยังไม่มีทีมที่ต้องตรวจ Essay — คิวจะขึ้นหลังรัน Sync (เมนู GAS ข้อ 1) และมีทีมคะแนนเท่ากันตรงเส้นแบ่งโควตา');
                 renderQueue();
@@ -377,6 +393,7 @@
             slots = data.essaySlots || [];
             teams = (data.teams || []).map(t => ({ ...t, currentScores: [...(t.currentScores || Array(t.essayAnswers?.length || 6).fill(0))] }));
             // ถ้ากดบันทึกใน demo ก่อน refresh แล้ว ก็กลับเป็น Graded เดิม — ไม่คง state ข้าม reload
+            rebuildBlindNumbers();
             renderQueue();
             if (current && !teams.find(t => t.email === current.email)) closePanel();
         }
@@ -389,6 +406,19 @@
             if (Date.now() - (c.lastActive || 0) > STALE_MS) return null; // หลุด — ถือว่าว่าง
             return c;
         }
+
+        // ── Blind masking helpers (คืนสตริงดิบ — ผู้เรียกใน innerHTML ต้อง esc เอง) ──
+        function rebuildBlindNumbers() {
+            blindNum = new Map();
+            [...teams].sort((a, b) => a.email < b.email ? -1 : a.email > b.email ? 1 : 0)
+                .forEach((t, i) => blindNum.set(t.email, i + 1));
+        }
+        const anonLabel = (n) => `ทีมสุ่มตรวจ #${String(n).padStart(2, '0')}`;
+        const dispNameRaw = (t) => isBlindMode ? anonLabel(blindNum.get(t.email) || 0) : (t.teamName || '(ไม่มีชื่อทีม)');
+        const dispSchoolRaw = (t) => isBlindMode ? '— (ปกปิด)' : (t.schoolName || '');
+        const dispMetaRaw = (t) => isBlindMode
+            ? `${t.quota} · — (ปกปิด)`
+            : [t.quota, t.schoolName, t.email].filter(Boolean).join(' · ');
 
         function renderQueue() {
             if (!teams.length) {
@@ -405,12 +435,12 @@
                     class="queue-item w-full text-left border rounded-xl px-3 py-2 transition-colors
                         ${active ? 'queue-active' : 'bg-white border-slate-200 hover:bg-slate-50'}">
                     <div class="flex items-center justify-between gap-2">
-                        <span class="font-bold text-sm truncate">${esc(t.teamName || '(ไม่มีชื่อทีม)')}</span>
+                        <span class="font-bold text-sm truncate">${esc(dispNameRaw(t))}</span>
                         ${graded ? '<span class="shrink-0 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">ตรวจแล้ว</span>' : ''}
                     </div>
                     <div class="flex items-center justify-between gap-2 mt-0.5">
                         <span class="text-[11px] ${active ? 'text-blue-100' : 'text-slate-400'} truncate">
-                            ${esc(t.quota)}${t.schoolName ? ' · ' + esc(t.schoolName) : ''}
+                            ${esc(t.quota)}${dispSchoolRaw(t) ? ' · ' + esc(dispSchoolRaw(t)) : ''}
                         </span>
                         ${claimedByOther
                             ? `<span class="shrink-0 text-[10px] text-orange-500"><i class="fa-solid fa-lock"></i> ${esc(claim.graderName)}</span>`
@@ -488,8 +518,8 @@
             $('emptyState').classList.add('hidden');
             $('gradePanel').classList.remove('hidden');
 
-            $('gTeamName').textContent = team.teamName || '(ไม่มีชื่อทีม)';
-            $('gMeta').textContent = [team.quota, team.schoolName, team.email].filter(Boolean).join(' · ');
+            $('gTeamName').textContent = dispNameRaw(team);
+            $('gMeta').textContent = dispMetaRaw(team);
             $('gAutoScore').textContent = team.autoScore;
 
             const maxTotal = slots.reduce((s, sl) => s + sl.max, 0);
@@ -645,7 +675,8 @@
             $('btnQueueMode').classList.toggle('queue-active', mode === 'queue');
             $('btnQuestionMode').classList.toggle('queue-active', mode === 'question');
             $('btnSheetMode').classList.toggle('queue-active', mode === 'sheet');
-            if (mode === 'sheet' && !sheetData[sheetTab]) loadSheetView(sheetTab);
+            // re-render ทุกครั้งที่เข้า (ไม่ใช่แค่ตอนโหลดครั้งแรก) เพื่อให้สลับ Blind แล้วชื่อในตารางอัปเดต
+            if (mode === 'sheet') { if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]); else loadSheetView(sheetTab); }
             if (mode === 'question') renderQuestionView();
         };
 
@@ -692,8 +723,8 @@
                 <div class="border border-slate-200 rounded-xl p-3" data-email="${esc(t.email)}">
                     <div class="flex items-start justify-between gap-2 mb-2">
                         <div class="min-w-0">
-                            <p class="font-bold text-sm text-slate-800 truncate">${esc(t.teamName || '(ไม่มีชื่อทีม)')}</p>
-                            <p class="text-[11px] text-slate-400 truncate">${esc(t.quota)}${t.schoolName ? ' · ' + esc(t.schoolName) : ''}</p>
+                            <p class="font-bold text-sm text-slate-800 truncate">${esc(dispNameRaw(t))}</p>
+                            <p class="text-[11px] text-slate-400 truncate">${esc(t.quota)}${dispSchoolRaw(t) ? ' · ' + esc(dispSchoolRaw(t)) : ''}</p>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0">
                             ${claimedByOther ? `<span class="text-[10px] text-orange-500"><i class="fa-solid fa-lock"></i> ${esc(claim.graderName)}</span>` : ''}
@@ -853,7 +884,8 @@
                 </tr>`;
 
             let dividerDone = false;
-            const body = rows.map(r => {
+            // Blind: เลขสุ่มตรวจในตารางใช้ลำดับแถว (คนละ namespace กับคิว ที่เรียงตาม email) — ตั้งใจ
+            const body = rows.map((r, idx) => {
                 let divider = '';
                 if (!dividerDone && typeof r.rank === 'number' && r.rank > cutoff) {
                     dividerDone = true;
@@ -865,8 +897,8 @@
                 <tr class="${clickable ? 'sheet-clickable' : ''}" ${clickable ? `data-email="${esc(r.email)}"` : ''}
                     style="background:${c.bg}; color:${c.font}">
                     <td class="text-right font-bold">${esc(r.rank)}</td>
-                    <td class="text-left">${esc(r.teamName || '(ไม่มีชื่อทีม)')}</td>
-                    ${isSchool ? `<td class="text-left">${esc(r.schoolName)}</td>` : ''}
+                    <td class="text-left">${esc(isBlindMode ? anonLabel(idx + 1) : (r.teamName || '(ไม่มีชื่อทีม)'))}</td>
+                    ${isSchool ? `<td class="text-left">${esc(isBlindMode ? '— (ปกปิด)' : r.schoolName)}</td>` : ''}
                     <td class="text-right">${esc(r.autoScore)}</td>
                     <td class="text-right">${esc(r.essayTotal)}</td>
                     <td class="text-right font-bold">${esc(r.totalScore)}</td>
@@ -892,9 +924,49 @@
             selectTeam(email);
         }
 
+        // ── Blind toggle (ปุ่ม navbar) ────────────────────────────────────
+        window.toggleBlind = () => {
+            if (isBlindMode) {
+                const pw = prompt('กรุณาใส่รหัสผ่านสำหรับ Developer / ฝ่ายจัดการ:');
+                if (pw === null) return;                          // กดยกเลิก
+                if (pw !== DEV_UNMASK_PW) { alert('❌ รหัสผ่านไม่ถูกต้อง'); return; }
+                isBlindMode = false;
+                toast('🔓 ปลดล็อกแสดงชื่อทีมจริงเรียบร้อย');
+            } else {
+                isBlindMode = true;                               // ล็อกกลับทันที ไม่ถามรหัส
+            }
+            updateBlindBtn();
+            rerenderAll();
+        };
+
+        function updateBlindBtn() {
+            const b = $('blindBtn');
+            b.innerHTML = isBlindMode
+                ? '🔒 โหมดไม่แสดงชื่อทีม (Blind)'
+                : '🔓 แสดงชื่อทีมจริง (คลิกเพื่อล็อกกลับเป็น Blind)';
+            b.classList.toggle('bg-amber-500/20', isBlindMode);
+            b.classList.toggle('bg-emerald-500/30', !isBlindMode);
+        }
+
+        function rerenderAll() {
+            renderQueue();
+            if (current) { $('gTeamName').textContent = dispNameRaw(current); $('gMeta').textContent = dispMetaRaw(current); }
+            if (view === 'question') renderQuestionCards();
+            if (view === 'sheet' && sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+        }
+
+        function toast(msg) {
+            const el = $('toast');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.add('hidden'), 2800);
+        }
+
         window.addEventListener('beforeunload', () => { releaseClaim(); });
 
         // เริ่มต้น — demo หรือ auth
+        updateBlindBtn();
         initAuth();
     </script>
 </body>
