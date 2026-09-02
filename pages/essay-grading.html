@@ -1,0 +1,437 @@
+<!-- ระบบตรวจ Essay รอบ 0 (ทีมคะแนนเท่ากันตรงเส้นแบ่งโควตา) -->
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตรวจ Essay รอบ 0 — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: #f8faff;
+            color: #1e293b;
+        }
+
+        .nav-gradient {
+            background: linear-gradient(to right, #0f1f4b, #1e3a8a);
+        }
+
+        /* ต้องเจาะจงกว่า bg-* ของ Tailwind CDN ที่ฉีดมาตอน runtime */
+        button.queue-active {
+            background: #1e3a8a !important;
+            color: #fff !important;
+            border-color: #1e3a8a !important;
+        }
+
+        .answer-box {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+    <nav class="nav-gradient text-white p-4 shadow-lg">
+        <div class="max-w-[1500px] mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <a href="../index.html" class="opacity-70 hover:opacity-100"><i class="fa-solid fa-arrow-left"></i></a>
+                <i class="fa-solid fa-pen-nib text-yellow-400"></i>
+                <span class="font-bold tracking-tight">ตรวจ Essay รอบ 0</span>
+                <span class="text-[11px] bg-white/10 border border-white/20 rounded-full px-2 py-0.5">
+                    ทีมคะแนนเท่ากันตรงเส้นแบ่งโควตา
+                </span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden sm:block">
+                    <p class="text-[10px] opacity-60 leading-none">ผู้ตรวจ,</p>
+                    <p class="text-xs font-bold" id="staffName">Staff</p>
+                </div>
+                <button onclick="handleLogout()" id="logoutBtn"
+                    class="bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white px-3 py-1.5 rounded-lg text-xs transition-all font-bold">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="banner" class="max-w-[1500px] mx-auto w-full px-4 pt-4"></div>
+
+    <main class="flex-1 max-w-[1500px] mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
+
+        <!-- คิวทีมที่ต้องตรวจ -->
+        <aside class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h2 class="text-sm font-extrabold text-slate-700">
+                    <i class="fa-solid fa-list-check mr-1 text-blue-700"></i> คิวตรวจ
+                </h2>
+                <button onclick="reloadQueue()" title="รีเฟรช"
+                    class="text-xs text-slate-500 hover:text-blue-700"><i class="fa-solid fa-rotate"></i></button>
+            </div>
+            <div id="queueList" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <p class="p-4 text-center text-slate-400 text-sm">กำลังโหลด...</p>
+            </div>
+        </aside>
+
+        <!-- แผงตรวจ -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 min-h-[60vh]">
+            <div id="emptyState" class="h-full flex flex-col items-center justify-center text-slate-400 py-20">
+                <i class="fa-regular fa-hand-pointer text-4xl mb-3"></i>
+                <p class="text-sm">เลือกทีมจากคิวด้านซ้ายเพื่อเริ่มตรวจ</p>
+            </div>
+
+            <div id="gradePanel" class="hidden">
+                <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3 mb-4">
+                    <div class="min-w-0">
+                        <h2 id="gTeamName" class="text-lg font-extrabold text-slate-800 leading-tight"></h2>
+                        <p id="gMeta" class="text-xs text-slate-500 mt-0.5"></p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] text-slate-400 leading-none">คะแนน Auto (MCQ/MTF/SAQ)</p>
+                        <p id="gAutoScore" class="text-xl font-extrabold text-slate-700"></p>
+                    </div>
+                </div>
+
+                <div id="occWarn" class="hidden mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-xs">
+                </div>
+                <div id="statusPill" class="mb-4"></div>
+
+                <div id="slots" class="space-y-4"></div>
+
+                <div class="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-3">
+                    <div class="text-sm">
+                        <span class="text-slate-500">รวม Essay:</span>
+                        <span id="gEssayTotal" class="font-extrabold text-blue-700 text-lg ml-1">0</span>
+                        <span class="text-slate-400">/ <span id="gEssayMax"></span></span>
+                    </div>
+                    <div class="ml-auto flex items-center gap-2">
+                        <span id="draftHint" class="text-[11px] text-slate-400"></span>
+                        <button id="submitBtn" onclick="handleSubmit()"
+                            class="px-5 py-2 rounded-xl text-sm bg-blue-700 hover:bg-blue-800 text-white font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fa-solid fa-check mr-1"></i> บันทึกคะแนน
+                        </button>
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-3 leading-snug">
+                    <i class="fa-solid fa-circle-info mr-1"></i>
+                    บันทึกแล้วยังแก้ไขซ้ำได้ จนกว่าหัวหน้าฝ่ายวิชาการจะรันประมวลผลคะแนนสุทธิและล็อก (Verified) —
+                    ระบบไม่คำนวณลำดับให้ที่นี่ การจัดลำดับสุทธิทำในเมนู GAS ข้อ 2 หลังตรวจครบทุกทีม
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest">
+        &copy; 2026 IT Team | MedQuiz KKU 2026
+    </footer>
+
+    <script type="module">
+        import {
+            db, auth, ref, set, get, update, remove, onValue, onDisconnect, escapeEmail
+        } from '../js/firebase-config.js';
+        import { logout } from '../js/auth.js';
+        import { DASHBOARD_API_URL } from '../js/firebase-config.js';
+        import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // grading UI shares the dashboard's single /exec deployment (one doGet
+        // + one doPost per GAS project) — ?action= routes it server-side
+        const API_URL = DASHBOARD_API_URL;
+
+        const OCC_ROOT = 'essayGrading';
+        const HEARTBEAT_MS = 30000;   // ต่ออายุ lastActive ทุก 30 วิ
+        const STALE_MS = 120000;      // เกิน 2 นาทีไม่มี heartbeat = ถือว่าหลุด แย่งได้
+        const DRAFT_DEBOUNCE_MS = 600;
+
+        const $ = (id) => document.getElementById(id);
+        const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+        let me = null;                // { email, name }
+        let slots = [];               // ESSAY_SLOTS จาก server [{label,max}]
+        let teams = [];               // คิวทั้งหมด
+        let current = null;           // ทีมที่กำลังตรวจ
+        let occupancy = {};           // essayGrading/* ล่าสุด
+        let heartbeatTimer = null;
+        let draftTimer = null;
+
+        window.handleLogout = () => { if (confirm('ยืนยันการออกจากระบบ?')) { releaseClaim(); logout(); } };
+
+        // ── auth ──────────────────────────────────────────────────────────
+        onAuthStateChanged(auth, (user) => {
+            if (!user) { window.location.href = 'login.html'; return; }
+            me = { email: user.email, name: user.displayName || user.email };
+            $('staffName').textContent = me.name;
+            watchOccupancy();
+            reloadQueue();
+        });
+
+        const idToken = async () => auth.currentUser ? await auth.currentUser.getIdToken() : '';
+
+        function showBanner(color, icon, html) {
+            const styles = {
+                red: 'bg-red-50 border-red-200 text-red-800',
+                sky: 'bg-sky-50 border-sky-200 text-sky-800',
+                amber: 'bg-amber-50 border-amber-200 text-amber-800',
+            };
+            $('banner').innerHTML = html
+                ? `<div class="${styles[color]} border rounded-xl px-4 py-2 text-xs"><i class="fa-solid ${icon} mr-1"></i> ${html}</div>`
+                : '';
+        }
+
+        // ── โหลดคิว ───────────────────────────────────────────────────────
+        window.reloadQueue = async () => {
+            $('queueList').innerHTML = `<p class="p-4 text-center text-slate-400 text-sm">กำลังโหลด...</p>`;
+            try {
+                const res = await fetch(`${API_URL}?action=essayQueue&idToken=${encodeURIComponent(await idToken())}`);
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'โหลดคิวไม่สำเร็จ');
+                slots = data.essaySlots || [];
+                teams = data.teams || [];
+                showBanner(teams.length ? '' : 'sky', 'fa-circle-info',
+                    teams.length ? '' : 'ยังไม่มีทีมที่ต้องตรวจ Essay — คิวจะขึ้นหลังรัน Sync (เมนู GAS ข้อ 1) และมีทีมคะแนนเท่ากันตรงเส้นแบ่งโควตา');
+                renderQueue();
+                // ถ้าทีมที่เปิดอยู่หลุดจากคิว (เช่นถูก Verified) ให้ปิดแผง
+                if (current && !teams.find(t => t.email === current.email)) closePanel();
+            } catch (err) {
+                $('queueList').innerHTML = `<p class="p-4 text-center text-red-500 text-sm">${esc(err.message)}</p>`;
+            }
+        };
+
+        function claimInfo(email) {
+            // เฝ้าที่ราก essayGrading จึงได้ { occupancy:{...}, draft:{...} } ต่อทีม
+            const node = occupancy[escapeEmail(email)];
+            const c = node && node.occupancy;
+            if (!c) return null;
+            if (Date.now() - (c.lastActive || 0) > STALE_MS) return null; // หลุด — ถือว่าว่าง
+            return c;
+        }
+
+        function renderQueue() {
+            if (!teams.length) {
+                $('queueList').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">— ไม่มีทีมในคิว —</p>`;
+                return;
+            }
+            $('queueList').innerHTML = teams.map(t => {
+                const graded = t.verifyStatus === 'Graded';
+                const claim = claimInfo(t.email);
+                const claimedByOther = claim && claim.graderEmail !== me.email;
+                const active = current && current.email === t.email;
+                return `
+                <button data-email="${esc(t.email)}"
+                    class="queue-item w-full text-left border rounded-xl px-3 py-2 transition-colors
+                        ${active ? 'queue-active' : 'bg-white border-slate-200 hover:bg-slate-50'}">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-bold text-sm truncate">${esc(t.teamName || '(ไม่มีชื่อทีม)')}</span>
+                        ${graded ? '<span class="shrink-0 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">ตรวจแล้ว</span>' : ''}
+                    </div>
+                    <div class="flex items-center justify-between gap-2 mt-0.5">
+                        <span class="text-[11px] ${active ? 'text-blue-100' : 'text-slate-400'} truncate">
+                            ${esc(t.quota)}${t.schoolName ? ' · ' + esc(t.schoolName) : ''}
+                        </span>
+                        ${claimedByOther
+                            ? `<span class="shrink-0 text-[10px] text-orange-500"><i class="fa-solid fa-lock"></i> ${esc(claim.graderName)}</span>`
+                            : ''}
+                    </div>
+                </button>`;
+            }).join('');
+
+            document.querySelectorAll('.queue-item').forEach(b =>
+                b.addEventListener('click', () => selectTeam(b.dataset.email)));
+        }
+
+        // ── occupancy (lock) ──────────────────────────────────────────────
+        function watchOccupancy() {
+            onValue(ref(db, OCC_ROOT), (snap) => {
+                occupancy = snap.val() || {};
+                renderQueue();
+                if (current) refreshOccWarn();
+            });
+        }
+
+        async function claimTeam(team) {
+            const occRef = ref(db, `${OCC_ROOT}/${escapeEmail(team.email)}/occupancy`);
+            await set(occRef, {
+                graderEmail: me.email,
+                graderName: me.name,
+                claimedAt: Date.now(),
+                lastActive: Date.now()
+            });
+            onDisconnect(occRef).remove();
+            heartbeatTimer = setInterval(() => {
+                update(occRef, { lastActive: Date.now() }).catch(() => { });
+            }, HEARTBEAT_MS);
+        }
+
+        async function releaseClaim() {
+            if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+            if (current) {
+                try { await remove(ref(db, `${OCC_ROOT}/${escapeEmail(current.email)}/occupancy`)); } catch (e) { }
+            }
+        }
+
+        function refreshOccWarn() {
+            const claim = claimInfo(current.email);
+            const other = claim && claim.graderEmail !== me.email;
+            $('occWarn').classList.toggle('hidden', !other);
+            if (other) {
+                $('occWarn').innerHTML =
+                    `<i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>${esc(claim.graderName)}</b> กำลังตรวจทีมนี้อยู่ — ระวังบันทึกทับกัน`;
+            }
+        }
+
+        // ── เลือกทีม ──────────────────────────────────────────────────────
+        async function selectTeam(email) {
+            const team = teams.find(t => t.email === email);
+            if (!team) return;
+            if (current && current.email === email) return;
+
+            const claim = claimInfo(email);
+            if (claim && claim.graderEmail !== me.email) {
+                if (!confirm(`${claim.graderName} กำลังตรวจทีมนี้อยู่\nยังต้องการเปิดดูหรือไม่? (ควรหลีกเลี่ยงการบันทึกทับ)`)) return;
+            }
+
+            await releaseClaim();       // ปล่อยทีมเก่า
+            current = team;
+            await claimTeam(team);       // จองทีมใหม่
+            await openPanel(team);
+            renderQueue();
+        }
+
+        async function openPanel(team) {
+            $('emptyState').classList.add('hidden');
+            $('gradePanel').classList.remove('hidden');
+
+            $('gTeamName').textContent = team.teamName || '(ไม่มีชื่อทีม)';
+            $('gMeta').textContent = [team.quota, team.schoolName, team.email].filter(Boolean).join(' · ');
+            $('gAutoScore').textContent = team.autoScore;
+
+            const maxTotal = slots.reduce((s, sl) => s + sl.max, 0);
+            $('gEssayMax').textContent = maxTotal;
+
+            // draft ที่ค้างไว้ (เช่นแท็บล่มกลางคัน) มาก่อน คะแนนที่บันทึกแล้วรองลงมา
+            let draft = null;
+            try {
+                const dSnap = await get(ref(db, `${OCC_ROOT}/${escapeEmail(team.email)}/draft`));
+                draft = dSnap.val();
+            } catch (e) { }
+
+            $('slots').innerHTML = slots.map((sl, i) => {
+                const val = draft && draft[sl.label] != null ? draft[sl.label] : team.currentScores[i];
+                return `
+                <div class="border border-slate-200 rounded-xl p-3">
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <span class="text-xs font-bold text-slate-600">ข้อ ${esc(sl.label)}</span>
+                        <div class="flex items-center gap-1">
+                            <input type="number" data-slot="${i}" min="0" max="${sl.max}" step="0.5"
+                                value="${esc(val)}"
+                                class="score-input w-20 text-right px-2 py-1 border border-slate-300 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-200">
+                            <span class="text-xs text-slate-400">/ ${sl.max}</span>
+                        </div>
+                    </div>
+                    <div class="answer-box text-xs text-slate-700 bg-slate-50 rounded-lg p-2 max-h-40 overflow-y-auto">${esc(team.essayAnswers[i]) || '<span class="text-slate-300">(ไม่มีคำตอบ)</span>'}</div>
+                </div>`;
+            }).join('');
+
+            const locked = team.verifyStatus === 'Verified';
+            const graded = team.verifyStatus === 'Graded';
+            $('statusPill').innerHTML = locked
+                ? `<span class="inline-flex items-center gap-1 text-[11px] bg-slate-100 text-slate-600 border border-slate-300 px-2 py-0.5 rounded-full"><i class="fa-solid fa-lock"></i> ล็อกแล้ว (Verified) — แก้ไขไม่ได้</span>`
+                : graded
+                ? `<span class="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-circle-check"></i> เคยบันทึกแล้ว — แก้ไขซ้ำได้</span>`
+                : `<span class="inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-hourglass-half"></i> ยังไม่ได้ตรวจ</span>`;
+            $('draftHint').textContent = (draft && !graded && !locked) ? 'กู้คืนฉบับร่างที่ค้างไว้' : '';
+
+            document.querySelectorAll('.score-input').forEach(inp => {
+                inp.disabled = locked;
+                inp.addEventListener('input', () => { recalcTotal(); scheduleDraftSave(); });
+            });
+            refreshOccWarn();
+            recalcTotal();
+            if (locked) $('submitBtn').disabled = true;
+        }
+
+        function readScores() {
+            return slots.map((sl, i) => {
+                const inp = document.querySelector(`.score-input[data-slot="${i}"]`);
+                return inp ? Number(inp.value) : 0;
+            });
+        }
+
+        function recalcTotal() {
+            const scores = readScores();
+            const total = scores.reduce((a, b) => a + (isFinite(b) ? b : 0), 0);
+            $('gEssayTotal').textContent = Number(total.toFixed(2));
+            // ปุ่มบันทึกกดได้เฉพาะเมื่อทุกช่องอยู่ในพิสัย 0..max
+            const valid = scores.every((s, i) => isFinite(s) && s >= 0 && s <= slots[i].max);
+            $('submitBtn').disabled = !valid;
+        }
+
+        function scheduleDraftSave() {
+            if (!current) return;
+            if (draftTimer) clearTimeout(draftTimer);
+            draftTimer = setTimeout(() => {
+                const scores = readScores();
+                const draft = {};
+                slots.forEach((sl, i) => { draft[sl.label] = scores[i]; });
+                update(ref(db, `${OCC_ROOT}/${escapeEmail(current.email)}`), { draft }).catch(() => { });
+            }, DRAFT_DEBOUNCE_MS);
+        }
+
+        // ── บันทึก ────────────────────────────────────────────────────────
+        window.handleSubmit = async () => {
+            if (!current) return;
+            const scores = readScores();
+            for (let i = 0; i < slots.length; i++) {
+                if (!isFinite(scores[i]) || scores[i] < 0 || scores[i] > slots[i].max) {
+                    return alert(`คะแนนข้อ ${slots[i].label} ต้องอยู่ระหว่าง 0-${slots[i].max}`);
+                }
+            }
+            $('submitBtn').disabled = true;
+            $('submitBtn').innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังบันทึก...';
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'submitEssayGrade',
+                        idToken: await idToken(),
+                        email: current.email,
+                        sheetName: current.sheetName,
+                        scores
+                    })
+                });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'บันทึกไม่สำเร็จ');
+
+                // อัปเดต state ในเครื่อง + ล้าง draft
+                current.currentScores = scores;
+                current.verifyStatus = 'Graded';
+                await remove(ref(db, `${OCC_ROOT}/${escapeEmail(current.email)}/draft`)).catch(() => { });
+
+                $('statusPill').innerHTML =
+                    `<span class="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-circle-check"></i> บันทึกแล้ว (รวม ${Number(data.essayTotal.toFixed ? data.essayTotal.toFixed(2) : data.essayTotal)}) — แก้ไขซ้ำได้</span>`;
+                $('draftHint').textContent = '';
+                renderQueue();
+            } catch (err) {
+                alert('❌ ' + err.message);
+            } finally {
+                $('submitBtn').disabled = false;
+                $('submitBtn').innerHTML = '<i class="fa-solid fa-check mr-1"></i> บันทึกคะแนน';
+            }
+        };
+
+        function closePanel() {
+            current = null;
+            $('gradePanel').classList.add('hidden');
+            $('emptyState').classList.remove('hidden');
+        }
+
+        window.addEventListener('beforeunload', () => { releaseClaim(); });
+    </script>
+</body>
+
+</html>

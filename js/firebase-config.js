@@ -21,6 +21,16 @@ const firebaseConfig = {
 
 export const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwKSn21RnyxaHv6oCZGytCM2gCwvt_jaAOS_EFw9TJk1IZATD0-90PG8SKTXB6tqT-a_g/exec";
 
+// Web App ของโปรเจกต์ "MedQuiz 2026 Exam Received" (6_DashboardApi.js → doGet)
+// ใช้โดย pages/dashboard.html เท่านั้น — deploy แล้ว 2026-07-30
+// ถ้า deploy ใหม่ (New deployment) URL จะเปลี่ยน ต้องกลับมาแก้ตรงนี้ด้วย
+// ตอน deploy ต้องตั้ง Execute as: Me / Who has access: "Anyone" เท่านั้น
+// ถ้าตั้งเป็น "Anyone with a Google account" เบราว์เซอร์จะถูกเด้งไปหน้า login
+// ของ Google แล้วติด CORS โหลดข้อมูลไม่ได้เลย — ด่านตรวจสิทธิ์อยู่ใน doGet
+// (ต้องแนบ Firebase ID token ของ staff) ไม่ได้อยู่ที่ระดับ deployment
+// (ถ้าเว้นว่างไว้ หน้า Dashboard จะใช้ข้อมูลตัวอย่างสำหรับทดสอบ)
+export const DASHBOARD_API_URL = "https://script.google.com/macros/s/AKfycbx0NbfUaqMXDl2RKoFcayiFOVjOZUQkUI1NiumKJXVKA_7xjO-4vm-q8Ne2KFLMCi2Q/exec";
+
 
 // 3. Initialize Firebase
 const app = initializeApp(firebaseConfig);

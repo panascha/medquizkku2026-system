@@ -2136,7 +2136,7 @@
                     if (fStatus === 'waiting') matchStatus = t.overall === 'รอการตรวจสอบ';
                     else if (fStatus === 'done') matchStatus = t.overall === 'การสมัครสมบูรณ์';
                     else if (fStatus === 'bad') matchStatus = t.overall === 'การสมัครไม่เรียบร้อย';
-                    else if (fStatus === 'updated') matchStatus = t.updated;
+                    else if (fStatus === 'updated') matchStatus = t.updated && t.overall !== 'การสมัครสมบูรณ์';
 
                     let matchCat = true;
                     if (fCategory === 'school') matchCat = t.category?.includes('โรงเรียน');
@@ -2199,7 +2199,7 @@
                 const done = validTeams.filter(t => t.overall?.trim() === 'การสมัครสมบูรณ์').length;
                 const wait = validTeams.filter(t => t.overall?.trim() === 'รอการตรวจสอบ').length;
                 const bad = validTeams.filter(t => t.overall?.trim() === 'การสมัครไม่เรียบร้อย').length;
-                const upd = validTeams.filter(t => t.updated === true).length;
+                const upd = validTeams.filter(t => t.updated === true && t.overall?.trim() !== 'การสมัครสมบูรณ์').length;
                 const others = all - (done + wait + bad);
 
                 document.getElementById('statsStrip').innerHTML = `

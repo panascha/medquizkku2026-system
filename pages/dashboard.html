@@ -1,0 +1,881 @@
+<!-- Dashboard สรุปข้อมูลข้ามฝ่าย (Final 100 ทีม) -->
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard สรุปข้อมูลรายฝ่าย — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: #f8faff;
+            color: #1e293b;
+        }
+
+        .nav-gradient {
+            background: linear-gradient(to right, #0f1f4b, #1e3a8a);
+        }
+
+        /* ต้องเจาะจงกว่าคลาส bg-white ของ Tailwind ซึ่งถูกฉีดเข้ามาทีหลัง
+           (Tailwind CDN สร้าง CSS ตอน runtime) ไม่งั้นแท็บที่เลือกจะเป็น
+           ตัวหนังสือขาวบนพื้นขาว */
+        button.tab-active {
+            background: #1e3a8a !important;
+            color: #fff;
+            border-color: #1e3a8a;
+        }
+
+        /* ตารางเลื่อนแนวนอนในกล่องตัวเอง หน้าเว็บไม่เลื่อนตาม */
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        .table-wrap thead th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+        }
+
+        /* ---- คอลัมน์ซ้ายสุดที่ freeze ไว้ (รหัสทีม / ชื่อทีม) ----
+           ต้องกำหนดพื้นหลังทึบเอง: เซลล์ปกติของ Tailwind พื้นหลังโปร่ง ถ้าไม่ใส่
+           เนื้อหาคอลัมน์อื่นจะเลื่อนทะลุขึ้นมาซ้อนตอนเลื่อนแนวนอน
+           ลำดับชั้น: หัวตารางที่ freeze (4) > หัวตารางปกติ (3) > เซลล์ที่ freeze (2) */
+        .table-wrap td.sticky-col {
+            position: sticky;
+            background: #fff;
+            z-index: 2;
+        }
+
+        .table-wrap thead th.sticky-col {
+            background: #f1f5f9;
+            z-index: 4;
+        }
+
+        .sticky-col-0 {
+            left: 0;
+            min-width: 96px;
+            max-width: 96px;
+        }
+
+        .sticky-col-1 {
+            left: 96px;
+            min-width: 190px;
+            max-width: 190px;
+            box-shadow: 1px 0 0 #e2e8f0;
+        }
+
+        /* hover ที่ <tr> ทาสีเซลล์ที่ freeze ไม่ได้ เพราะมันมีพื้นหลังทึบของตัวเอง */
+        .table-wrap tbody tr:hover td.sticky-col {
+            background: #eff6ff;
+        }
+
+        .row-link {
+            cursor: pointer;
+        }
+
+        /* ---- ลิ้นชักรายละเอียดรายทีม ---- */
+        #drawer {
+            transform: translateX(100%);
+            transition: transform .22s ease-out;
+        }
+
+        #drawer.open {
+            transform: translateX(0);
+        }
+
+        /* ---- โหมดพิมพ์ / บันทึกเป็น PDF ----
+           พิมพ์เฉพาะตารางที่กรองแล้ว ตัดเมนู ปุ่ม และการ์ดตัวเลขออก */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 10mm;
+            }
+
+            body {
+                background: #fff;
+            }
+
+            .no-print,
+            .print-hide {
+                display: none !important;
+            }
+
+            .print-only {
+                display: block !important;
+            }
+
+            .table-wrap {
+                overflow: visible !important;
+                max-height: none !important;
+                border: none !important;
+            }
+
+            /* กระดาษไม่มีการเลื่อน — ปล่อยคอลัมน์ที่ freeze กลับเป็นคอลัมน์ธรรมดา
+               ไม่งั้นความกว้างที่ล็อกไว้จะบีบข้อความไทยตกบรรทัดละตัว */
+            .table-wrap th.sticky-col,
+            .table-wrap td.sticky-col {
+                position: static !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                box-shadow: none !important;
+                background: transparent !important;
+            }
+
+            table {
+                font-size: 8pt;
+                width: 100%;
+            }
+
+            th,
+            td {
+                border: 1px solid #cbd5e1 !important;
+                white-space: normal !important;
+                word-break: break-word;
+            }
+
+            thead {
+                display: table-header-group;
+            }
+
+            tr {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="nav-gradient text-white p-4 shadow-lg no-print">
+        <div class="max-w-[1600px] mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <a href="../index.html" class="opacity-70 hover:opacity-100"><i class="fa-solid fa-arrow-left"></i></a>
+                <i class="fa-solid fa-chart-column text-yellow-400"></i>
+                <span class="font-bold tracking-tight">Dashboard สรุปข้อมูลรายฝ่าย</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden sm:block">
+                    <p class="text-[10px] opacity-60 leading-none">Welcome,</p>
+                    <p class="text-xs font-bold" id="staffName">Staff</p>
+                </div>
+                <button onclick="handleLogout()" id="logoutBtn"
+                    class="bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white px-3 py-1.5 rounded-lg text-xs transition-all font-bold">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1 max-w-[1600px] mx-auto w-full p-4 md:p-8">
+
+        <!-- หัวกระดาษ (เห็นเฉพาะตอนพิมพ์) -->
+        <div class="print-only hidden mb-4">
+            <h1 class="text-lg font-bold">MedQuiz KKU 2026 — <span id="printDept"></span></h1>
+            <p class="text-xs text-slate-600" id="printMeta"></p>
+        </div>
+
+        <!-- แท็บฝ่าย -->
+        <div class="flex flex-wrap gap-2 mb-6 no-print" id="deptTabs"></div>
+
+        <!-- แจ้งเตือน -->
+        <div id="banners" class="space-y-2 mb-4 no-print"></div>
+
+        <!-- การ์ดสถานะงาน (ต้องแก้ไขด่วน / รอเข้า Line / สมบูรณ์แล้ว)
+             คลิกเพื่อกรองตารางด้วยเงื่อนไขเดียวกับตัวเลขบนการ์ด -->
+        <div id="workflow" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 no-print"></div>
+
+        <!-- กล่องงานด่วน — ทีมที่ต้องเข้าไปจัดการก่อนอย่างอื่น -->
+        <div id="urgent" class="mb-6"></div>
+
+        <!-- การ์ดตัวเลขสรุปรายฝ่าย (ของเดิม) -->
+        <div id="metrics" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-6 no-print">
+        </div>
+
+        <!-- แถบเครื่องมือ -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 mb-4 flex flex-wrap gap-3 items-center no-print">
+            <div class="relative flex-1 min-w-[220px]">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input id="search" type="text" placeholder="ค้นหา ชื่อทีม / โรงเรียน / อีเมล / ข้อมูลใด ๆ"
+                    class="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200">
+            </div>
+
+            <select id="category"
+                class="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-200">
+                <option value="">ทุกโควตา</option>
+                <option value="โรงเรียน">โควตาทีมโรงเรียน</option>
+                <option value="ผสม">โควตาทีมผสม</option>
+            </select>
+
+            <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+                <input id="onlyWithData" type="checkbox" class="w-4 h-4 accent-blue-700">
+                เฉพาะแถวที่มีข้อมูลของฝ่ายนี้
+            </label>
+
+            <div class="ml-auto flex gap-2">
+                <button onclick="handleRefresh()"
+                    class="px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <i class="fa-solid fa-rotate mr-1"></i> รีเฟรช
+                </button>
+                <button onclick="handleExportXlsx()"
+                    class="px-3 py-2 rounded-xl text-sm bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">
+                    <i class="fa-solid fa-file-excel mr-1"></i> Excel
+                </button>
+                <button onclick="handleExportPdf()"
+                    class="px-3 py-2 rounded-xl text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors">
+                    <i class="fa-solid fa-file-pdf mr-1"></i> PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- ตัวกรองด่วนตามงาน — ปุ่มที่ขึ้นจริงขึ้นกับคอลัมน์ที่ฝ่ายนั้นได้รับ -->
+        <div id="quickFilters" class="flex flex-wrap gap-2 mb-4 no-print"></div>
+
+        <!-- ตาราง -->
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div class="px-4 py-2 border-b border-slate-100 text-xs text-slate-500 no-print" id="rowCount"></div>
+            <div class="table-wrap max-h-[65vh]">
+                <table class="w-full text-xs border-collapse">
+                    <thead class="bg-slate-100 text-slate-600 text-left"><tr id="tableHead"></tr></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- ลิ้นชักรายละเอียดรายทีม (คลิกที่แถวเพื่อเปิด) -->
+    <div id="drawerBackdrop" class="hidden fixed inset-0 bg-slate-900/40 z-40 no-print"
+        onclick="closeDrawer()"></div>
+
+    <aside id="drawer"
+        class="fixed top-0 right-0 h-full w-full sm:w-[520px] bg-white shadow-2xl z-50 flex flex-col no-print"
+        aria-hidden="true">
+        <div class="nav-gradient text-white px-5 py-4 flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <p class="text-[10px] opacity-60 leading-none mb-1" id="drawerTeamId">—</p>
+                <h2 class="font-bold leading-tight truncate" id="drawerTitle">รายละเอียดทีม</h2>
+                <p class="text-[11px] opacity-70 truncate" id="drawerSchool"></p>
+            </div>
+            <button onclick="closeDrawer()"
+                class="shrink-0 bg-white/10 hover:bg-white/25 w-8 h-8 rounded-lg transition-colors">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5 space-y-5" id="drawerBody"></div>
+        <div class="border-t border-slate-200 px-5 py-3 text-[10px] text-slate-400">
+            แสดงเฉพาะข้อมูลที่ฝ่ายนี้มีสิทธิ์เห็น — คอลัมน์ของฝ่ายอื่นไม่ได้ถูกส่งมาที่หน้านี้เลย
+        </div>
+    </aside>
+
+    <!-- หน้าต่างเจาะดูรายชื่อเบื้องหลังการ์ดตัวเลข (คลิกที่การ์ด)
+         z สูงกว่าลิ้นชัก (z-50) เพราะเปิดทับกันได้ และกดรายการในนี้แล้วเปิดลิ้นชักต่อ -->
+    <div id="drillBackdrop" class="hidden fixed inset-0 bg-slate-900/50 z-[60] no-print"
+        onclick="closeDrill()"></div>
+
+    <div id="drill" class="hidden fixed inset-0 z-[70] p-4 sm:p-8 flex items-start justify-center no-print"
+        role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-full flex flex-col overflow-hidden">
+            <div class="nav-gradient text-white px-5 py-4 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <h2 class="font-bold leading-tight" id="drillTitle">รายละเอียด</h2>
+                    <p class="text-[11px] opacity-70" id="drillMeta"></p>
+                </div>
+                <button onclick="closeDrill()"
+                    class="shrink-0 bg-white/10 hover:bg-white/25 w-8 h-8 rounded-lg transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 space-y-4" id="drillBody"></div>
+            <div class="border-t border-slate-200 px-5 py-3 text-[10px] text-slate-400">
+                นับจากแถวที่ผ่านตัวกรองอยู่ตอนนี้เท่านั้น — ยอดรวมตรงกับตัวเลขบนการ์ดเสมอ · คลิกรายชื่อเพื่อเปิดรายละเอียดทีม
+            </div>
+        </div>
+    </div>
+
+    <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest no-print">
+        &copy; 2026 IT Team | MedQuiz KKU 52 Project
+    </footer>
+
+    <script type="module">
+        // ห้าม import auth.js / auth แบบ static ที่นี่ — auth.js มี side effect ตอนโหลด
+        // คือติดตั้ง onAuthStateChanged ที่เด้งไป login.html ทันทีเมื่อยังไม่ได้ล็อกอิน
+        // แค่ import ก็โดนเด้งแล้ว โหมดข้อมูลตัวอย่างจึงเปิดดูไม่ได้เลย
+        // ทั้ง auth.js และ auth จึงย้ายไป dynamic import ใน initAuth() (เฉพาะโหมดข้อมูลจริง)
+        import { DASHBOARD_API_URL } from '../js/firebase-config.js';
+        import {
+            DEPARTMENTS, loadDept, filterRows, computeMetrics, exportXlsx, exportPdf,
+            projectRows, columnLabel, isYes, hasVal, PRAYER_SUMMARY_COL, MEMBER_COUNT_COL,
+            STICKY_COL_COUNT, computeWorkflow, findUrgent, quickFilters, drilldown
+        } from '../js/dashboard-logic.js';
+
+        const useFixture = new URLSearchParams(location.search).get('fixture') === '1';
+        // ต้องเป็นเงื่อนไขเดียวกับที่ตัดสินใจว่าจะเรียก start() หรือ initAuth() ท้ายไฟล์
+        // ชุด demo ที่ stub DASHBOARD_API_URL = '' ไม่มี auth.js อยู่ในโฟลเดอร์
+        // ถ้าแยกเงื่อนไขกันเมื่อไหร่ ชุดนั้นจะไป import ไฟล์ที่ไม่มี → หน้าขาว
+        const demoMode = useFixture || !DASHBOARD_API_URL;
+
+        let dept = 'overview';
+        let payload = null;      // ข้อมูลดิบของฝ่ายที่เลือก (การ์ดตัวเลขใช้ชุดนี้)
+        let visibleRows = [];    // แถวดิบที่ผ่านตัวกรอง — ลิ้นชักรายละเอียดใช้ชุดนี้
+        let quick = '';          // ตัวกรองด่วนที่เลือกอยู่ ('' = ทั้งหมด)
+
+        // สองชุดนี้ห้ามสลับกัน: tableView = คอลัมน์ที่ตัดแล้ว (ตาราง + PDF)
+        // exportView = ทุกคอลัมน์ที่ฝ่ายนี้ได้รับ (.xlsx) ดูเหตุผลใน projectRows()
+        let tableView = { headers: [], rows: [] };
+        let exportView = { headers: [], rows: [] };
+
+        const $ = (id) => document.getElementById(id);
+        const deptLabel = (k) => DEPARTMENTS.find(d => d.key === k)?.label ?? k;
+        const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+        // โหลดข้อมูลจริงได้ก็ต่อเมื่อรู้ตัวตนแล้ว เพราะ doGet ต้องการ ID token
+        // (โหมดข้อมูลตัวอย่างไม่ต้องรอ — ใช้ทดสอบหน้าเว็บโดยไม่ยิง GAS)
+        let started = false;
+        const start = () => { if (!started) { started = true; selectDept('overview'); } };
+
+        // มีค่าเฉพาะโหมดข้อมูลจริง — โหมดตัวอย่างไม่โหลด Firebase Auth เลย
+        let authRef = null;
+
+        async function initAuth() {
+            const [{ auth }, { logout }, { onAuthStateChanged }] = await Promise.all([
+                import('../js/firebase-config.js'),
+                import('../js/auth.js'),
+                import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'),
+            ]);
+            authRef = auth;
+            window.handleLogout = () => { if (confirm("ยืนยันการออกจากระบบ?")) logout(); };
+            onAuthStateChanged(auth, (user) => {
+                if (!user) return;
+                $('staffName').textContent = user.displayName || user.email;
+                start();
+            });
+        }
+
+        // ขอ token ใหม่ทุกครั้งก่อน fetch — SDK ต่ออายุให้เอง แท็บที่เปิดค้าง
+        // ข้ามชั่วโมงจึงไม่โดนปฏิเสธ (โหมดตัวอย่างคืนค่าว่าง loadDept ลัดก่อน fetch อยู่แล้ว)
+        const currentIdToken = async () =>
+            authRef?.currentUser ? await authRef.currentUser.getIdToken() : '';
+
+        // ---- แท็บฝ่าย ----
+        $('deptTabs').innerHTML = DEPARTMENTS.map(d => `
+            <button data-dept="${d.key}"
+                class="dept-tab px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+                <i class="fa-solid ${d.icon} mr-1"></i> ${d.label}
+            </button>`).join('');
+
+        document.querySelectorAll('.dept-tab').forEach(btn =>
+            btn.addEventListener('click', () => selectDept(btn.dataset.dept)));
+
+        async function selectDept(key) {
+            dept = key;
+            quick = '';   // ตัวกรองด่วนของแต่ละฝ่ายไม่เหมือนกัน เปลี่ยนฝ่ายแล้วต้องล้าง
+            document.querySelectorAll('.dept-tab').forEach(b =>
+                b.classList.toggle('tab-active', b.dataset.dept === key));
+            await load();
+        }
+
+        // ---- โหลดข้อมูล ----
+        async function load() {
+            $('tableBody').innerHTML = `<tr><td class="p-6 text-center text-slate-400">กำลังโหลด...</td></tr>`;
+            try {
+                // ส่ง demoMode ไม่ใช่ useFixture — ชุด demo ไม่มี ?fixture=1 บน URL
+                // ไม่งั้นจะเหลือแค่ loadDept() ที่เดาเอาเองจาก DASHBOARD_API_URL ว่าง
+                payload = await loadDept(dept, { useFixture: demoMode, idToken: await currentIdToken() });
+            } catch (err) {
+                payload = null;
+                $('banners').innerHTML = banner('red', 'fa-triangle-exclamation', `โหลดข้อมูลไม่สำเร็จ: ${esc(err.message)}`);
+                $('tableBody').innerHTML = `<tr><td class="p-6 text-center text-slate-400">—</td></tr>`;
+                $('metrics').innerHTML = '';
+                return;
+            }
+            renderBanners();
+            render();
+        }
+
+        // ---- แจ้งเตือนบริบทข้อมูล ----
+        // เขียนคลาสเต็ม ๆ ไม่ประกอบชื่อสีจากตัวแปร เพราะ Tailwind CDN
+        // สร้าง CSS จากสตริงคลาสที่เจอจริงเท่านั้น
+        const BANNER_STYLES = {
+            amber: 'bg-amber-50 border-amber-200 text-amber-800',
+            sky: 'bg-sky-50 border-sky-200 text-sky-800',
+            red: 'bg-red-50 border-red-200 text-red-800',
+            slate: 'bg-slate-50 border-slate-200 text-slate-700',
+        };
+
+        function banner(color, icon, html) {
+            return `<div class="${BANNER_STYLES[color]} border rounded-xl px-4 py-2 text-xs">
+                <i class="fa-solid ${icon} mr-1"></i> ${html}</div>`;
+        }
+
+        function renderBanners() {
+            const out = [];
+            if (payload.isFixture) {
+                out.push(banner('amber', 'fa-flask',
+                    '<b>โหมดข้อมูลตัวอย่าง (ไม่ใช่ข้อมูลจริง)</b> — ชื่อทีม ชื่อสมาชิก โรงเรียน ข้อมูลสุขภาพ และยอดเงินทั้งหมดเป็นข้อมูลสมมติ '
+                    + 'ใช้สำหรับดูหน้าตาระบบเท่านั้น ชีต "Final 100 ทีม" จะเริ่มมีข้อมูลจริงหลังประกาศผลรอบ 0 (29 ก.ย. 2569)'));
+            } else if (payload.totalRows === 0) {
+                out.push(banner('sky', 'fa-circle-info',
+                    'ยังไม่มีทีมใดยืนยันสิทธิ์ — ชีต "Final 100 ทีม" จะเริ่มมีข้อมูลหลังประกาศผลรอบ 0 (29 ก.ย. 2569)'));
+            }
+            if (payload.missingColumns?.length) {
+                out.push(banner('red', 'fa-triangle-exclamation',
+                    `ไม่พบคอลัมน์ในชีต Final 100: <b>${esc(payload.missingColumns.join(', '))}</b> — ตรวจ DASH_DEPT_COLS ใน 6_DashboardApi.js`));
+            }
+            if (payload.manualColumns?.length) {
+                out.push(banner('slate', 'fa-pen',
+                    `คอลัมน์ที่ทีมงานกรอกเองในชีต (ระบบไม่เติมให้): <b>${esc(payload.manualColumns.join(', '))}</b> — ถ้าว่างแปลว่ายังไม่ได้กรอก ไม่ใช่ระบบผิดพลาด`));
+            }
+            $('banners').innerHTML = out.join('');
+        }
+
+        // ---- การ์ดสถานะงาน / กล่องด่วน / ตัวกรองด่วน ----
+        // คลาสสีเขียนเต็มเหมือน BANNER_STYLES/PILL_STYLES ด้วยเหตุผลเดียวกัน
+        const WORKFLOW_STYLES = {
+            red: 'bg-red-50 border-red-200 text-red-700',
+            amber: 'bg-amber-50 border-amber-200 text-amber-700',
+            green: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+        };
+
+        function renderWorkflow(rows) {
+            // การ์ด "สมบูรณ์แล้ว" ไม่มีตัวกรองคู่กัน จึงเป็น div เฉย ๆ ไม่ใช่ปุ่ม
+            $('workflow').innerHTML = computeWorkflow(dept, payload, rows).map(c => {
+                const body = `
+                    <p class="text-xs font-bold flex items-center gap-2">
+                        <i class="fa-solid ${c.icon}"></i>${esc(c.label)}</p>
+                    <p class="text-3xl font-extrabold mt-1 leading-none">${esc(c.value)}</p>
+                    <p class="text-[10px] opacity-70 mt-2 leading-tight">${esc(c.hint)}</p>`;
+                const box = `border rounded-2xl p-4 ${WORKFLOW_STYLES[c.tone]}`;
+                return c.key === 'done'
+                    ? `<div class="${box}">${body}</div>`
+                    : `<button data-quick="${c.key}" class="wf-card text-left transition-shadow hover:shadow-md ${box}
+                        ${quick === c.key ? 'ring-2 ring-offset-1 ring-slate-400' : ''}">${body}</button>`;
+            }).join('');
+
+            document.querySelectorAll('.wf-card').forEach(b =>
+                b.addEventListener('click', () => setQuick(b.dataset.quick)));
+        }
+
+        // กล่องงานด่วน — พิมพ์ติดไปกับ PDF ด้วย (ปุ่มไม่ติด) เพราะเป็นสิ่งที่
+        // ต้องเอาไปทำต่อจริง ๆ ไม่ใช่แค่ของประกอบหน้าจอ
+        function renderUrgent(rows) {
+            const list = findUrgent(dept, payload, rows);
+            if (!list.length) { $('urgent').innerHTML = ''; return; }
+
+            const MAX = 8;
+            const shown = list.slice(0, MAX);
+            $('urgent').innerHTML = `
+                <div class="border-2 border-red-200 bg-red-50/60 rounded-2xl p-4">
+                    <h2 class="text-sm font-extrabold text-red-700 flex items-center gap-2 mb-3">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        ต้องดำเนินการด่วน — ${list.length} ทีม
+                        <span class="font-normal text-[11px] text-red-500">(คลิกที่การ์ดเพื่อดูรายละเอียดทั้งหมด)</span>
+                    </h2>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        ${shown.map(u => `
+                        <div class="bg-white border border-red-200 rounded-xl p-3">
+                            <p class="text-[11px] text-slate-400 font-bold">${esc(u.teamId || '—')}</p>
+                            <p class="font-bold text-sm text-slate-800 leading-tight">${esc(u.teamName || '(ไม่มีชื่อทีม)')}</p>
+                            ${u.school ? `<p class="text-[11px] text-slate-500">${esc(u.school)}</p>` : ''}
+                            <ul class="mt-2 space-y-1">
+                                ${u.reasons.map(r => `<li class="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-2 py-1 leading-snug">${esc(r)}</li>`).join('')}
+                            </ul>
+                            <div class="flex gap-2 mt-3 no-print">
+                                ${u.email ? `<a href="mailto:${esc(u.email)}?subject=${encodeURIComponent('[MedQuiz KKU 2026] ' + (u.teamId || '') + ' ' + (u.teamName || ''))}"
+                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                                    <i class="fa-solid fa-envelope mr-1"></i>ติดต่อทีมนี้</a>` : ''}
+                                <button data-urgent-row="${u.rowIndex}"
+                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 hover:bg-slate-50 transition-colors">
+                                    <i class="fa-solid fa-eye mr-1"></i>ดูรายละเอียด</button>
+                            </div>
+                        </div>`).join('')}
+                    </div>
+                    ${list.length > MAX ? `<p class="text-[11px] text-red-600 mt-3">และอีก ${list.length - MAX} ทีม — กดปุ่ม "มีหมายเหตุเตือน" เพื่อดูทั้งหมดในตาราง</p>` : ''}
+                </div>`;
+
+            // ปุ่มพวกนี้อยู่นอก #tableBody จึงไม่ได้ใช้ handler ของตาราง
+            $('urgent').querySelectorAll('[data-urgent-row]').forEach(b =>
+                b.addEventListener('click', () => openDrawer(Number(b.dataset.urgentRow))));
+        }
+
+        function renderQuickFilters() {
+            $('quickFilters').innerHTML = quickFilters(payload, dept).map(f => `
+                <button data-quick="${f.key}"
+                    class="qf-pill px-3 py-1.5 rounded-full text-xs font-bold border transition-colors
+                        ${quick === f.key
+                            ? 'bg-blue-900 border-blue-900 text-white'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}">
+                    <i class="fa-solid ${f.icon} mr-1"></i>${esc(f.label)}
+                </button>`).join('');
+
+            document.querySelectorAll('.qf-pill').forEach(b =>
+                b.addEventListener('click', () => setQuick(b.dataset.quick)));
+        }
+
+        // กดการ์ด/ปุ่มเดิมซ้ำ = ยกเลิกตัวกรอง
+        function setQuick(key) {
+            quick = (quick === key) ? '' : (key || '');
+            render();
+        }
+
+        // ---- วาดหน้าจอ ----
+        function render() {
+            if (!payload) return;
+            visibleRows = filterRows(payload, {
+                search: $('search').value,
+                category: $('category').value,
+                onlyWithData: $('onlyWithData').checked,
+                quick,
+            }, dept);
+
+            // การ์ดสถานะงาน/กล่องด่วน นับจาก "ทุกแถวที่ผ่านตัวกรองอื่น" ไม่ใช่แถวที่
+            // ตัวกรองด่วนคัดเหลือแล้ว ไม่งั้นกดปุ่ม "มีหมายเหตุเตือน" ทีเดียว
+            // การ์ดอีกสองใบจะกลายเป็น 0 ทันที
+            const baseRows = quick
+                ? filterRows(payload, {
+                    search: $('search').value,
+                    category: $('category').value,
+                    onlyWithData: $('onlyWithData').checked,
+                    quick: '',
+                }, dept)
+                : visibleRows;
+
+            renderWorkflow(baseRows);
+            renderUrgent(visibleRows);
+            renderQuickFilters();
+
+            // การ์ดตัวเลข — คำนวณจากแถวที่กรองแล้วเสมอ
+            // การ์ดที่เจาะดูรายชื่อได้จะเป็น <button> ต่อเมื่อมีของให้ดูจริง:
+            // drilldown() คืน null ถ้าฝ่ายนี้ไม่ได้รับคอลัมน์ที่ต้องใช้ และเลข 0
+            // ก็ไม่ต้องกด (กฎเดียวกับการ์ดสถานะงาน — ปุ่มที่เปิดมาแล้วว่างคือ noise)
+            $('metrics').innerHTML = computeMetrics(dept, payload, visibleRows).map(m => {
+                const drillable = m.key && Number(m.value) > 0
+                    && drilldown(dept, payload, visibleRows, m.key);
+                const body = `
+                    <p class="text-[11px] text-slate-500 leading-tight">${esc(m.label)}
+                        ${m.manual ? '<span class="text-[9px] bg-slate-100 text-slate-500 px-1 rounded ml-1">กรอกด้วยมือ</span>' : ''}</p>
+                    <p class="text-2xl font-extrabold text-slate-800 mt-1">${esc(m.value)}</p>
+                    ${m.hint ? `<p class="text-[10px] text-slate-400 mt-1 leading-tight">${esc(m.hint)}</p>` : ''}`;
+                return drillable
+                    ? `<button data-metric="${esc(m.key)}"
+                        class="metric-card text-left bg-white border border-slate-200 rounded-2xl p-4
+                               hover:border-blue-300 hover:shadow-md transition-all">
+                        ${body}
+                        <p class="text-[10px] text-blue-600 font-bold mt-2">
+                            <i class="fa-solid fa-list-ul mr-1"></i>ดูรายชื่อ</p>
+                      </button>`
+                    : `<div class="bg-white border border-slate-200 rounded-2xl p-4">${body}</div>`;
+            }).join('');
+
+            document.querySelectorAll('.metric-card').forEach(b =>
+                b.addEventListener('click', () => openDrill(b.dataset.metric)));
+
+            // คอลัมน์ที่แสดงจริง — คำนวณครั้งเดียวตรงนี้ แล้วใช้ชุดเดียวกันทั้ง
+            // ตารางและการซ่อนคอลัมน์ว่างตอนพิมพ์ (ทั้งสองอ้างตำแหน่งคอลัมน์)
+            // ส่วน .xlsx ใช้ exportView ที่ไม่ตัดคอลัมน์
+            tableView = projectRows(dept, payload, visibleRows, { prune: true });
+            exportView = projectRows(dept, payload, visibleRows, { prune: false });
+
+            const manual = new Set(payload.manualColumns || []);
+            // sticky ใช้ได้เฉพาะคอลัมน์ที่ติดกันจากซ้ายสุด — projectRows() จัดให้แล้ว
+            const stickyCls = (c) => c < STICKY_COL_COUNT ? ` sticky-col sticky-col-${c}` : '';
+
+            $('tableHead').innerHTML = tableView.headers.map((h, c) => `
+                <th class="px-3 py-2 font-bold whitespace-nowrap bg-slate-100 border-b border-slate-200${stickyCls(c)}">
+                    ${esc(columnLabel(h))}${manual.has(h) ? ' <i class="fa-solid fa-pen text-[8px] text-slate-400" title="กรอกด้วยมือ"></i>' : ''}
+                </th>`).join('');
+
+            $('tableBody').innerHTML = tableView.rows.length
+                ? tableView.rows.map((r, i) => `<tr class="row-link border-b border-slate-100 hover:bg-blue-50/40" data-row="${i}">
+                    ${r.map((c, ci) => `<td class="px-3 py-2 align-top max-w-[280px]${stickyCls(ci)}">${cell(tableView.headers[ci], c)}</td>`).join('')}
+                  </tr>`).join('')
+                : `<tr><td colspan="${tableView.headers.length}" class="p-6 text-center text-slate-400">ไม่พบข้อมูลตามเงื่อนไข</td></tr>`;
+
+            $('rowCount').textContent = `แสดง ${visibleRows.length} จาก ${payload.totalRows} ทีม · ข้อมูล ณ ${payload.generatedAt ?? '-'}`;
+            $('printDept').textContent = deptLabel(dept);
+            const quickLabel = quickFilters(payload, dept).find(f => f.key === quick && f.key)?.label;
+            $('printMeta').textContent = `${visibleRows.length} จาก ${payload.totalRows} ทีม`
+                + (quickLabel ? ` · ${quickLabel}` : '')
+                + ($('category').value ? ` · โควตา${$('category').value}` : '')
+                + ($('search').value.trim() ? ` · ค้นหา "${$('search').value.trim()}"` : '')
+                + ` · พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}`;
+        }
+
+        // ---- เซลล์ในตาราง ----
+        // เขียนคลาสสีเต็ม ๆ เหมือน BANNER_STYLES — Tailwind CDN อ่านคลาสจาก
+        // สตริงที่เจอจริงเท่านั้น ประกอบชื่อสีจากตัวแปรแล้วสีจะหาย
+        const PILL_STYLES = {
+            green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            gray: 'bg-slate-100 text-slate-500 border-slate-200',
+            amber: 'bg-amber-50 text-amber-700 border-amber-200',
+            sky: 'bg-sky-50 text-sky-700 border-sky-200',
+            violet: 'bg-violet-50 text-violet-700 border-violet-200',
+        };
+
+        const pill = (color, text, icon) =>
+            `<span class="inline-flex items-center gap-1 border ${PILL_STYLES[color]} px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap">`
+            + (icon ? `<i class="fa-solid ${icon}"></i>` : '') + `${esc(text)}</span>`;
+
+        const EMPTY = '<span class="text-slate-300">-</span>';
+
+        /** ป้ายสถานะ 2 สถานะ: ตอบว่าใช่ = เขียว, นอกนั้น = เทา (คงข้อความเดิมไว้) */
+        const yesNoPill = (v, noText) =>
+            isYes(v) ? pill('green', v, 'fa-check') : pill('gray', String(v).trim() || noText);
+
+        function cell(header, v) {
+            const s = String(v ?? '').trim();
+
+            if (/^https?:\/\//.test(s)) {
+                return `<a href="${esc(s)}" target="_blank" rel="noopener"
+                    class="text-blue-600 hover:underline whitespace-nowrap"><i class="fa-solid fa-up-right-from-square mr-1"></i>เปิดไฟล์</a>`;
+            }
+
+            // คอลัมน์สรุปห้องละหมาด: projectRows() คืนมาเป็น "M1 M3"
+            // ถ้ารูปแบบไม่ตรง แปลว่าเป็นข้อความดิบจากคอลัมน์รวมของชีต ให้แสดงตามนั้น
+            if (header === PRAYER_SUMMARY_COL) {
+                if (!s) return pill('gray', 'ไม่มี');
+                return /^M[123]( M[123])*$/.test(s)
+                    ? s.split(' ').map(t => pill('violet', t, 'fa-person-praying')).join(' ')
+                    : esc(s);
+            }
+
+            if (!s) {
+                // คอลัมน์ที่ "ว่าง = ยังไม่ถึงคิว" บอกให้ชัด ดีกว่าปล่อยเป็นขีด
+                if (header === 'On-site_Check-in_Status') return pill('gray', 'ยังไม่เช็คอิน');
+                if (header === 'Payment_Verification_Status') return pill('gray', 'ยังไม่ตรวจ');
+                return EMPTY;
+            }
+
+            switch (header) {
+                case MEMBER_COUNT_COL:
+                    // ทีมแข่งด้วยสมาชิก 2 คนได้ 1 คนลงได้เฉพาะรอบ 1 — ไม่ใช่ข้อผิดพลาด
+                    return pill(s === '3' ? 'sky' : 'amber', `${s} คน`, 'fa-users');
+                case 'หมายเหตุ (Remark)':
+                    return s.includes('⚠️')
+                        ? `<span class="text-red-700 font-bold">${esc(s)}</span>`
+                        : esc(s);
+                case 'Line_Joined_Status':
+                case 'Advisor Joining? (Yes/No)':
+                    return yesNoPill(s, s);
+                case 'Advisor_Welfare_Opted_In (+200)':
+                    return isYes(s) ? pill('violet', 'รับ (+200)', 'fa-gift') : pill('gray', s);
+                case 'On-site_Check-in_Status':
+                    return pill('green', s, 'fa-door-open');
+                case 'Payment_Verification_Status':
+                    return pill('green', s, 'fa-circle-check');
+                case 'Certificate_Type (Hardcopy/Digital)':
+                    return /hard|ตัวจริง|ฉบับจริง/i.test(s)
+                        ? pill('amber', s, 'fa-print')
+                        : pill('sky', s, 'fa-envelope-open-text');
+                case 'Team Category':
+                    return pill(s.includes('ผสม') ? 'amber' : 'sky', s);
+                default:
+                    return esc(s);
+            }
+        }
+
+        // ---- ลิ้นชักรายละเอียดรายทีม ----
+        // ใช้ "แถวดิบ" (visibleRows) ไม่ใช่ view.rows — คอลัมน์ห้องละหมาดรายคน
+        // ที่ถูกยุบไปในตารางจึงยังเปิดดูรายคนได้ที่นี่
+        const DRAWER_GROUPS = [
+            { title: 'อาจารย์ที่ปรึกษา', icon: 'fa-chalkboard-user', test: h => /^Advisor/.test(h) },
+            { title: 'สมาชิกคนที่ 1', icon: 'fa-user', test: h => /^M1_/.test(h) || h === 'Member 1 Name' },
+            { title: 'สมาชิกคนที่ 2', icon: 'fa-user', test: h => /^M2_/.test(h) || h === 'Member 2 Name' },
+            { title: 'สมาชิกคนที่ 3', icon: 'fa-user', test: h => /^M3_/.test(h) || h === 'Member 3 Name' },
+        ];
+
+        const DRAWER_SKIP = ['Team ID', 'Team Name', 'School Name'];  // อยู่บนหัวลิ้นชักแล้ว
+
+        function drawerSection(title, icon, entries) {
+            if (!entries.length) return '';
+            return `<section>
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    <i class="fa-solid ${icon} mr-1"></i>${esc(title)}</h3>
+                <dl class="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                    ${entries.map(([h, v]) => `
+                        <div class="grid grid-cols-5 gap-2 px-3 py-2">
+                            <dt class="col-span-2 text-[11px] text-slate-500 leading-snug">${esc(columnLabel(h))}</dt>
+                            <dd class="col-span-3 text-xs break-words">${cell(h, v)}</dd>
+                        </div>`).join('')}
+                </dl>
+            </section>`;
+        }
+
+        window.openDrawer = (rowIndex) => {
+            const raw = visibleRows[rowIndex];
+            if (!raw) return;
+            const val = (h) => raw[payload.headers.indexOf(h)] ?? '';
+
+            $('drawerTeamId').textContent = val('Team ID') || '—';
+            $('drawerTitle').textContent = val('Team Name') || '(ไม่มีชื่อทีม)';
+            $('drawerSchool').textContent = [val('School Name'), val('Team Category')]
+                .filter(Boolean).join(' · ');
+
+            const pairs = payload.headers.map((h, i) => [h, raw[i]]);
+            const claimed = new Set();
+            const groups = DRAWER_GROUPS.map(g => {
+                const entries = pairs.filter(([h]) => g.test(h));
+                entries.forEach(([h]) => claimed.add(h));
+                return drawerSection(g.title, g.icon, entries);
+            });
+
+            const rest = pairs.filter(([h]) => !claimed.has(h) && !DRAWER_SKIP.includes(h));
+            $('drawerBody').innerHTML = drawerSection('ข้อมูลทีม', 'fa-users', rest) + groups.join('');
+
+            $('drawer').classList.add('open');
+            $('drawer').setAttribute('aria-hidden', 'false');
+            $('drawerBackdrop').classList.remove('hidden');
+        };
+
+        window.closeDrawer = () => {
+            $('drawer').classList.remove('open');
+            $('drawer').setAttribute('aria-hidden', 'true');
+            $('drawerBackdrop').classList.add('hidden');
+        };
+
+        // ---- หน้าต่างเจาะดูรายชื่อเบื้องหลังการ์ดตัวเลข ----
+        // ใช้ visibleRows ชุดเดียวกับที่การ์ดใช้คำนวณ ตัวเลขจึงตรงกันเสมอ
+        // rowIndex ที่ drilldown() คืนมาจึงส่งเข้า openDrawer() ได้ตรง ๆ
+
+        const drillItem = (it) => `
+            <li>
+                <button data-drill-row="${it.rowIndex}"
+                    class="drill-item w-full text-left px-3 py-2 hover:bg-blue-50/60 transition-colors">
+                    ${it.person ? `<p class="text-xs font-bold text-slate-800">${esc(it.person)}
+                        <span class="text-[10px] font-normal text-slate-400">(${esc(it.role)})</span></p>` : ''}
+                    <p class="text-[11px] ${it.person ? 'text-slate-500' : 'font-bold text-slate-800'}">
+                        ${esc(it.teamId || '—')} · ${esc(it.teamName || '(ไม่มีชื่อทีม)')}
+                    </p>
+                    ${it.school ? `<p class="text-[10px] text-slate-400">${esc(it.school)}</p>` : ''}
+                </button>
+            </li>`;
+
+        function openDrill(key) {
+            const d = drilldown(dept, payload, visibleRows, key);
+            if (!d) return;
+
+            const unit = d.unit === 'person' ? 'คน' : 'ทีม';
+            $('drillTitle').textContent = `${d.title} — ${d.total} ${unit}`;
+            $('drillMeta').textContent = `จัดกลุ่มตาม${d.groupBy} · ${d.groups.length} กลุ่ม`;
+
+            $('drillBody').innerHTML = d.groups.map(g => `
+                <section class="border border-slate-200 rounded-xl overflow-hidden">
+                    <h3 class="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 flex items-center justify-between gap-2">
+                        <span class="min-w-0 break-words">${esc(g.label)}</span>
+                        <span class="shrink-0 bg-blue-900 text-white px-2 py-0.5 rounded-full text-[11px]">${g.count} ${unit}</span>
+                    </h3>
+                    <ul class="divide-y divide-slate-100">
+                        ${g.items.map(drillItem).join('')}
+                    </ul>
+                </section>`).join('')
+                // กล่องเทาท้ายรายการ: ตอบมาแล้วแต่ไม่เข้าเงื่อนไขการ์ด ไม่นับรวมใน
+                // ตัวเลขด้านบน (ยอดรวมจึงยังตรงกับการ์ดที่กดเข้ามา)
+                // ปกติมีแต่ตัวเลข — ยกเว้นการ์ดที่ drilldown() ส่ง items มาด้วย
+                // (อาหาร "ทั่วไป" ซึ่งฝ่ายอาหารต้องใช้รายชื่อไปสั่งอาหารจริง)
+                + (d.context ? `
+                <section class="border border-dashed border-slate-200 rounded-xl overflow-hidden">
+                    <h3 class="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-400 flex items-center justify-between gap-2">
+                        <span class="min-w-0 break-words">${esc(d.context.label)}
+                            <span class="font-normal">(ไม่นับรวมในตัวเลขด้านบน)</span></span>
+                        <span class="shrink-0 bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[11px]">${d.context.count} ${unit}</span>
+                    </h3>
+                    ${d.context.items?.length
+                        ? `<ul class="divide-y divide-slate-100">${d.context.items.map(drillItem).join('')}</ul>`
+                        : ''}
+                </section>` : '');
+
+            $('drillBody').querySelectorAll('[data-drill-row]').forEach(b =>
+                b.addEventListener('click', () => {
+                    closeDrill();
+                    openDrawer(Number(b.dataset.drillRow));
+                }));
+
+            $('drill').classList.remove('hidden');
+            $('drill').setAttribute('aria-hidden', 'false');
+            $('drillBackdrop').classList.remove('hidden');
+        }
+
+        window.closeDrill = () => {
+            $('drill').classList.add('hidden');
+            $('drill').setAttribute('aria-hidden', 'true');
+            $('drillBackdrop').classList.add('hidden');
+        };
+
+        // คลิกลิงก์ "เปิดไฟล์" ในแถว ต้องไม่เปิดลิ้นชักตามไปด้วย
+        $('tableBody').addEventListener('click', (e) => {
+            if (e.target.closest('a')) return;
+            const tr = e.target.closest('tr[data-row]');
+            if (tr) openDrawer(Number(tr.dataset.row));
+        });
+
+        // Esc ปิดของที่อยู่บนสุดก่อน (หน้าต่างรายชื่อทับลิ้นชักอยู่)
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if (!$('drill').classList.contains('hidden')) return closeDrill();
+            closeDrawer();
+        });
+
+        // ---- ปุ่ม ----
+        window.handleRefresh = () => load();
+
+        // ส่งออกด้วย "ชื่อคอลัมน์ดิบ" ไม่ใช่ชื่อไทยที่แสดงบนหน้าจอ เพื่อให้เอาไฟล์
+        // ไปเทียบกับชีต "Final 100 ทีม" ได้ตรงคอลัมน์ (PDF คือการ print หน้าจอ
+        // จึงได้ชื่อไทยไปด้วย — ความต่างนี้ตั้งใจ)
+        // ใช้ exportView (ไม่ตัดคอลัมน์) ไม่ใช่ tableView — ตารางตัดคอลัมน์ที่ฝ่ายนั้น
+        // ไม่ได้ใช้ทำงานออกเพื่อความอ่านง่าย แต่ไฟล์ Excel มีไว้เทียบกับชีต จึงต้องครบ
+        window.handleExportXlsx = () => {
+            if (!payload || !exportView.rows.length) return alert('ไม่มีข้อมูลให้ส่งออก');
+            try {
+                exportXlsx(dept, deptLabel(dept), exportView.headers, exportView.rows);
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+
+        /**
+         * ซ่อนคอลัมน์ที่ว่างทั้งคอลัมน์ตอนพิมพ์
+         * ตารางกว้างเกินหน้า A4 แนวนอนเมื่อไหร่ ตัวอักษรไทยจะตกบรรทัดละตัว
+         * อ่านไม่ได้ — คอลัมน์ที่ยังไม่มีใครกรอกสักแถว (เช่น เช็คอินหน้างาน
+         * ก่อนวันงาน) จึงตัดออกจากฉบับพิมพ์ ไฟล์ Excel ยังได้ครบทุกคอลัมน์
+         *
+         * ต้องนับจาก tableView (คอลัมน์ที่วาดจริง) ไม่ใช่ payload.headers และไม่ใช่
+         * exportView — ตำแหน่งคอลัมน์สามชุดนี้ไม่ตรงกันหลังยุบ/สลับ/ตัดคอลัมน์
+         */
+        function markEmptyColumnsForPrint() {
+            const head = $('tableHead').children;
+            const bodyRows = [...$('tableBody').children];
+            tableView.headers.forEach((_, c) => {
+                const empty = tableView.rows.every(r => String(r[c] ?? '').trim() === '');
+                head[c]?.classList.toggle('print-hide', empty);
+                bodyRows.forEach(tr => tr.children[c]?.classList.toggle('print-hide', empty));
+            });
+        }
+
+        window.handleExportPdf = () => {
+            if (!payload || !tableView.rows.length) return alert('ไม่มีข้อมูลให้ส่งออก');
+            markEmptyColumnsForPrint();
+            exportPdf();
+        };
+
+        ['search', 'category', 'onlyWithData'].forEach(id =>
+            $(id).addEventListener('input', () => render()));
+
+        // โหมดตัวอย่าง: เริ่มเลย ไม่แตะ Firebase Auth (ไม่มีปุ่มออกจากระบบให้กด)
+        // โหมดข้อมูลจริง: รอ onAuthStateChanged ใน initAuth() เพราะ doGet ต้องใช้ ID token
+        if (demoMode) {
+            $('staffName').textContent = 'ผู้เยี่ยมชม (โหมดตัวอย่าง)';
+            $('logoutBtn').classList.add('hidden');
+            start();
+        } else {
+            initAuth();
+        }
+</script>
+</body>
+
+</html>
