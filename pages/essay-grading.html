@@ -63,6 +63,19 @@
 
     <div id="banner" class="max-w-[1500px] mx-auto w-full px-4 pt-4"></div>
 
+    <div id="demoHints" class="max-w-[1500px] mx-auto w-full px-4 hidden">
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-2">
+            <p class="font-extrabold"><i class="fa-solid fa-circle-info mr-1"></i> วิธีใช้ — โหมดทดลองตรวจ Essay</p>
+            <ol class="list-decimal list-inside space-y-1 leading-snug ml-2">
+                <li><b>เลือกทีม</b> จากคิวด้านซ้าย — แต่ละทีมสถานะไม่เหมือนกัน มีทั้งยังไม่ตรวจ / มีคนอื่นกำลังตรวจ / ตรวจแล้ว</li>
+                <li><b>อ่านคำตอบ</b> ในกล่องเทาใต้แต่ละข้อ — ข้อความเป็นภาษาไทยแต่งขึ้นทั้งหมด</li>
+                <li><b>ใส่คะแนน 0..max</b> ในช่องตัวเลข — ใส่แค่ทศนิยม 0.5 ได้ (จำนวนจริงกำหนดตามฝ่ายวิชาการ)</li>
+                <li><b>กด "บันทึกคะแนน"</b> — validate 0..max, recompute sum, เปลี่ยนทีมเป็น "Graded" ใน in-memory queue</li>
+            </ol>
+            <p class="text-amber-600">⚠️ ไม่มีการส่ง POST ไป GAS ไม่มีการเขียน RTDB — ทุกอย่างหายเมื่อรีเฟรช ใช้เพื่อทดสอบ workflow ก่อนสอบจริงเท่านั้น</p>
+        </div>
+    </div>
+
     <main class="flex-1 max-w-[1500px] mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
 
         <!-- คิวทีมที่ต้องตรวจ -->
@@ -132,12 +145,14 @@
     </footer>
 
     <script type="module">
-        import {
-            db, auth, ref, set, get, update, remove, onValue, onDisconnect, escapeEmail
-        } from '../js/firebase-config.js';
-        import { logout } from '../js/auth.js';
-        import { DASHBOARD_API_URL } from '../js/firebase-config.js';
-        import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        // ห้าม static-import auth.js — มันมี side effect ตอนโหลด (มิลเถติ้ง onAuthStateChanged
+        // ที่เด้งไป login.html ทันที) ถ้าเปิดหน้านี้ด้วย ?fixture=1 ไม่ต้อง login เลย
+        // dynamic-import เฉพาะโหมดจริง
+        import { DASHBOARD_API_URL, escapeEmail, db, auth, ref, set, get, update, remove, onValue, onDisconnect } from '../js/firebase-config.js';
+        import { essayFixturePayload, fixtureOccupancy } from '../js/essay-grading-fixture.js';
+
+        const useFixture = new URLSearchParams(location.search).get('fixture') === '1';
+        const demoMode = useFixture || !DASHBOARD_API_URL;
 
         // grading UI shares the dashboard's single /exec deployment (one doGet
         // + one doPost per GAS project) — ?action= routes it server-side
@@ -158,19 +173,56 @@
         let occupancy = {};           // essayGrading/* ล่าสุด
         let heartbeatTimer = null;
         let draftTimer = null;
+        let authRef = null;           // Firebase Auth (มีเฉพาะโหมดจริง)
 
-        window.handleLogout = () => { if (confirm('ยืนยันการออกจากระบบ?')) { releaseClaim(); logout(); } };
+        window.handleLogout = () => {
+            if (demoMode) { window.location.href = 'essay-grading.html'; return; }  // ออกจาก fixture mode → รีเฟรชไป URL ปกติ
+            if (confirm('ยืนยันการออกจากระบบ?')) { releaseClaim(); authRef?.logout?.(); }
+        };
+
+        // idToken ถูก bind ใน initAuth (โหมดจริง) — โหมด demo คืนค่าว่าง
+        window.idToken = async () => '';
 
         // ── auth ──────────────────────────────────────────────────────────
-        onAuthStateChanged(auth, (user) => {
-            if (!user) { window.location.href = 'login.html'; return; }
-            me = { email: user.email, name: user.displayName || user.email };
-            $('staffName').textContent = me.name;
-            watchOccupancy();
-            reloadQueue();
-        });
+        async function initAuth() {
+            // ต้องเป็นจุดเดียวกับที่โหมดเดโมตัดสินใจเรียก startDemo หรือ initAuth
+            // auth.js มี onAuthStateChanged ข้างในแค่ import ก็เปิดใช้แล้ว
+            if (demoMode) return startDemo();
+            const [{ logout }, { onAuthStateChanged }] = await Promise.all([
+                import('../js/auth.js'),
+                import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'),
+            ]);
+            const getIdToken = async () => auth.currentUser ? await auth.currentUser.getIdToken() : '';
+            window.idToken = getIdToken;
+            authRef = { logout, getIdToken };
+            onAuthStateChanged(auth, (user) => {
+                if (!user) { window.location.href = 'login.html'; return; }
+                me = { email: user.email, name: user.displayName || user.email };
+                $('staffName').textContent = me.name;
+                watchOccupancy();
+                reloadQueue();
+            });
+        }
 
-        const idToken = async () => auth.currentUser ? await auth.currentUser.getIdToken() : '';
+        function startDemo() {
+            me = { email: 'demo@demo.invalid', name: 'Demo Grader' };
+            $('staffName').textContent = me.name;
+            showBanner('amber', 'fa-flask',
+                `โหมดตัวอย่าง — ข้อมูลทดลองที่ไม่ส่งเซิร์ฟเวอร์ · ทุกปุ่มตรวจ/บันทึกทำงาน in-browser เท่านั้น · <a href="essay-grading.html" class="underline font-bold">ออกจากโหมดตัวอย่าง</a>`);
+            renderDemoHints();
+            occupancy = fixtureOccupancy();
+            const data = essayFixturePayload();
+            teams = (data.teams || []).map(t => ({
+                ...t,
+                currentScores: [...(t.currentScores || Array(t.essayAnswers?.length || 6).fill(0))],
+            }));
+            slots = data.essaySlots || [];
+            renderQueue();
+        }
+
+        function renderDemoHints() {
+            $('demoHints')?.classList.remove('hidden');
+        }
 
         function showBanner(color, icon, html) {
             const styles = {
@@ -185,9 +237,10 @@
 
         // ── โหลดคิว ───────────────────────────────────────────────────────
         window.reloadQueue = async () => {
+            if (demoMode) return reloadFixtureQueue();
             $('queueList').innerHTML = `<p class="p-4 text-center text-slate-400 text-sm">กำลังโหลด...</p>`;
             try {
-                const res = await fetch(`${API_URL}?action=essayQueue&idToken=${encodeURIComponent(await idToken())}`);
+                const res = await fetch(`${API_URL}?action=essayQueue&idToken=${encodeURIComponent(await window.idToken())}`);
                 const data = await res.json();
                 if (data.status !== 'success') throw new Error(data.message || 'โหลดคิวไม่สำเร็จ');
                 slots = data.essaySlots || [];
@@ -201,6 +254,16 @@
                 $('queueList').innerHTML = `<p class="p-4 text-center text-red-500 text-sm">${esc(err.message)}</p>`;
             }
         };
+
+        function reloadFixtureQueue() {
+            // ไม่ fetch — สร้าง payload fixture ใหม่ทุกครั้ง (เหมือนรีเฟรชแล้วทุกทีมยัง pending/Graded เหมือนเดิม)
+            const data = essayFixturePayload();
+            slots = data.essaySlots || [];
+            teams = (data.teams || []).map(t => ({ ...t, currentScores: [...(t.currentScores || Array(t.essayAnswers?.length || 6).fill(0))] }));
+            // ถ้ากดบันทึกใน demo ก่อน refresh แล้ว ก็กลับเป็น Graded เดิม — ไม่คง state ข้าม reload
+            renderQueue();
+            if (current && !teams.find(t => t.email === current.email)) closePanel();
+        }
 
         function claimInfo(email) {
             // เฝ้าที่ราก essayGrading จึงได้ { occupancy:{...}, draft:{...} } ต่อทีม
@@ -246,6 +309,7 @@
 
         // ── occupancy (lock) ──────────────────────────────────────────────
         function watchOccupancy() {
+            if (demoMode) { refreshOccWarn(); return; }   // fixture: occupancy loaded in startDemo, static
             onValue(ref(db, OCC_ROOT), (snap) => {
                 occupancy = snap.val() || {};
                 renderQueue();
@@ -254,6 +318,7 @@
         }
 
         async function claimTeam(team) {
+            if (demoMode) return;   // no-op: fixture occupancy มาจาก fixtureOccupancy() อยู่แล้ว
             const occRef = ref(db, `${OCC_ROOT}/${escapeEmail(team.email)}/occupancy`);
             await set(occRef, {
                 graderEmail: me.email,
@@ -268,6 +333,7 @@
         }
 
         async function releaseClaim() {
+            if (demoMode) return;   // no-op
             if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
             if (current) {
                 try { await remove(ref(db, `${OCC_ROOT}/${escapeEmail(current.email)}/occupancy`)); } catch (e) { }
@@ -297,7 +363,7 @@
 
             await releaseClaim();       // ปล่อยทีมเก่า
             current = team;
-            await claimTeam(team);       // จองทีมใหม่
+            await claimTeam(team);       // จองทีมใหม่ (no-op ในโหมด demo)
             await openPanel(team);
             renderQueue();
         }
@@ -315,10 +381,14 @@
 
             // draft ที่ค้างไว้ (เช่นแท็บล่มกลางคัน) มาก่อน คะแนนที่บันทึกแล้วรองลงมา
             let draft = null;
-            try {
-                const dSnap = await get(ref(db, `${OCC_ROOT}/${escapeEmail(team.email)}/draft`));
-                draft = dSnap.val();
-            } catch (e) { }
+            if (demoMode) {
+                draft = occupancy[escapeEmail(team.email)]?.draft || null;
+            } else {
+                try {
+                    const dSnap = await get(ref(db, `${OCC_ROOT}/${escapeEmail(team.email)}/draft`));
+                    draft = dSnap.val();
+                } catch (e) { }
+            }
 
             $('slots').innerHTML = slots.map((sl, i) => {
                 const val = draft && draft[sl.label] != null ? draft[sl.label] : team.currentScores[i];
@@ -378,6 +448,12 @@
                 const scores = readScores();
                 const draft = {};
                 slots.forEach((sl, i) => { draft[sl.label] = scores[i]; });
+                if (demoMode) {
+                    const key = escapeEmail(current.email);
+                    if (!occupancy[key]) occupancy[key] = {};
+                    occupancy[key].draft = draft;
+                    return;
+                }
                 update(ref(db, `${OCC_ROOT}/${escapeEmail(current.email)}`), { draft }).catch(() => { });
             }, DRAFT_DEBOUNCE_MS);
         }
@@ -394,11 +470,25 @@
             $('submitBtn').disabled = true;
             $('submitBtn').innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังบันทึก...';
             try {
+                // โหมด demo: validate + recalc + flip status in-memory ไม่ fetch ไม่แตะ Firebase
+                if (demoMode) {
+                    current.currentScores = [...scores];
+                    current.verifyStatus = 'Graded';
+                    const total = scores.reduce((a, b) => a + (isFinite(b) ? b : 0), 0);
+                    $('statusPill').innerHTML =
+                        `<span class="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-circle-check"></i> บันทึกแล้ว (รวม ${Number(total.toFixed(2))}) — แก้ไขซ้ำได้</span>`;
+                    $('draftHint').textContent = '';
+                    // sync state ใน teams array ด้วย (renderQueue อ่านจาก array)
+                    const idx = teams.findIndex(t => t.email === current.email);
+                    if (idx >= 0) teams[idx] = { ...current };
+                    renderQueue();
+                    return;
+                }
                 const res = await fetch(API_URL, {
                     method: 'POST',
                     body: JSON.stringify({
                         action: 'submitEssayGrade',
-                        idToken: await idToken(),
+                        idToken: await window.idToken(),
                         email: current.email,
                         sheetName: current.sheetName,
                         scores
@@ -410,7 +500,7 @@
                 // อัปเดต state ในเครื่อง + ล้าง draft
                 current.currentScores = scores;
                 current.verifyStatus = 'Graded';
-                await remove(ref(db, `${OCC_ROOT}/${escapeEmail(current.email)}/draft`)).catch(() => { });
+                remove(ref(db, `${OCC_ROOT}/${escapeEmail(current.email)}/draft`)).catch(() => { });
 
                 $('statusPill').innerHTML =
                     `<span class="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-circle-check"></i> บันทึกแล้ว (รวม ${Number(data.essayTotal.toFixed ? data.essayTotal.toFixed(2) : data.essayTotal)}) — แก้ไขซ้ำได้</span>`;
@@ -431,6 +521,9 @@
         }
 
         window.addEventListener('beforeunload', () => { releaseClaim(); });
+
+        // เริ่มต้น — demo หรือ auth
+        initAuth();
     </script>
 </body>
 
