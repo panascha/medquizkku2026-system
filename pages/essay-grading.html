@@ -33,6 +33,38 @@
             white-space: pre-wrap;
             word-break: break-word;
         }
+
+        /* ตารางอันดับแยกโควตา (Sheet View) */
+        #sheetTable th {
+            position: sticky;
+            top: 0;
+            background: #0f1f4b;
+            color: #fff;
+            font-weight: 700;
+            white-space: nowrap;
+            z-index: 1;
+        }
+        #sheetTable td,
+        #sheetTable th {
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(0, 0, 0, .06);
+        }
+        tr.sheet-clickable {
+            cursor: pointer;
+        }
+        tr.sheet-clickable:hover {
+            outline: 2px solid #1e3a8a;
+            outline-offset: -2px;
+        }
+        tr.cutoff-divider td {
+            background: #0f1f4b;
+            color: #fff;
+            text-align: center;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: .05em;
+            padding: 4px 0;
+        }
     </style>
 </head>
 
@@ -76,7 +108,18 @@
         </div>
     </div>
 
-    <main class="flex-1 max-w-[1500px] mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
+    <div id="viewSwitcher" class="max-w-[1500px] mx-auto w-full px-4 pt-3 flex gap-2">
+        <button id="btnQueueMode" onclick="switchView('queue')"
+            class="view-btn queue-active px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50">
+            <i class="fa-solid fa-list-check mr-1"></i> คิวตรวจ
+        </button>
+        <button id="btnSheetMode" onclick="switchView('sheet')"
+            class="view-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50">
+            <i class="fa-solid fa-table mr-1"></i> ตารางอันดับ
+        </button>
+    </div>
+
+    <main id="queueView" class="flex-1 max-w-[1500px] mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
 
         <!-- คิวทีมที่ต้องตรวจ -->
         <aside class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
@@ -140,6 +183,29 @@
         </section>
     </main>
 
+    <!-- ตารางอันดับแยกโควตา (Sheet View) — เห็นอันดับทั้งหมดต่อโควตา ไม่ใช่แค่คิว -->
+    <section id="sheetView" class="hidden flex-1 max-w-[1500px] mx-auto w-full p-4">
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div class="px-3 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
+                <button id="tabSchool" onclick="switchSheetTab('โรงเรียน')"
+                    class="sheet-tab queue-active px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50">
+                    โควตาทีมโรงเรียน (75 ทีม)
+                </button>
+                <button id="tabMixed" onclick="switchSheetTab('ผสม')"
+                    class="sheet-tab px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50">
+                    โควตาทีมผสม (25 ทีม)
+                </button>
+                <span class="ml-auto text-[11px] text-slate-400">
+                    <i class="fa-solid fa-circle-info mr-1"></i>
+                    แถวสีส้ม (ต้องตรวจ Essay) คลิกเพื่อเปิดตรวจ
+                </span>
+            </div>
+            <div id="sheetTableWrap" class="flex-1 overflow-auto">
+                <p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>
+            </div>
+        </div>
+    </section>
+
     <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest">
         &copy; 2026 IT Team | MedQuiz KKU 2026
     </footer>
@@ -149,7 +215,7 @@
         // ที่เด้งไป login.html ทันที) ถ้าเปิดหน้านี้ด้วย ?fixture=1 ไม่ต้อง login เลย
         // dynamic-import เฉพาะโหมดจริง
         import { DASHBOARD_API_URL, escapeEmail, db, auth, ref, set, get, update, remove, onValue, onDisconnect } from '../js/firebase-config.js';
-        import { essayFixturePayload, fixtureOccupancy } from '../js/essay-grading-fixture.js';
+        import { essayFixturePayload, fixtureOccupancy, essaySheetViewFixture } from '../js/essay-grading-fixture.js';
 
         const useFixture = new URLSearchParams(location.search).get('fixture') === '1';
         const demoMode = useFixture || !DASHBOARD_API_URL;
@@ -174,6 +240,21 @@
         let heartbeatTimer = null;
         let draftTimer = null;
         let authRef = null;           // Firebase Auth (มีเฉพาะโหมดจริง)
+
+        // ── Sheet View state ──────────────────────────────────────────────
+        let view = 'queue';                              // 'queue' | 'sheet'
+        let sheetTab = 'โรงเรียน';                        // 'โรงเรียน' | 'ผสม'
+        const sheetData = { 'โรงเรียน': null, 'ผสม': null };  // cached payloads
+        const QUOTA_CUTOFF = { 'โรงเรียน': 75, 'ผสม': 25 };
+        // ตรงกับ EXAM_CONFIG.COLOR (1_DataSync.js) — RESERVED/NOT_QUALIFIED สีเดียวกันโดยตั้งใจ
+        const SHEET_COLORS = {
+            QUALIFIED:     { bg: '#b7efc5', font: '#000000' },
+            NEED_ESSAY:    { bg: '#ffe0b2', font: '#000000' },
+            RESERVED:      { bg: '#fffbc0', font: '#000000' },
+            OVER_QUOTA:    { bg: '#8b0000', font: '#ffffff' },
+            NOT_QUALIFIED: { bg: '#fffbc0', font: '#000000' },
+        };
+        const VERIFY_LABEL = { '': 'Pending', 'Graded': 'Graded', 'Verified': 'Verified' };
 
         window.handleLogout = () => {
             if (demoMode) { window.location.href = 'essay-grading.html'; return; }  // ออกจาก fixture mode → รีเฟรชไป URL ปกติ
@@ -518,6 +599,105 @@
             current = null;
             $('gradePanel').classList.add('hidden');
             $('emptyState').classList.remove('hidden');
+        }
+
+        // ── Sheet View (ตารางอันดับแยกโควตา) ──────────────────────────────
+        window.switchView = (mode) => {
+            view = mode;
+            $('queueView').classList.toggle('hidden', mode !== 'queue');
+            $('sheetView').classList.toggle('hidden', mode !== 'sheet');
+            $('btnQueueMode').classList.toggle('queue-active', mode === 'queue');
+            $('btnSheetMode').classList.toggle('queue-active', mode === 'sheet');
+            if (mode === 'sheet' && !sheetData[sheetTab]) loadSheetView(sheetTab);
+        };
+
+        window.switchSheetTab = (quota) => {
+            sheetTab = quota;
+            $('tabSchool').classList.toggle('queue-active', quota === 'โรงเรียน');
+            $('tabMixed').classList.toggle('queue-active', quota === 'ผสม');
+            if (sheetData[quota]) renderSheetTable(sheetData[quota]);
+            else loadSheetView(quota);
+        };
+
+        async function loadSheetView(quota) {
+            $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>`;
+            try {
+                let data;
+                if (demoMode) {
+                    data = essaySheetViewFixture(quota);
+                } else {
+                    const res = await fetch(`${API_URL}?action=essaySheetView&quota=${encodeURIComponent(quota)}&idToken=${encodeURIComponent(await window.idToken())}`);
+                    data = await res.json();
+                    if (data.status !== 'success') throw new Error(data.message || 'โหลดตารางอันดับไม่สำเร็จ');
+                }
+                sheetData[quota] = data;
+                if (sheetTab === quota) renderSheetTable(data);
+            } catch (err) {
+                $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-red-500 text-sm">${esc(err.message)}</p>`;
+            }
+        }
+
+        function renderSheetTable(data) {
+            const rows = data.rows || [];
+            const isSchool = data.quota === 'โรงเรียน';
+            const cutoff = QUOTA_CUTOFF[data.quota];
+            const colspan = isSchool ? 8 : 7;
+
+            if (!rows.length) {
+                $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">— ยังไม่มีข้อมูลอันดับ (รันเมนู GAS ข้อ 1 ก่อน) —</p>`;
+                return;
+            }
+
+            const head = `
+                <tr>
+                    <th class="text-right">อันดับ</th>
+                    <th class="text-left">ชื่อทีม</th>
+                    ${isSchool ? '<th class="text-left">โรงเรียน</th>' : ''}
+                    <th class="text-right">Auto</th>
+                    <th class="text-right">Essay</th>
+                    <th class="text-right">รวม</th>
+                    <th class="text-center">สถานะตรวจ</th>
+                    <th class="text-left">ผลโควตา</th>
+                </tr>`;
+
+            let dividerDone = false;
+            const body = rows.map(r => {
+                let divider = '';
+                if (!dividerDone && typeof r.rank === 'number' && r.rank > cutoff) {
+                    dividerDone = true;
+                    divider = `<tr class="cutoff-divider"><td colspan="${colspan}">── เส้นแบ่งโควตา (${cutoff} ทีม) ──</td></tr>`;
+                }
+                const c = SHEET_COLORS[r.colorKey] || SHEET_COLORS.NOT_QUALIFIED;
+                const clickable = r.colorKey === 'NEED_ESSAY';
+                return `${divider}
+                <tr class="${clickable ? 'sheet-clickable' : ''}" ${clickable ? `data-email="${esc(r.email)}"` : ''}
+                    style="background:${c.bg}; color:${c.font}">
+                    <td class="text-right font-bold">${esc(r.rank)}</td>
+                    <td class="text-left">${esc(r.teamName || '(ไม่มีชื่อทีม)')}</td>
+                    ${isSchool ? `<td class="text-left">${esc(r.schoolName)}</td>` : ''}
+                    <td class="text-right">${esc(r.autoScore)}</td>
+                    <td class="text-right">${esc(r.essayTotal)}</td>
+                    <td class="text-right font-bold">${esc(r.totalScore)}</td>
+                    <td class="text-center">${esc(VERIFY_LABEL[r.verifyStatus] ?? r.verifyStatus)}</td>
+                    <td class="text-left">${esc(r.qualifiedStatus)}</td>
+                </tr>`;
+            }).join('');
+
+            $('sheetTableWrap').innerHTML =
+                `<table id="sheetTable" class="w-full text-xs border-collapse"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+
+            document.querySelectorAll('#sheetTable tr.sheet-clickable').forEach(tr =>
+                tr.addEventListener('click', () => openGradingFromSheet(tr.dataset.email)));
+        }
+
+        function openGradingFromSheet(email) {
+            const team = teams.find(t => t.email === email);
+            if (!team) {
+                alert('ทีมนี้ไม่อยู่ในคิวตรวจ Essay ขณะนี้ (อาจถูก Verified หรือหลุดจากคิวหลังรัน Sync)');
+                return;
+            }
+            switchView('queue');
+            selectTeam(email);
         }
 
         window.addEventListener('beforeunload', () => { releaseClaim(); });
