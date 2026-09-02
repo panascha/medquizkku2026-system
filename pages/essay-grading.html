@@ -111,11 +111,15 @@
     <div id="viewSwitcher" class="max-w-[1500px] mx-auto w-full px-4 pt-3 flex gap-2">
         <button id="btnQueueMode" onclick="switchView('queue')"
             class="view-btn queue-active px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50">
-            <i class="fa-solid fa-list-check mr-1"></i> คิวตรวจ
+            <i class="fa-solid fa-list-check mr-1"></i> คิวตรวจรายทีม <span class="opacity-60">(By Team)</span>
+        </button>
+        <button id="btnQuestionMode" onclick="switchView('question')"
+            class="view-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50">
+            <i class="fa-solid fa-layer-group mr-1"></i> ตรวจเปรียบเทียบทีละข้อ <span class="opacity-60">(By Question)</span>
         </button>
         <button id="btnSheetMode" onclick="switchView('sheet')"
             class="view-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50">
-            <i class="fa-solid fa-table mr-1"></i> ตารางอันดับ
+            <i class="fa-solid fa-table mr-1"></i> ตารางอันดับ <span class="opacity-60">(Quota Sheet)</span>
         </button>
     </div>
 
@@ -206,6 +210,34 @@
         </div>
     </section>
 
+    <!-- ตรวจเปรียบเทียบทีละข้อ (By-Question View) — ทุกทีมในคิวเรียงกันในข้อเดียว -->
+    <section id="questionView" class="hidden flex-1 max-w-[1500px] mx-auto w-full p-4">
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div id="qSlotTabs" class="px-3 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2"></div>
+            <div id="qCards" class="flex-1 overflow-y-auto p-3 space-y-2">
+                <p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>
+            </div>
+            <div class="border-t border-slate-100 bg-white px-4 py-3 flex flex-wrap items-center gap-3">
+                <div class="text-sm">
+                    <i class="fa-solid fa-chart-simple text-blue-700 mr-1"></i>
+                    <span class="text-slate-500">ทีมที่บันทึกแล้ว:</span>
+                    <span id="qProgress" class="font-extrabold text-blue-700 ml-1">0/0</span>
+                    <span class="text-slate-400">ทีม</span>
+                    <span id="qPending" class="text-[11px] text-amber-600 ml-2"></span>
+                </div>
+                <button id="qSaveAllBtn" onclick="handleSaveAllQuestion()" disabled
+                    class="ml-auto px-5 py-2 rounded-xl text-sm bg-blue-700 hover:bg-blue-800 text-white font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกคะแนนข้อนี้ทั้งหมด
+                </button>
+            </div>
+            <p class="px-4 pb-3 text-[11px] text-slate-400 leading-snug">
+                <i class="fa-solid fa-circle-info mr-1"></i>
+                การบันทึกส่งคะแนน<b>ครบทั้ง 6 ข้อ</b>ของแต่ละทีมตามค่าปัจจุบัน (ไม่ใช่เฉพาะข้อนี้) — ข้อที่ยังไม่ได้ตรวจจะถูกบันทึกเป็นค่าที่เห็น
+                ทีมจะขึ้นสถานะ "ตรวจแล้ว" แต่ยังแก้ไขซ้ำได้จนกว่าจะ Verified
+            </p>
+        </div>
+    </section>
+
     <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest">
         &copy; 2026 IT Team | MedQuiz KKU 2026
     </footer>
@@ -242,7 +274,10 @@
         let authRef = null;           // Firebase Auth (มีเฉพาะโหมดจริง)
 
         // ── Sheet View state ──────────────────────────────────────────────
-        let view = 'queue';                              // 'queue' | 'sheet'
+        let view = 'queue';                              // 'queue' | 'question' | 'sheet'
+        let qSlot = 0;                                    // ข้อที่เลือกในโหมด By-Question
+        const qDirty = new Set();                         // email ที่แก้คะแนนแล้วยังไม่บันทึก
+        const qDraftTimers = new Map();                  // debounce draft ต่อทีม (คีย์ = email)
         let sheetTab = 'โรงเรียน';                        // 'โรงเรียน' | 'ผสม'
         const sheetData = { 'โรงเรียน': null, 'ผสม': null };  // cached payloads
         const QUOTA_CUTOFF = { 'โรงเรียน': 75, 'ผสม': 25 };
@@ -605,10 +640,158 @@
         window.switchView = (mode) => {
             view = mode;
             $('queueView').classList.toggle('hidden', mode !== 'queue');
+            $('questionView').classList.toggle('hidden', mode !== 'question');
             $('sheetView').classList.toggle('hidden', mode !== 'sheet');
             $('btnQueueMode').classList.toggle('queue-active', mode === 'queue');
+            $('btnQuestionMode').classList.toggle('queue-active', mode === 'question');
             $('btnSheetMode').classList.toggle('queue-active', mode === 'sheet');
             if (mode === 'sheet' && !sheetData[sheetTab]) loadSheetView(sheetTab);
+            if (mode === 'question') renderQuestionView();
+        };
+
+        // ── By-Question View (ตรวจเปรียบเทียบทีละข้อ) ──────────────────────
+        function renderQuestionView() {
+            if (!slots.length) return;
+            $('qSlotTabs').innerHTML = slots.map((sl, i) => `
+                <button data-qslot="${i}"
+                    class="qslot-tab ${i === qSlot ? 'queue-active' : ''} px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50">
+                    ข้อ ${esc(sl.label)} <span class="opacity-60">(${sl.max} pts)</span>
+                </button>`).join('');
+            document.querySelectorAll('.qslot-tab').forEach(b =>
+                b.addEventListener('click', () => switchQSlot(Number(b.dataset.qslot))));
+            renderQuestionCards();
+        }
+
+        window.switchQSlot = (i) => {
+            qSlot = i;
+            document.querySelectorAll('.qslot-tab').forEach(b =>
+                b.classList.toggle('queue-active', Number(b.dataset.qslot) === i));
+            renderQuestionCards();
+        };
+
+        function renderQuestionCards() {
+            const sl = slots[qSlot];
+            if (!teams.length) {
+                $('qCards').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">— ไม่มีทีมในคิว —</p>`;
+                updateQProgress();
+                return;
+            }
+            $('qCards').innerHTML = teams.map(t => {
+                const claim = claimInfo(t.email);
+                const claimedByOther = claim && claim.graderEmail !== me.email;
+                const locked = t.verifyStatus === 'Verified';
+                const graded = t.verifyStatus === 'Graded';
+                const val = (t.currentScores || [])[qSlot] ?? 0;
+                const ans = esc(t.essayAnswers?.[qSlot]) || '<span class="text-slate-300">(ไม่มีคำตอบ)</span>';
+                const pill = locked
+                    ? '<span class="shrink-0 text-[10px] bg-slate-100 text-slate-600 border border-slate-300 px-1.5 py-0.5 rounded-full"><i class="fa-solid fa-lock"></i> Verified</span>'
+                    : graded
+                    ? '<span class="shrink-0 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">ตรวจแล้ว</span>'
+                    : '<span class="shrink-0 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">ยังไม่ตรวจ</span>';
+                return `
+                <div class="border border-slate-200 rounded-xl p-3" data-email="${esc(t.email)}">
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <div class="min-w-0">
+                            <p class="font-bold text-sm text-slate-800 truncate">${esc(t.teamName || '(ไม่มีชื่อทีม)')}</p>
+                            <p class="text-[11px] text-slate-400 truncate">${esc(t.quota)}${t.schoolName ? ' · ' + esc(t.schoolName) : ''}</p>
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            ${claimedByOther ? `<span class="text-[10px] text-orange-500"><i class="fa-solid fa-lock"></i> ${esc(claim.graderName)}</span>` : ''}
+                            ${pill}
+                        </div>
+                    </div>
+                    <div class="answer-box text-xs text-slate-700 bg-slate-50 rounded-lg p-2 max-h-32 overflow-y-auto mb-2">${ans}</div>
+                    <div class="flex items-center justify-end gap-1">
+                        <span class="text-xs text-slate-400 mr-1">คะแนนข้อ ${esc(sl.label)}</span>
+                        <input type="number" data-qemail="${esc(t.email)}" min="0" max="${sl.max}" step="0.5"
+                            value="${esc(val)}" ${locked ? 'disabled' : ''}
+                            class="qscore-input w-20 text-right px-2 py-1 border border-slate-300 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-200">
+                        <span class="text-xs text-slate-400">/ ${sl.max}</span>
+                    </div>
+                </div>`;
+            }).join('');
+            document.querySelectorAll('.qscore-input').forEach(inp =>
+                inp.addEventListener('input', () => onQScoreInput(inp)));
+            updateQProgress();
+        }
+
+        function onQScoreInput(inp) {
+            const email = inp.dataset.qemail;
+            const team = teams.find(t => t.email === email);
+            if (!team) return;
+            const v = Number(inp.value);
+            const valid = inp.value !== '' && isFinite(v) && v >= 0 && v <= slots[qSlot].max;
+            inp.classList.toggle('border-red-400', !valid);
+            inp.classList.toggle('bg-red-50', !valid);
+            if (!valid) { qDirty.delete(email); updateQProgress(); return; }
+            if (!Array.isArray(team.currentScores)) team.currentScores = Array(slots.length).fill(0);
+            team.currentScores[qSlot] = v;
+            qDirty.add(email);
+            scheduleQDraftSave(team);
+            updateQProgress();
+        }
+
+        function scheduleQDraftSave(team) {
+            const label = slots[qSlot].label;
+            const score = team.currentScores[qSlot];
+            const prev = qDraftTimers.get(team.email);
+            if (prev) clearTimeout(prev);
+            qDraftTimers.set(team.email, setTimeout(() => {
+                if (demoMode) {
+                    const key = escapeEmail(team.email);
+                    if (!occupancy[key]) occupancy[key] = {};
+                    if (!occupancy[key].draft) occupancy[key].draft = {};
+                    occupancy[key].draft[label] = score;
+                    return;
+                }
+                update(ref(db, `${OCC_ROOT}/${escapeEmail(team.email)}/draft`), { [label]: score }).catch(() => { });
+            }, DRAFT_DEBOUNCE_MS));
+        }
+
+        function updateQProgress() {
+            const done = teams.filter(t => t.verifyStatus === 'Graded' || t.verifyStatus === 'Verified').length;
+            $('qProgress').textContent = `${done}/${teams.length}`;
+            $('qPending').textContent = qDirty.size ? `· รอบันทึก ${qDirty.size} ทีม` : '';
+            $('qSaveAllBtn').disabled = qDirty.size === 0;
+        }
+
+        window.handleSaveAllQuestion = async () => {
+            const targets = teams.filter(t => qDirty.has(t.email) && t.verifyStatus !== 'Verified');
+            if (!targets.length) { qDirty.clear(); updateQProgress(); return; }
+            const btn = $('qSaveAllBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังบันทึก...';
+            try {
+                if (demoMode) {
+                    targets.forEach(t => { t.verifyStatus = 'Graded'; });
+                } else {
+                    for (const t of targets) {
+                        const res = await fetch(API_URL, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                action: 'submitEssayGrade',
+                                idToken: await window.idToken(),
+                                email: t.email,
+                                sheetName: t.sheetName,
+                                scores: t.currentScores,
+                            })
+                        });
+                        const data = await res.json();
+                        if (data.status !== 'success') throw new Error(`${t.teamName}: ${data.message || 'บันทึกไม่สำเร็จ'}`);
+                        t.verifyStatus = 'Graded';
+                        remove(ref(db, `${OCC_ROOT}/${escapeEmail(t.email)}/draft`)).catch(() => { });
+                    }
+                }
+                qDirty.clear();
+                renderQuestionCards();
+                renderQueue();
+            } catch (err) {
+                alert('❌ ' + err.message);
+            } finally {
+                btn.innerHTML = orig;
+                updateQProgress();
+            }
         };
 
         window.switchSheetTab = (quota) => {
@@ -639,6 +822,15 @@
 
         function renderSheetTable(data) {
             const rows = data.rows || [];
+            // สะท้อนคะแนนที่เพิ่งตรวจ (By-Team/By-Question) ลงแถวโควตา — teams เป็นค่าล่าสุดเสมอ
+            rows.forEach(r => {
+                const t = teams.find(tm => tm.email === r.email);
+                if (!t || t.verifyStatus !== 'Graded') return;
+                const essay = (t.currentScores || []).reduce((a, b) => a + (isFinite(b) ? b : 0), 0);
+                r.essayTotal = Number(essay.toFixed(2));
+                r.totalScore = Number((Number(t.autoScore) + essay).toFixed(2));
+                r.verifyStatus = 'Graded';
+            });
             const isSchool = data.quota === 'โรงเรียน';
             const cutoff = QUOTA_CUTOFF[data.quota];
             const colspan = isSchool ? 8 : 7;
