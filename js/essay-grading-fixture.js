@@ -688,6 +688,7 @@ export function essayEvidenceFixture(email) {
             severity: eff.severity,
             flags: eff.flags,
             flagTypes: eff.flagTypes,
+            sharedRareAnswers: eff.sharedRareAnswers || 0,
             autoScore: roster?.autoScore || 280,
             essayTotal: roster?.essayTotal || 0,
             finalRank: roster?.rank ?? '-',

@@ -1992,7 +1992,7 @@
                 markdownHits: hitsOfKind('markdown'),
                 llmHits: hitsOfKind('llm'),
                 echoHits: hitsOfKind('echo'),
-                sharedRareAnswers: (d.diffs || []).reduce((m, p) => Math.max(m, p.sharedRareAnswers || 0), 0),
+                sharedRareAnswers: d.team.sharedRareAnswers || 0,
                 similarPairs: d.diffs || [],
             };
             const items = buildChecklist(it, mdSlots);
