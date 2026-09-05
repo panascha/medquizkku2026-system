@@ -162,8 +162,10 @@ const FIXTURE_SCHOOL_ROSTER = [
     { rank: 2,   email: 'school.q2@gmail.com',    teamName: 'ทีมเรียนเก่งสอง',    schoolName: 'โรงเรียนจำลองศึกษา',  autoScore: 322, essayTotal: 0, totalScore: 322, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
     { rank: 3,   email: 'school.q3@gmail.com',    teamName: 'ทีมเรียนเก่งสาม',    schoolName: 'โรงเรียนสมมติพิทยา',  autoScore: 315, essayTotal: 0, totalScore: 315, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
     // แถบคะแนนเท่ากันตรงเส้นแบ่ง (rank 73–77) — ต้องตรวจ Essay
-    { rank: 73,  email: 'school.essayA@gmail.com', teamName: 'ทีมคะแนนเท่าเอ',     schoolName: 'โรงเรียนทดสอบศึกษา',  autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
-    { rank: 74,  email: 'demo.school1@gmail.com',  teamName: 'ทีมสมมติหนึ่ง',      schoolName: 'โรงเรียนตัวอย่างวิทยา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
+    { rank: 73,  email: 'school.essayA@gmail.com', teamName: 'ทีมคะแนนเท่าเอ',     schoolName: 'โรงเรียนทดสอบศึกษา',  autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY',
+      integrity: { severity: 'SEVERE', flags: ['ส่งเร็วผิดปกติ (35 นาที)', 'อัตราพิมพ์สูงผิดปกติ (180 ตัว/นาที)'], flagTypes: ['speedrun', 'typing'], submitMinutes: 35, cpm: 180, charsTotal: 6300, maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, similarPairs: [] } },
+    { rank: 74,  email: 'demo.school1@gmail.com',  teamName: 'ทีมสมมติหนึ่ง',      schoolName: 'โรงเรียนตัวอย่างวิทยา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY',
+      integrity: { severity: 'WARN', flags: ['ร่องรอย Markdown ในคำตอบ (3 จุด)'], flagTypes: ['markdown'], submitMinutes: 120, cpm: 45, charsTotal: 5400, maxSimilarity: 0.72, crossSchool: true, sharedRareAnswers: 2, similarPairs: [] } },
     { rank: 75,  email: 'demo.school3@gmail.com',  teamName: 'ทีมตัวอย่างสาม',      schoolName: 'โรงเรียนจำลองศึกษา',  autoScore: 280, essayTotal: 27, totalScore: 307, verifyStatus: 'Graded', qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
     { rank: 76,  email: 'school.essayD@gmail.com', teamName: 'ทีมคะแนนเท่าดี',     schoolName: 'โรงเรียนสอบผ่านวิทยา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
     { rank: 77,  email: 'school.essayE@gmail.com', teamName: 'ทีมคะแนนเท่าอี',     schoolName: 'โรงเรียนใกล้เส้นศึกษา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
@@ -174,13 +176,18 @@ const FIXTURE_SCHOOL_ROSTER = [
     { rank: 86,  email: 'school.nq1@gmail.com',    teamName: 'ทีมไม่ผ่านหนึ่ง',     schoolName: 'โรงเรียนไม่ผ่านศึกษา', autoScore: 260, essayTotal: 0, totalScore: 260, verifyStatus: '',       qualifiedStatus: 'Not Qualified',          colorKey: 'NOT_QUALIFIED' },
     // เกินโควตาโรงเรียน (Final Rank '-', สีแดงเข้ม)
     { rank: '-', email: 'school.oq1@gmail.com',    teamName: 'ทีมติดกฎโควตาโรงเรียน', schoolName: 'โรงเรียนตัวอย่างวิทยา', autoScore: 300, essayTotal: 0, totalScore: 300, verifyStatus: '',       qualifiedStatus: 'Reserved (Over Quota)',  colorKey: 'OVER_QUOTA' },
+    // ทีมที่ถูกตัดสิทธิ์ (Disqualified)
+    { rank: 5,   email: 'school.dq1@gmail.com',    teamName: 'ทีมถูกตัดสิทธิ์เอ',   schoolName: 'โรงเรียนตัดสิทธิ์ศึกษา', autoScore: 310, essayTotal: 0, totalScore: 310, verifyStatus: 'Verified', qualifiedStatus: 'Disqualified',         colorKey: 'DISQUALIFIED',
+      eligibilityNote: 'ตัดสิทธิ์ (ทุจริต/ลอกข้อสอบ) — พบคำตอบ Essay ซ้ำกับทีมนอกโควตา 92%',
+      decisionReviewer: 'admin@kkumail.com' },
 ];
 
 const FIXTURE_MIXED_ROSTER = [
     { rank: 1,  email: 'mixed.q1@gmail.com',    teamName: 'ทีมผสมเก่งหนึ่ง',  schoolName: '', autoScore: 324, essayTotal: 0, totalScore: 324, verifyStatus: '', qualifiedStatus: 'Qualified (Auto)',   colorKey: 'QUALIFIED' },
     { rank: 2,  email: 'mixed.q2@gmail.com',    teamName: 'ทีมผสมเก่งสอง',   schoolName: '', autoScore: 318, essayTotal: 0, totalScore: 318, verifyStatus: '', qualifiedStatus: 'Qualified (Auto)',   colorKey: 'QUALIFIED' },
     // แถบคะแนนเท่ากันตรงเส้นแบ่ง (rank 23–27) — ต้องตรวจ Essay
-    { rank: 23, email: 'mixed.essayA@gmail.com', teamName: 'ทีมผสมคะแนนเท่าเอ', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
+    { rank: 23, email: 'mixed.essayA@gmail.com', teamName: 'ทีมผสมคะแนนเท่าเอ', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY',
+      integrity: { severity: 'SEVERE', flags: ['ส่งเร็วผิดปกติ (28 นาที)', 'โครงสร้างคำตอบสมมาตรเกินไป'], flagTypes: ['speedrun', 'structural'], submitMinutes: 28, cpm: 195, charsTotal: 5460, maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, similarPairs: [] } },
     { rank: 24, email: 'mixed.essayB@gmail.com', teamName: 'ทีมผสมคะแนนเท่าบี', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
     { rank: 25, email: 'demo.mixed2@gmail.com',  teamName: 'ทีมผสมสอง',       schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
     { rank: 26, email: 'mixed.essayD@gmail.com', teamName: 'ทีมผสมคะแนนเท่าดี', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },

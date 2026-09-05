@@ -45,9 +45,18 @@
             z-index: 1;
         }
         #sheetTable td,
-        #sheetTable th {
+        #sheetTable th,
+        #sheetDqTable td,
+        #sheetDqTable th {
             padding: 6px 10px;
             border-bottom: 1px solid rgba(0, 0, 0, .06);
+        }
+        #sheetDqTable th {
+            background: #7f1d1d;
+            color: #fff;
+            font-weight: 700;
+            white-space: nowrap;
+            text-align: left;
         }
         tr.sheet-clickable {
             cursor: pointer;
@@ -298,8 +307,51 @@
                 </button>
                 <span class="ml-auto text-[11px] text-slate-400">
                     <i class="fa-solid fa-circle-info mr-1"></i>
-                    แถวสีส้ม (ต้องตรวจ Essay) คลิกเพื่อเปิดตรวจ
+                    คลิกแถวเพื่อเปิดหลักฐาน (ทีมติดธง) หรือแผงตรวจ Essay (ทีมในคิว)
                 </span>
+            </div>
+
+            <!-- แถบค้นหา / กรอง / เรียง — ทำงานฝั่ง client ล้วน ไม่โหลดข้อมูลใหม่ -->
+            <div class="px-3 py-2 border-b border-slate-100 bg-slate-50 flex flex-wrap items-center gap-2">
+                <input id="sheetSearch" type="search" oninput="onSheetFilterChange()"
+                    placeholder="ค้นหา: อันดับ / เลขสุ่มตรวจ (ปลดล็อกชื่อจริงเพื่อค้นชื่อทีม)"
+                    class="flex-1 min-w-[220px] border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200">
+
+                <select id="sheetStatusFilter" onchange="onSheetFilterChange()"
+                    class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white">
+                    <option value="ALL">ทั้งหมด (ทุกสถานะ)</option>
+                    <option value="QUALIFIED">🟢 ผ่านโควตา (ตัวจริง)</option>
+                    <option value="NEED_ESSAY">🟠 ต้องตรวจ Essay</option>
+                    <option value="RESERVED">🟡 สำรอง</option>
+                    <option value="FLAGGED">🚨 เฉพาะทีมที่ติดธง</option>
+                    <option value="DISQUALIFIED">🚫 ถูกตัดสิทธิ์</option>
+                    <option value="OVER_QUOTA">🔴 เกินเพดาน 3 ทีม/รร.</option>
+                </select>
+
+                <select id="sheetVerifyFilter" onchange="onSheetFilterChange()"
+                    class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white">
+                    <option value="ALL">สถานะตรวจ: ทั้งหมด</option>
+                    <option value="Graded">Graded (ตรวจแล้ว)</option>
+                    <option value="Pending">Pending (ยังไม่ตรวจ)</option>
+                    <option value="Verified">Verified (ล็อกแล้ว)</option>
+                </select>
+
+                <select id="sheetSortSelect" onchange="onSheetSortChange(this.value)"
+                    class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white">
+                    <option value="RANK">เรียงตามอันดับทางการ (ค่าเริ่มต้น)</option>
+                    <option value="TOTAL">คะแนนรวม (มาก → น้อย)</option>
+                    <option value="AUTO">คะแนน Auto (มาก → น้อย)</option>
+                    <option value="ESSAY">คะแนน Essay (มาก → น้อย)</option>
+                    <option value="TIME">เวลาส่ง (เร็ว → ช้า)</option>
+                    <option value="SEVERITY">ระดับธง (เพ่งเล็ง → ปกติ)</option>
+                </select>
+
+                <button onclick="resetSheetFilters()"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 bg-white hover:bg-slate-100">
+                    <i class="fa-solid fa-rotate-left mr-1"></i> ล้างตัวกรอง
+                </button>
+
+                <span id="sheetCount" class="text-[11px] font-bold text-slate-600 whitespace-nowrap"></span>
             </div>
             <div id="sheetTableWrap" class="flex-1 overflow-auto">
                 <p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>
@@ -440,6 +492,10 @@
         let sheetTab = 'โรงเรียน';                        // 'โรงเรียน' | 'ผสม'
         const sheetData = { 'โรงเรียน': null, 'ผสม': null };  // cached payloads
         const QUOTA_CUTOFF = { 'โรงเรียน': 75, 'ผสม': 25 };
+        // email -> เลขสุ่มตรวจของตารางอันดับ คิดจากลำดับใน rows ทั้งชุด (ก่อนกรอง/แบ่งส่วน)
+        let sheetBlindNum = new Map();
+        // ตัวกรอง/การเรียงของตารางอันดับ — client-side ล้วน ไม่ยิง API ซ้ำ
+        const sheetView = { q: '', status: 'ALL', verify: 'ALL', sort: 'RANK' };
 
         // ── Integrity Triage ──────────────────────────────────────────────
         // integrityData = payload ของ ?action=integrityReport (cache ไว้ ไม่โหลดซ้ำทุกครั้งที่สลับแท็บ)
@@ -461,6 +517,7 @@
             NEED_ESSAY:    { bg: '#ffe0b2', font: '#000000' },
             RESERVED:      { bg: '#fffbc0', font: '#000000' },
             OVER_QUOTA:    { bg: '#8b0000', font: '#ffffff' },
+            DISQUALIFIED:  { bg: '#8b0000', font: '#ffffff' },
             NOT_QUALIFIED: { bg: '#fffbc0', font: '#000000' },
         };
         const VERIFY_LABEL = { '': 'Pending', 'Graded': 'Graded', 'Verified': 'Verified' };
@@ -1080,6 +1137,15 @@
             }
         }
 
+        // ตารางอันดับแยกโควตาแบ่งเป็น 3 ส่วน บนสุด -> ล่างสุด:
+        //   1) กล่องทีมที่ต้องเพ่งเล็ง (ธง SEVERE/WARN จาก Integrity Triage)
+        //   2) ตารางอันดับหลัก + เส้นแบ่งโควตา (กรอง/เรียงได้)
+        //   3) ตารางทีมที่ถูกตัดสิทธิ์
+        //
+        // เลขสุ่มตรวจ (Blind mode) ต้องคิดจากลำดับใน rows "ทั้งชุด" ก่อนกรองและ
+        // ก่อนแบ่งส่วน ถ้าคิดจาก index ของแต่ละส่วน/ผลกรอง ทีมเดียวกันจะได้คนละเลข
+        // ในกล่องเตือน ตารางหลัก และตารางตัดสิทธิ์ ซึ่งเป็นการรั่วข้อมูลแบบที่
+        // โหมด Blind มีไว้กันพอดี
         function renderSheetTable(data) {
             const rows = data.rows || [];
             // สะท้อนคะแนนที่เพิ่งตรวจ (By-Team/By-Question) ลงแถวโควตา — teams เป็นค่าล่าสุดเสมอ
@@ -1091,43 +1157,243 @@
                 r.totalScore = Number((Number(t.autoScore) + essay).toFixed(2));
                 r.verifyStatus = 'Graded';
             });
+
+            if (!rows.length) {
+                $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">— ยังไม่มีข้อมูลอันดับ (รันเมนู GAS ข้อ 1 ก่อน) —</p>`;
+                $('sheetCount').textContent = '';
+                return;
+            }
+
+            sheetBlindNum = new Map(rows.map((r, i) => [r.email, i + 1]));
+
+            // กล่องเตือนใช้ "ทุกทีมที่ติดธงในโควตานี้" เสมอ ไม่ขึ้นกับตัวกรอง —
+            // กล่องเตือนที่ว่างเพราะตัวกรองจะถูกอ่านว่า "ไม่มีทีมน่าสงสัย" ซึ่งอันตราย
+            const flagged = rows.filter(r => r.qualifiedStatus !== 'Disqualified' && severityOf(r) !== 'NONE');
+
+            const shown = sortSheetRows(rows.filter(matchesSheetFilters));
+            const dqShown = shown.filter(r => r.qualifiedStatus === 'Disqualified');
+            const rankedShown = shown.filter(r => r.qualifiedStatus !== 'Disqualified');
+
+            $('sheetCount').textContent = `แสดง ${shown.length} จาก ${rows.length} ทีม`;
+
+            $('sheetTableWrap').innerHTML =
+                renderSheetAlertBox(data, flagged) +
+                renderSheetRankingTable(data, rankedShown) +
+                renderSheetDqTable(data, dqShown);
+
+            document.querySelectorAll('#sheetTableWrap [data-sheet-row]').forEach(el =>
+                el.addEventListener('click', () => handleSheetRowClick(el.dataset.sheetRow)));
+            document.querySelectorAll('#sheetTableWrap [data-sheet-evidence]').forEach(el =>
+                el.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    openEvidence(el.dataset.sheetEvidence);
+                }));
+            document.querySelectorAll('#sheetTableWrap [data-sheet-grade]').forEach(el =>
+                el.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    openGradingFromSheet(el.dataset.sheetGrade);
+                }));
+            document.querySelectorAll('#sheetTableWrap [data-sheet-sort]').forEach(el =>
+                el.addEventListener('click', () => onSheetSortChange(el.dataset.sheetSort, true)));
+        }
+
+        // ── ค้นหา / กรอง / เรียง ───────────────────────────────────────────
+        // ทั้งหมดทำกับ payload ที่โหลดมาแล้วใน sheetData ไม่ยิง API ใหม่
+
+        const SHEET_STATUS_MATCH = {
+            ALL:          () => true,
+            QUALIFIED:    (r) => r.colorKey === 'QUALIFIED',
+            NEED_ESSAY:   (r) => r.colorKey === 'NEED_ESSAY',
+            RESERVED:     (r) => r.colorKey === 'RESERVED',
+            OVER_QUOTA:   (r) => r.colorKey === 'OVER_QUOTA',
+            DISQUALIFIED: (r) => r.qualifiedStatus === 'Disqualified',
+            FLAGGED:      (r) => severityOf(r) !== 'NONE',
+        };
+
+        /**
+         * ⚠️ ในโหมด Blind การค้นด้วยชื่อทีม/โรงเรียน/อีเมลถูกปิด โดยตั้งใจ —
+         * พิมพ์ชื่อจริงแล้วเห็นว่าเหลือแถวไหน คือการเปิดเผยว่าเลขสุ่มตรวจนั้นคือทีมใด
+         * ซึ่งทำให้โหมด Blind ไร้ความหมาย ค้นได้เฉพาะอันดับกับเลขสุ่มตรวจ
+         */
+        function matchesSheetSearch(r) {
+            const q = sheetView.q;
+            if (!q) return true;
+            const fields = [String(r.rank), 'อันดับ ' + r.rank];
+            const bn = sheetBlindNum.get(r.email);
+            if (bn) fields.push(String(bn), anonLabel(bn), '#' + bn);
+            if (!isBlindMode) fields.push(r.teamName || '', r.schoolName || '', r.email || '');
+            return fields.some(f => String(f).toLowerCase().includes(q));
+        }
+
+        function matchesSheetFilters(r) {
+            const statusFn = SHEET_STATUS_MATCH[sheetView.status] || SHEET_STATUS_MATCH.ALL;
+            if (!statusFn(r)) return false;
+            if (sheetView.verify !== 'ALL') {
+                const v = r.verifyStatus || 'Pending';
+                if (v !== sheetView.verify) return false;
+            }
+            return matchesSheetSearch(r);
+        }
+
+        const SEVERITY_ORDER = { SEVERE: 0, WARN: 1, NONE: 2 };
+        const rankValue = (r) => (typeof r.rank === 'number' ? r.rank : Number.MAX_SAFE_INTEGER);
+        // เวลาส่งมาจาก triage (นาทีหลังเปิดฟอร์ม) — ทีมที่ไม่มีข้อมูลไปท้ายเสมอ
+        const submitMinutesOf = (r) => (r.integrity && r.integrity.submitMinutes) || Number.MAX_SAFE_INTEGER;
+
+        function sortSheetRows(rows) {
+            const by = {
+                RANK:     (a, b) => rankValue(a) - rankValue(b),
+                TOTAL:    (a, b) => (b.totalScore || 0) - (a.totalScore || 0),
+                AUTO:     (a, b) => (b.autoScore || 0) - (a.autoScore || 0),
+                ESSAY:    (a, b) => (b.essayTotal || 0) - (a.essayTotal || 0),
+                TIME:     (a, b) => submitMinutesOf(a) - submitMinutesOf(b),
+                SEVERITY: (a, b) => SEVERITY_ORDER[severityOf(a)] - SEVERITY_ORDER[severityOf(b)],
+            }[sheetView.sort] || null;
+            if (!by) return rows.slice();
+            // tie-break ด้วยอันดับทางการเสมอ ผลลัพธ์จะได้คงที่ทุกครั้งที่ render ใหม่
+            return rows.slice().sort((a, b) => by(a, b) || (rankValue(a) - rankValue(b)));
+        }
+
+        /** เส้นแบ่งโควตาสื่อความหมายเฉพาะตอนเรียงตามอันดับทางการและไม่มีการกรอง */
+        const showsCutoffDivider = () =>
+            sheetView.sort === 'RANK' && sheetView.status === 'ALL' &&
+            sheetView.verify === 'ALL' && !sheetView.q;
+
+        window.onSheetFilterChange = () => {
+            sheetView.q = ($('sheetSearch').value || '').trim().toLowerCase();
+            sheetView.status = $('sheetStatusFilter').value;
+            sheetView.verify = $('sheetVerifyFilter').value;
+            if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+        };
+
+        /** fromHeader = คลิกหัวตาราง: กดซ้ำที่คอลัมน์เดิมสลับกลับเป็นอันดับทางการ */
+        window.onSheetSortChange = (sort, fromHeader) => {
+            sheetView.sort = (fromHeader && sheetView.sort === sort) ? 'RANK' : sort;
+            $('sheetSortSelect').value = sheetView.sort;
+            if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+        };
+
+        window.resetSheetFilters = () => {
+            sheetView.q = ''; sheetView.status = 'ALL'; sheetView.verify = 'ALL'; sheetView.sort = 'RANK';
+            $('sheetSearch').value = '';
+            $('sheetStatusFilter').value = 'ALL';
+            $('sheetVerifyFilter').value = 'ALL';
+            $('sheetSortSelect').value = 'RANK';
+            if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+        };
+
+        // ── ชื่อทีม / ธง ในตารางอันดับ ─────────────────────────────────────
+        const dispSheetTeam = (r) => isBlindMode
+            ? anonLabel(sheetBlindNum.get(r.email) || 0)
+            : (r.teamName || '(ไม่มีชื่อทีม)');
+        const dispSheetSchool = (r) => isBlindMode ? '— (ปกปิด)' : (r.schoolName || '');
+
+        function sheetFlagBadge(r) {
+            const sev = severityOf(r);
+            if (sev === 'NONE') return '';
+            return sev === 'SEVERE' ? '🚨' : '⚠️';
+        }
+
+        // ── ส่วนที่ 1: กล่องทีมที่ต้องเพ่งเล็ง ─────────────────────────────
+        // integrityAvailable:false ต้องบอกให้ชัดว่า "ยังไม่ได้รันรายงาน" ไม่ใช่ปล่อย
+        // กล่องว่าง ซึ่งกรรมการจะอ่านว่า "ตรวจแล้วไม่พบอะไร"
+        function renderSheetAlertBox(data, flagged) {
+            if (data.integrityAvailable === false) {
+                return `<div class="m-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+                    ⚪ ยังไม่ได้รันรายงานตรวจสอบความผิดปกติ — ตารางนี้จึงยังไม่แสดงธงใด ๆ
+                    (ต้องรันเมนู GAS "ตรวจสอบความผิดปกติ" ก่อน)
+                </div>`;
+            }
+            if (!flagged.length) {
+                return `<div class="m-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                    ✅ ไม่มีทีมในโควตานี้ที่ถูกระบบคัดกรองตั้งธง
+                </div>`;
+            }
+
+            const items = flagged
+                .slice()
+                .sort((a, b) => SEVERITY_ORDER[severityOf(a)] - SEVERITY_ORDER[severityOf(b)] || rankValue(a) - rankValue(b))
+                .map(r => {
+                    const severe = severityOf(r) === 'SEVERE';
+                    const inQueue = teams.some(t => t.email === r.email);
+                    const flags = ((r.integrity && r.integrity.flags) || [])
+                        .map(f => `<li>${esc(f)}</li>`).join('');
+                    return `
+                    <li class="border rounded-xl px-3 py-2 ${severe ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="font-extrabold text-sm ${severe ? 'text-red-800' : 'text-amber-900'}">
+                                ${severe ? '🚨' : '⚠️'} ${esc(dispSheetTeam(r))}
+                            </span>
+                            <span class="text-[11px] text-slate-500">
+                                อันดับ ${esc(r.rank)} · รวม ${esc(r.totalScore)} · ${esc(r.qualifiedStatus || '(ว่าง)')}
+                            </span>
+                            <span class="ml-auto flex gap-2">
+                                <button data-sheet-evidence="${esc(r.email)}"
+                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-800 text-white hover:bg-slate-900 whitespace-nowrap">
+                                    🔍 ดูหลักฐาน &amp; ตัดสิน
+                                </button>
+                                <button data-sheet-grade="${esc(r.email)}" ${inQueue ? '' : 'disabled'}
+                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                                    title="${inQueue ? 'เปิดแผงตรวจ Essay ของทีมนี้' : 'ทีมนี้ไม่ได้อยู่ในคิวตรวจ Essay'}">
+                                    ✏️ ตรวจ Essay
+                                </button>
+                            </span>
+                        </div>
+                        ${flags ? `<ul class="list-disc list-inside mt-1 text-[11px] text-slate-700 space-y-0.5">${flags}</ul>` : ''}
+                    </li>`;
+                }).join('');
+
+            return `
+            <div class="m-3 rounded-xl border border-red-200 bg-white overflow-hidden">
+                <p class="px-4 py-2 bg-red-100 text-red-900 text-xs font-extrabold">
+                    ทีมที่ต้องเพ่งเล็งในโควตานี้ (${flagged.length} ทีม)
+                    <span class="font-normal opacity-80">— ธงคัดกรอง ไม่ใช่คำตัดสิน · แสดงทุกทีมเสมอ ไม่ขึ้นกับตัวกรอง</span>
+                </p>
+                <ul class="p-3 space-y-2">${items}</ul>
+            </div>`;
+        }
+
+        // ── ส่วนที่ 2: ตารางอันดับหลัก ────────────────────────────────────
+        function renderSheetRankingTable(data, rows) {
             const isSchool = data.quota === 'โรงเรียน';
             const cutoff = QUOTA_CUTOFF[data.quota];
             const colspan = isSchool ? 8 : 7;
 
             if (!rows.length) {
-                $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">— ยังไม่มีข้อมูลอันดับ (รันเมนู GAS ข้อ 1 ก่อน) —</p>`;
-                return;
+                return `<p class="p-6 text-center text-slate-400 text-sm">— ไม่มีทีมที่ตรงกับตัวกรอง —</p>`;
             }
+
+            const arrow = (key) => sheetView.sort === key ? ' <span class="opacity-70">▼</span>' : '';
+            const sortTh = (key, label, align) =>
+                `<th class="${align} cursor-pointer select-none" data-sheet-sort="${key}" title="คลิกเพื่อเรียงตามคอลัมน์นี้">${label}${arrow(key)}</th>`;
 
             const head = `
                 <tr>
-                    <th class="text-right">อันดับ</th>
+                    ${sortTh('RANK', 'อันดับ', 'text-right')}
                     <th class="text-left">ชื่อทีม</th>
                     ${isSchool ? '<th class="text-left">โรงเรียน</th>' : ''}
-                    <th class="text-right">Auto</th>
-                    <th class="text-right">Essay</th>
-                    <th class="text-right">รวม</th>
+                    ${sortTh('AUTO', 'Auto', 'text-right')}
+                    ${sortTh('ESSAY', 'Essay', 'text-right')}
+                    ${sortTh('TOTAL', 'รวม', 'text-right')}
                     <th class="text-center">สถานะตรวจ</th>
                     <th class="text-left">ผลโควตา</th>
                 </tr>`;
 
+            const withDivider = showsCutoffDivider();
             let dividerDone = false;
-            // Blind: เลขสุ่มตรวจในตารางใช้ลำดับแถว (คนละ namespace กับคิว ที่เรียงตาม email) — ตั้งใจ
-            const body = rows.map((r, idx) => {
+            const body = rows.map(r => {
                 let divider = '';
-                if (!dividerDone && typeof r.rank === 'number' && r.rank > cutoff) {
+                if (withDivider && !dividerDone && typeof r.rank === 'number' && r.rank > cutoff) {
                     dividerDone = true;
                     divider = `<tr class="cutoff-divider"><td colspan="${colspan}">── เส้นแบ่งโควตา (${cutoff} ทีม) ──</td></tr>`;
                 }
                 const c = SHEET_COLORS[r.colorKey] || SHEET_COLORS.NOT_QUALIFIED;
-                const clickable = r.colorKey === 'NEED_ESSAY';
                 return `${divider}
-                <tr class="${clickable ? 'sheet-clickable' : ''}" ${clickable ? `data-email="${esc(r.email)}"` : ''}
+                <tr class="sheet-clickable" data-sheet-row="${esc(r.email)}"
                     style="background:${c.bg}; color:${c.font}">
                     <td class="text-right font-bold">${esc(r.rank)}</td>
-                    <td class="text-left">${esc(isBlindMode ? anonLabel(idx + 1) : (r.teamName || '(ไม่มีชื่อทีม)'))}</td>
-                    ${isSchool ? `<td class="text-left">${esc(isBlindMode ? '— (ปกปิด)' : r.schoolName)}</td>` : ''}
+                    <td class="text-left">${sheetFlagBadge(r)} ${esc(dispSheetTeam(r))}</td>
+                    ${isSchool ? `<td class="text-left">${esc(dispSheetSchool(r))}</td>` : ''}
                     <td class="text-right">${esc(r.autoScore)}</td>
                     <td class="text-right">${esc(r.essayTotal)}</td>
                     <td class="text-right font-bold">${esc(r.totalScore)}</td>
@@ -1136,11 +1402,64 @@
                 </tr>`;
             }).join('');
 
-            $('sheetTableWrap').innerHTML =
-                `<table id="sheetTable" class="w-full text-xs border-collapse"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+            return `<table id="sheetTable" class="w-full text-xs border-collapse"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+        }
 
-            document.querySelectorAll('#sheetTable tr.sheet-clickable').forEach(tr =>
-                tr.addEventListener('click', () => openGradingFromSheet(tr.dataset.email)));
+        // ── ส่วนที่ 3: ทีมที่ถูกตัดสิทธิ์ ──────────────────────────────────
+        // แยกออกจากตารางอันดับโดยตั้งใจ: แถวพวกนี้ยังกินที่นั่งในการไล่อันดับของ
+        // _rankQuota() อยู่ (ระบบไม่เลื่อนทีมสำรองให้เอง) การปล่อยไว้ปนในตารางหลัก
+        // จะอ่านเหมือนทีมยังแข่งอยู่ตามปกติ
+        function renderSheetDqTable(data, rows) {
+            if (!rows.length) return '';
+            const isSchool = data.quota === 'โรงเรียน';
+            const body = rows.map(r => `
+                <tr class="sheet-clickable" data-sheet-row="${esc(r.email)}" style="background:#fee2e2; color:#7f1d1d">
+                    <td class="text-left font-bold">${esc(dispSheetTeam(r))}</td>
+                    ${isSchool ? `<td class="text-left">${esc(dispSheetSchool(r))}</td>` : ''}
+                    <td class="text-left">${esc(r.eligibilityNote || '— ไม่มีบันทึกเหตุผล —')}</td>
+                    <td class="text-left">${esc(isBlindMode ? '— (ปกปิด)' : (r.decisionReviewer || '—'))}</td>
+                    <td class="text-right">
+                        <button data-sheet-evidence="${esc(r.email)}"
+                            class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-red-300 text-red-800 hover:bg-red-50 whitespace-nowrap">
+                            🔓 ทบทวน/ยกเลิก (Restore)
+                        </button>
+                    </td>
+                </tr>`).join('');
+
+            return `
+            <div class="m-3 rounded-xl border-2 border-red-300 overflow-hidden">
+                <p class="px-4 py-2 bg-red-800 text-white text-xs font-extrabold">
+                    ทีมที่ถูกตัดสิทธิ์โดยกรรมการ (${rows.length} ทีม)
+                </p>
+                <table id="sheetDqTable" class="w-full text-xs border-collapse">
+                    <thead><tr>
+                        <th>ชื่อทีม</th>
+                        ${isSchool ? '<th>โรงเรียน</th>' : ''}
+                        <th>เหตุผลการตัดสิทธิ์</th>
+                        <th>ผู้ตัดสิน</th>
+                        <th class="text-right">การดำเนินการ</th>
+                    </tr></thead>
+                    <tbody>${body}</tbody>
+                </table>
+                <p class="px-4 py-2 bg-red-50 text-[11px] text-red-800 leading-snug">
+                    ⚠️ ทีมที่ถูกตัดสิทธิ์ <u>ยังกินที่นั่งในโควตา</u> — เครื่องมือจัดอันดับไม่ได้เลื่อนทีมสำรองให้อัตโนมัติ
+                    ฝ่ายวิชาการต้องเลื่อนเอง · กด "ทบทวน/ยกเลิก" เพื่อเปิดหลักฐาน แล้วเลือก "ปลดธง (Cleared)"
+                </p>
+            </div>`;
+        }
+
+        /**
+         * คลิกแถวในตารางอันดับ: ทีมที่ติดธงหรือถูกตัดสิทธิ์ → เปิดหน้าต่างหลักฐาน,
+         * ทีมที่อยู่ในคิวตรวจ → เปิดแผงตรวจ Essay, นอกนั้นบอกว่าไม่มีอะไรให้เปิด
+         */
+        function handleSheetRowClick(email) {
+            const row = ((sheetData[sheetTab] || {}).rows || []).find(r => r.email === email);
+            if (row && (severityOf(row) !== 'NONE' || row.qualifiedStatus === 'Disqualified')) {
+                openEvidence(email);
+                return;
+            }
+            if (teams.some(t => t.email === email)) { openGradingFromSheet(email); return; }
+            toast('ทีมนี้ไม่ติดธงและไม่อยู่ในคิวตรวจ Essay — ไม่มีรายละเอียดให้เปิด');
         }
 
         function openGradingFromSheet(email) {
@@ -1728,6 +2047,9 @@
                 sheetData['ผสม'] = null;
                 await reloadQueue();
                 await loadIntegrityView();
+                // การล้าง cache ไม่ได้แตะ DOM ที่ render ไว้แล้ว — ถ้ากรรมการตัดสินจาก
+                // ตารางอันดับ ต้องโหลดตารางของโควตาที่เปิดอยู่ใหม่ให้เห็นผลทันที
+                if (view === 'sheet') await loadSheetView(sheetTab);
             } catch (err) {
                 alert('❌ ' + err.message);
                 buttons.forEach(b => { b.disabled = false; b.classList.remove('opacity-50'); });
