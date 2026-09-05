@@ -1,0 +1,356 @@
+<!-- Public Self-Service: Round 0 Submission Status Check & Receipt Resend -->
+<!-- ZERO-AUTH public page — no auth.js, no Firebase, no Google Sign-in. -->
+<!-- Any team member or advisor can look up whether their exam answers were -->
+<!-- received by the system and request the receipt email to be resent. -->
+<!-- Talks to the Exam Received GAS Web App via public lookupSubmissionStatus -->
+<!-- / resendSubmissionConfirm actions — the only data that leaves the server -->
+<!-- is team name, quota category, leader email, and submission timestamp. -->
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตรวจสอบสถานะการส่งข้อสอบรอบ 0 — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: linear-gradient(160deg, #eef2ff 0%, #f8fafc 55%, #f0fdf4 100%);
+            min-height: 100vh;
+        }
+        .card { background: #fff; border: 1px solid #e2e8f0; }
+        .spin { animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+
+<body class="flex items-start justify-center p-4 sm:p-6">
+    <div class="w-full max-w-xl mt-6 mb-16">
+
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <i class="fa-solid fa-shield-check text-2xl text-white"></i>
+            </div>
+            <h1 class="text-slate-800 text-2xl font-extrabold tracking-tight">ตรวจสอบสถานะการส่งข้อสอบรอบคัดเลือก</h1>
+            <p class="text-slate-500 text-sm mt-1">MedQuiz KKU 2026 — กรอกอีเมลของสมาชิกคนใดในทีมเพื่อตรวจสอบว่าระบบได้รับคำตอบของท่านแล้ว</p>
+        </div>
+
+        <!-- Lookup form -->
+        <div class="card rounded-2xl p-5 sm:p-6 shadow-sm">
+            <label for="emailInput" class="block text-sm font-semibold text-slate-700 mb-2">
+                <i class="fa-solid fa-envelope text-emerald-600 mr-1"></i> อีเมลของสมาชิกในทีม (หรืออาจารย์ที่ปรึกษา)
+            </label>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input id="emailInput" type="email" inputmode="email" autocomplete="email"
+                    placeholder="you@gmail.com"
+                    class="flex-1 border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                <button id="btnLookup" onclick="doLookup()"
+                    class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-3 rounded-xl transition-all active:scale-95 shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    <i id="lookupIcon" class="fa-solid fa-magnifying-glass"></i>
+                    <span>ตรวจสอบ</span>
+                </button>
+            </div>
+            <p class="text-[12px] text-slate-400 mt-2">อีเมลของหัวหน้าทีม (Member 1), สมาชิก 2, สมาชิก 3 หรืออาจารย์ที่ปรึกษา</p>
+        </div>
+
+        <!-- Message box (errors / not found / not submitted) -->
+        <div id="msgBox" class="hidden mt-4 rounded-2xl p-4 text-sm leading-relaxed"></div>
+
+        <!-- Result card (submitted) -->
+        <div id="resultCard" class="hidden card rounded-2xl p-5 sm:p-6 shadow-sm mt-4">
+
+            <!-- Green success banner -->
+            <div class="flex items-center gap-2 text-emerald-700 font-bold mb-4">
+                <i class="fa-solid fa-circle-check text-lg"></i> ระบบได้รับคำตอบข้อสอบของทีมท่านแล้ว
+            </div>
+
+            <!-- Submission metadata -->
+            <dl id="submissionMeta" class="space-y-2.5 text-sm">
+            </dl>
+
+            <!-- Registered Leader Gmail callout -->
+            <div id="leaderCallout" class="hidden mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                <strong>อีเมลหัวหน้าทีมที่ลงทะเบียนไว้:</strong>
+                <code id="leaderEmailFull" class="bg-amber-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-[13px]"></code>
+                — หากอีเมลนี้ไม่ตรงกับที่ท่านใช้ Sign in ตอนทำข้อสอบ กรุณาติดต่อทีมงาน
+            </div>
+
+            <!-- Resend section -->
+            <div class="mt-5 pt-4 border-t border-slate-200">
+                <p class="text-sm font-semibold text-slate-700 mb-2">
+                    <i class="fa-solid fa-paper-plane text-emerald-600 mr-1"></i> ส่งอีเมลยืนยันซ้ำ
+                </p>
+                <p class="text-[12px] text-slate-500 mb-3">เลือกผู้รับอย่างน้อย 1 คน ระบบจะส่งอีเมลยืนยันการรับข้อสอบไปยังอีเมลที่เลือกรายการ</p>
+
+                <div id="contactCheckboxes" class="space-y-2 mb-3"></div>
+
+                <div id="resendMsg" class="hidden text-xs mb-3"></div>
+
+                <button id="btnResend" onclick="doResend()"
+                    class="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-5 py-2.5 rounded-xl transition-all active:scale-95 shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm">
+                    <i id="resendIcon" class="fa-solid fa-paper-plane"></i>
+                    <span>ส่งอีเมลยืนยันซ้ำ</span>
+                </button>
+
+                <div id="cooldownTimer" class="hidden mt-2 text-[13px] text-slate-500 text-center"></div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <p class="text-center text-[12px] text-slate-400 mt-6">
+            MedQuiz KKU 2026 — คณะแพทยศาสตร์ มหาวิทยาลัยขอนแก่น
+        </p>
+    </div>
+
+    <script>
+        // =====================================================================
+        // CONFIG — matches firebase-config.js DASHBOARD_API_URL
+        // This is the Exam Received project's /exec URL (not Registration).
+        // =====================================================================
+        const API_URL = "https://script.google.com/macros/s/AKfycbx0NbfUaqMXDl2RKoFcayiFOVjOZUQkUI1NiumKJXVKA_7xjO-4vm-q8Ne2KFLMCi2Q/exec";
+
+        // =====================================================================
+        // DOM shortcuts
+        // =====================================================================
+        function $(id) { return document.getElementById(id); }
+
+        // =====================================================================
+        // State
+        // =====================================================================
+        let currentResult = null;   // last lookupSubmissionStatus response
+        let cooldownTimerId = null; // interval handle
+
+        // =====================================================================
+        // UI helpers
+        // =====================================================================
+        function showMsg(html, tone) {
+            const box = $("msgBox");
+            var bg = "bg-slate-100 border border-slate-200 text-slate-700";
+            if (tone === "amber") bg = "bg-amber-50 border border-amber-200 text-amber-800";
+            else if (tone === "red") bg = "bg-red-50 border border-red-200 text-red-700";
+            else if (tone === "green") bg = "bg-emerald-50 border border-emerald-200 text-emerald-700";
+            box.className = "mt-4 rounded-2xl p-4 text-sm leading-relaxed " + bg;
+            box.innerHTML = html;
+            box.classList.remove("hidden");
+        }
+
+        function hideMsg() { $("msgBox").classList.add("hidden"); }
+
+        function setLookupLoading(on) {
+            var btn = $("btnLookup");
+            btn.disabled = on;
+            $("lookupIcon").className = on ? "fa-solid fa-spinner spin" : "fa-solid fa-magnifying-glass";
+        }
+
+        // =====================================================================
+        // API
+        // =====================================================================
+        async function postAction(payload) {
+            var res = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            return res.json();
+        }
+
+        // =====================================================================
+        // Lookup
+        // =====================================================================
+        async function doLookup() {
+            var email = $("emailInput").value.trim();
+            if (!email) { showMsg("กรุณากรอกอีเมล", "amber"); return; }
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+                showMsg("รูปแบบอีเมลไม่ถูกต้อง", "amber"); return;
+            }
+
+            hideMsg();
+            $("resultCard").classList.add("hidden");
+            setLookupLoading(true);
+            currentResult = null;
+
+            try {
+                var r = await postAction({ action: "lookupSubmissionStatus", email: email });
+            } catch (err) {
+                setLookupLoading(false);
+                showMsg('<i class="fa-solid fa-triangle-exclamation mr-1"></i> ไม่สามารถเชื่อมต่อกับระบบได้ในขณะนี้ กรุณาลองใหม่ภายหลัง', "red");
+                return;
+            }
+            setLookupLoading(false);
+
+            if (r.status === "error") { showMsg(r.message, "red"); return; }
+            if (!r.found) {
+                showMsg('<i class="fa-solid fa-circle-exclamation mr-1"></i> <strong>ไม่พบทีมจากอีเมลนี้ในระบบลงทะเบียน</strong><br>โปรดตรวจสอบว่ากรอกอีเมลถูกต้อง หรือใช้อีเมลของสมาชิกคนอื่นในทีม', "amber");
+                return;
+            }
+            if (!r.submitted) {
+                showMsg('<i class="fa-solid fa-circle-exclamation mr-1"></i> <strong>พบทะเบียนของทีม "' + escapeHtml(r.teamName) + '"</strong> (' + escapeHtml(r.category) + ')<br>แต่ยัง<strong>ไม่พบ</strong>การส่งคำตอบข้อสอบรอบ 0 สำหรับทีมนี้ หากเพิ่งส่งคำตอบเมื่อไม่กี่นาทีกรุณารอสักครู่แล้วลองใหม่', "amber");
+                return;
+            }
+
+            currentResult = r;
+            renderResult(r);
+        }
+
+        function escapeHtml(s) {
+            return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // =====================================================================
+        // Render result
+        // =====================================================================
+        function renderResult(r) {
+            // Submission metadata table
+            var rows = [
+                ["ชื่อทีม", escapeHtml(r.teamName || "-")],
+                ["ประเภท/โควตา", escapeHtml(r.category || "-")],
+                ["เวลาที่ระบบบันทึกคำตอบ", escapeHtml(r.submissionTimestamp || "-")]
+            ];
+            var dl = rows.map(function (pair) {
+                return "" +
+                    '<div class="flex justify-between gap-4">' +
+                        '<dt class="text-slate-500">' + pair[0] + '</dt>' +
+                        '<dd class="font-semibold text-slate-800 text-right">' + pair[1] + '</dd>' +
+                    '</div>';
+            }).join("");
+            $("submissionMeta").innerHTML = dl;
+
+            // Leader email callout — show only if the leader email is in the
+            // response AND the user might have queried with a different address.
+            if (r.leaderEmail) {
+                $("leaderCallout").classList.remove("hidden");
+                $("leaderEmailFull").textContent = r.leaderEmail;
+            } else {
+                $("leaderCallout").classList.add("hidden");
+            }
+
+            // Contact checkboxes
+            var contacts = r.contacts || [];
+            var checkboxes = contacts.map(function (c) {
+                return '<label class="flex items-center gap-2 cursor-pointer text-sm text-slate-700">' +
+                    '<input type="checkbox" class="w-4 h-4 rounded accent-emerald-600" value="' + escapeHtml(c.key) + '" ' +
+                    (c.key === "leader" ? "checked" : "") + '/>' +
+                    '<span>' + escapeHtml(c.label) + ' (' + escapeHtml(c.emailMasked) + ')</span>' +
+                    '</label>';
+            }).join("");
+            if (!checkboxes) {
+                checkboxes = '<p class="text-[12px] text-slate-400">ไม่มีอีเมลผู้รับที่ลงทะเบียนไว้</p>';
+                $("btnResend").disabled = true;
+            } else {
+                $("btnResend").disabled = false;
+            }
+            $("contactCheckboxes").innerHTML = checkboxes;
+
+            // Cooldown
+            $("resendMsg").classList.add("hidden");
+            if (r.cooldownRemainingSec > 0) {
+                startCooldown(r.cooldownRemainingSec);
+            } else {
+                stopCooldown();
+            }
+
+            $("resultCard").classList.remove("hidden");
+        }
+
+        // =====================================================================
+        // Resend
+        // =====================================================================
+        function selectedKeys() {
+            var cbs = document.querySelectorAll("#contactCheckboxes input[type=checkbox]");
+            var keys = [];
+            cbs.forEach(function (cb) { if (cb.checked) keys.push(cb.value); });
+            return keys;
+        }
+
+        function setResendMsg(html, tone) {
+            var el = $("resendMsg");
+            el.innerHTML = html;
+            if (tone === "green") {
+                el.className = "text-xs mb-3 text-emerald-700";
+            } else {
+                el.className = "text-xs mb-3 text-red-600";
+            }
+            el.classList.remove("hidden");
+        }
+
+        function startCooldown(sec) {
+            $("btnResend").disabled = true;
+            $("cooldownTimer").classList.remove("hidden");
+            if (cooldownTimerId) clearInterval(cooldownTimerId);
+
+            var render = function (s) {
+                $("cooldownTimer").textContent = "ส่งซ้ำได้อีกครั้งใน " +
+                    Math.floor(s / 60) + " นาที " + (s % 60) + " วินาที";
+            };
+            render(sec);
+
+            cooldownTimerId = setInterval(function () {
+                sec--;
+                if (sec <= 0) {
+                    stopCooldown();
+                } else {
+                    render(sec);
+                }
+            }, 1000);
+        }
+
+        function stopCooldown() {
+            $("btnResend").disabled = false;
+            $("cooldownTimer").classList.add("hidden");
+            if (cooldownTimerId) { clearInterval(cooldownTimerId); cooldownTimerId = null; }
+        }
+
+        async function doResend() {
+            if (!currentResult) return;
+
+            var keys = selectedKeys();
+            if (keys.length === 0) {
+                setResendMsg("กรุณาเลือกผู้รับอย่างน้อย 1 คน", "red"); return;
+            }
+
+            $("btnResend").disabled = true;
+            $("resendIcon").className = "fa-solid fa-spinner spin";
+            setResendMsg("กำลังส่ง...", "");
+
+            try {
+                var r = await postAction({
+                    action: "resendSubmissionConfirm",
+                    email: currentResult.leaderEmail,
+                    recipientKeys: keys
+                });
+            } catch (err) {
+                $("btnResend").disabled = false;
+                $("resendIcon").className = "fa-solid fa-paper-plane";
+                setResendMsg("ไม่สามารถเชื่อมต่อกับระบบได้ในขณะนี้ กรุณาลองใหม่", "red");
+                return;
+            }
+
+            $("resendIcon").className = "fa-solid fa-paper-plane";
+
+            if (r.status === "success") {
+                setResendMsg('<i class="fa-solid fa-circle-check mr-1"></i> ส่งอีเมลยืนยันสำเร็จ ' +
+                    r.sentCount + ' ฉบับ' +
+                    (r.failedCount ? ' (ไม่สำเร็จ ' + r.failedCount + ' ฉบับ)' : ''), "green");
+                if (r.cooldownRemainingSec > 0) startCooldown(r.cooldownRemainingSec);
+                else $("btnResend").disabled = false;
+            } else {
+                setResendMsg('<i class="fa-solid fa-circle-exclamation mr-1"></i> ' + escapeHtml(r.message), "red");
+                if (r.cooldownRemainingSec > 0) startCooldown(r.cooldownRemainingSec);
+                else $("btnResend").disabled = false;
+            }
+        }
+
+        // =====================================================================
+        // Enter key
+        // =====================================================================
+        $("emailInput").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") doLookup();
+        });
+    </script>
+</body>
+
+</html>
