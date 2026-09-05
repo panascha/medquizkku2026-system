@@ -141,6 +141,8 @@ export function essayFixturePayload() {
     return {
         status: 'success',
         teams: FIXTURE_TEAMS.map(t => ({ ...t })),
+        // ทีมที่ผ่านแล้วแต่ติดธง SEVERE — คนละกลุ่มกับคิวตรวจ Essay
+        integrityReviewTeams: FIXTURE_INTEGRITY_REVIEW.map(t => ({ ...t })),
         essaySlots: ESSAY_SLOTS.map(s => ({ ...s })),
         integrityAvailable: true,
         integritySummary: INTEGRITY_SUMMARY,
@@ -252,6 +254,23 @@ const INTEGRITY_FLAG_TYPES = [
 ];
 
 const INTEGRITY_REPORT_TEAMS = [
+    {
+        // ผ่านโควตาแล้ว (Qualified (Auto)) แต่ติดธง 🔴 — ทดสอบกลุ่ม
+        // integrityReviewTeams และปุ่ม "ดูหลักฐาน & ตัดสิน" กับทีมที่ไม่ได้อยู่ในคิว
+        email: 'school.q3@gmail.com', teamName: 'ทีมเรียนเก่งสาม',
+        schoolName: 'โรงเรียนตัวอย่างวิทยา', quota: 'โรงเรียน',
+        severity: 'SEVERE', submitMinutes: 28.0, speedRank: 1, cpm: 233, charsTotal: 6520,
+        clumpSize: 0, markdownHits: 0, llmHits: 0, echoHits: 0,
+        structuralUniform: false, saqFlag: false,
+        maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, sharedRareTerms: 0,
+        speedFlagged: true, typingFlagged: true, clumped: false,
+        flagTypes: ['speedrun', 'typing'],
+        flags: [
+            'ส่งเร็วผิดปกติ (28.0 นาทีหลังเปิดฟอร์ม)',
+            'อัตราพิมพ์สูงผิดปกติ (อย่างน้อย 233 ตัว/นาที)',
+        ],
+        similarPairs: [],
+    },
     {
         // อยู่ในคิว — คลิกแล้วเปิดแผงตรวจได้
         email: 'demo.school1@gmail.com', teamName: 'ทีมสมมติหนึ่ง',
@@ -376,6 +395,245 @@ export function essayIntegrityReportFixture() {
         pairs: INTEGRITY_REPORT_PAIRS.map(p => ({ ...p })),
         caveat: 'เกณฑ์คัดกรองเบื้องต้นเท่านั้น — ใช้เพื่อ "เพ่งเล็งเป็นพิเศษ" ตอนตรวจ Essay ' +
             'ห้ามใช้ตัดสิทธิ์อัตโนมัติ และห้ามใช้ข้อกล่าวหา "ใช้ AI" เพียงลำพัง',
+        generatedAt: new Date().toLocaleString('th-TH'),
+        isFixture: true,
+    };
+}
+
+// ── หลักฐาน & การตัดสิน (Integrity Evidence) ────────────────────────────────
+// ตัวอย่างสำหรับ ?action=getIntegrityEvidence เพื่อทดสอบหน้าต่างหลักฐานก่อนมี
+// ข้อมูลจริง. ทีม demo.school1 กับ outside.teamx ถูกเขียนให้มีย่อหน้าที่ตรงกัน
+// แบบคำต่อคำ (และย่อหน้าที่ต่างกันคั่น) เพื่อให้เห็นทั้งช่วงที่ไฮไลต์และไม่ไฮไลต์
+//
+// ช่วงไฮไลต์คำนวณด้วยสูตรเดียวกับฝั่ง server (_itSharedGramRanges) แทนการ
+// hard-code ตัวเลข index — index ที่พิมพ์มือบนข้อความไทยผิดง่ายและตรวจไม่เจอ
+
+const EV_NGRAM = 3;
+
+/** สำเนา _itNormText() ของ 8_IntegrityTriage.js — ต้องตรงกันเป๊ะ */
+const evNorm = (s) => String(s || '')
+    .toLowerCase()
+    .replace(/[\s ]+/g, '')
+    .replace(/[.,;:!?()\[\]{}"'`~\-_/\\|*#]/g, '');
+
+/** สำเนา _itNormWithMap() */
+function evNormWithMap(str) {
+    let text = '';
+    const map = [];
+    for (let i = 0; i < str.length; i++) {
+        const c = evNorm(str.charAt(i));
+        if (c) { text += c; map.push(i); }
+    }
+    return { text, map };
+}
+
+/** สำเนา _itSharedGramRanges() — รวมช่วงใน normalised space แล้ว map กลับ */
+function evSharedRanges(aText, bText) {
+    const a = evNormWithMap(aText), b = evNormWithMap(bText);
+    if (a.text.length < EV_NGRAM || b.text.length < EV_NGRAM) return [];
+    const bGrams = new Set();
+    for (let i = 0; i + EV_NGRAM <= b.text.length; i++) bGrams.add(b.text.substr(i, EV_NGRAM));
+    const mark = [];
+    for (let i = 0; i + EV_NGRAM <= a.text.length; i++) {
+        if (bGrams.has(a.text.substr(i, EV_NGRAM))) {
+            for (let j = i; j < i + EV_NGRAM; j++) mark[j] = true;
+        }
+    }
+    const runs = [];
+    for (let k = 0; k < a.map.length; k++) {
+        if (!mark[k]) continue;
+        const last = runs[runs.length - 1];
+        if (last && k === last.to + 1) last.to = k;
+        else runs.push({ from: k, to: k });
+    }
+    return runs.map(r => ({ start: a.map[r.from], end: a.map[r.to] + 1 }));
+}
+
+/** Jaccard บนชุด n-gram — สำเนา _itJaccard() แบบย่อ */
+function evJaccard(aText, bText) {
+    const grams = (t) => {
+        const n = evNorm(t), set = new Set();
+        for (let i = 0; i + EV_NGRAM <= n.length; i++) set.add(n.substr(i, EV_NGRAM));
+        return set;
+    };
+    const A = grams(aText), B = grams(bText);
+    if (!A.size || !B.size) return 0;
+    let inter = 0;
+    A.forEach(g => { if (B.has(g)) inter++; });
+    return Number((inter / (A.size + B.size - inter)).toFixed(4));
+}
+
+// คำตอบสมมติของทีมคู่เทียบ — ข้อ 1.1 / 2.1 เขียนให้ตรงกับ demo.school1 เกือบทั้ง
+// ย่อหน้า ส่วนข้ออื่นเขียนใหม่หมด เพื่อให้เห็นความต่างระหว่างข้อที่ซ้ำกับไม่ซ้ำ
+const EV_OUTSIDE_ESSAYS = [
+    'ภาวะไตขาดเลือดกระตุ้นให้ juxtaglomerular cell หลั่ง renin ออกมา renin เปลี่ยน angiotensinogen เป็น angiotensin I แล้วถูก ACE เปลี่ยนต่อเป็น angiotensin II ซึ่งทำให้หลอดเลือดหดตัวและกระตุ้นการหลั่ง aldosterone ผลรวมคือความดันโลหิตสูงขึ้น',
+    'ยา beta-blocker ลดอัตราการเต้นของหัวใจ ส่วน calcium channel blocker ทำให้หลอดเลือดคลายตัว จึงเลือกใช้ต่างกันตามภาวะของผู้ป่วยแต่ละราย',
+    'intrinsic pathway เริ่มจากการสัมผัสผิวที่มีประจุลบ ทำให้ factor XII ถูกกระตุ้น ตามด้วย factor XI factor IX และ factor VIII จนได้ factor X ที่ทำงาน แล้วเข้าสู่ common pathway ต่อไป',
+    'เบาหวานชนิดที่ 1 เกิดจากภูมิคุ้มกันทำลายเบตาเซลล์ ทำให้ขาดอินซูลินอย่างสิ้นเชิง ผู้ป่วยจึงมีอาการดื่มน้ำมาก ปัสสาวะบ่อย และน้ำหนักลด',
+    'penicillin ยับยั้งเอนไซม์ transpeptidase ที่ใช้เชื่อม peptidoglycan ของผนังเซลล์แบคทีเรีย เซลล์มนุษย์ไม่มีผนังชนิดนี้ ยาจึงออกฤทธิ์เฉพาะกับแบคทีเรีย',
+    'innate immunity ตอบสนองทันทีและไม่จำเพาะ ส่วน adaptive immunity ใช้เวลาสร้างแต่จำเพาะและมีความจำ',
+];
+
+// คำตอบของทีมที่ถูกพิจารณา — ให้ข้อ 1.1 กับ 2.1 ตรงกับคู่เทียบเกือบทั้งย่อหน้า
+// และแทรกร่องรอย Markdown / สำนวน LLM / การทวนโจทย์ ไว้ให้ทดสอบไฮไลต์ครบทุกสี
+const EV_TARGET_ESSAYS = [
+    'ภาวะไตขาดเลือดกระตุ้นให้ juxtaglomerular cell หลั่ง renin ออกมา renin เปลี่ยน angiotensinogen เป็น angiotensin I แล้วถูก ACE เปลี่ยนต่อเป็น angiotensin II ซึ่งทำให้หลอดเลือดหดตัวและกระตุ้นการหลั่ง aldosterone ผลรวมคือความดันโลหิตสูงขึ้น\n\n**สรุป** กลไกนี้เป็นเป้าหมายของยากลุ่ม ACE inhibitor',
+    'คำถาม: เปรียบเทียบ beta-blocker กับ calcium channel blocker\nตอบ: beta-blocker ลดแรงบีบตัวและอัตราการเต้นของหัวใจ ส่วน calcium channel blocker ออกฤทธิ์คลายกล้ามเนื้อเรียบของหลอดเลือด\n- ข้อบ่งใช้ต่างกันตามภาวะผู้ป่วย\n- ผลข้างเคียงต่างกัน',
+    'intrinsic pathway เริ่มจากการสัมผัสผิวที่มีประจุลบ ทำให้ factor XII ถูกกระตุ้น ตามด้วย factor XI factor IX และ factor VIII จนได้ factor X ที่ทำงาน แล้วเข้าสู่ common pathway ต่อไป โดยมี calcium และ phospholipid เป็นปัจจัยร่วม',
+    'เบาหวานชนิดที่ 1 เกิดจากการทำลายเบตาเซลล์ของตับอ่อนโดยระบบภูมิคุ้มกันของร่างกายเอง ส่งผลให้ร่างกายขาดอินซูลิน',
+    'penicillin จับกับ penicillin-binding protein แล้วยับยั้งการสร้างผนังเซลล์ของแบคทีเรีย\n\nin summary, ยานี้จึงมีความจำเพาะสูงต่อแบคทีเรีย',
+    'innate immunity ทำงานทันทีโดยไม่ต้องเคยพบเชื้อมาก่อน ขณะที่ adaptive immunity สร้างความจำทางภูมิคุ้มกันไว้ใช้ครั้งต่อไป',
+];
+
+/** hit ของ Markdown / สำนวน LLM / การทวนโจทย์ — หา offset จริงบนข้อความสมมติ */
+function evPatternHits(text) {
+    const lib = [
+        { kind: 'markdown', name: 'bold-markdown', re: /\*\*[^*\n]+\*\*/g },
+        { kind: 'markdown', name: 'bullet-list', re: /(^|\n)\s*[-*•]\s+\S/g },
+        { kind: 'llm', name: 'en-in-summary', needle: 'in summary,' },
+        { kind: 'echo', name: 'th-echo-question2', needle: 'คำถาม:' },
+        { kind: 'echo', name: 'th-echo-answer2', needle: 'ตอบ:' },
+    ];
+    const out = [];
+    const lower = text.toLowerCase();
+    lib.forEach(p => {
+        if (p.re) {
+            let m;
+            const re = new RegExp(p.re.source, 'g');
+            while ((m = re.exec(text)) !== null) {
+                if (!m[0].length) { re.lastIndex++; continue; }
+                out.push({ kind: p.kind, name: p.name, start: m.index, end: m.index + m[0].length });
+            }
+        } else {
+            let from = 0, i;
+            while ((i = lower.indexOf(p.needle, from)) !== -1) {
+                out.push({ kind: p.kind, name: p.name, start: i, end: i + p.needle.length });
+                from = i + p.needle.length;
+            }
+        }
+    });
+    return out.sort((a, b) => a.start - b.start);
+}
+
+// ทีมที่ผ่านแล้วแต่ติดธง SEVERE — กลุ่ม integrityReviewTeams ของ _handleEssayQueue
+const FIXTURE_INTEGRITY_REVIEW = [
+    {
+        email: 'school.q3@gmail.com',
+        teamName: 'ทีมเรียนเก่งสาม',
+        schoolName: 'โรงเรียนตัวอย่างวิทยา',
+        quota: 'โรงเรียน',
+        sheetName: 'เรียงทีมโรงเรียน',
+        autoScore: 318,
+        essayAnswers: EV_TARGET_ESSAYS.slice(),
+        currentScores: [0, 0, 0, 0, 0, 0],
+        verifyStatus: '',
+        qualifiedStatus: 'Qualified (Auto)',
+        queueGroup: 'integrity',
+        integrity: {
+            severity: 'SEVERE',
+            flags: [
+                'ส่งเร็วผิดปกติ (28.0 นาทีหลังเปิดฟอร์ม)',
+                'อัตราพิมพ์สูงผิดปกติ (อย่างน้อย 233 ตัว/นาที)',
+            ],
+            flagTypes: ['speedrun', 'typing'],
+            submitMinutes: 28.0,
+            cpm: 233,
+            charsTotal: 6520,
+            maxSimilarity: 0,
+            crossSchool: null,
+            sharedRareAnswers: 0,
+            similarPairs: [],
+        },
+    },
+];
+
+/** สร้าง payload หน้าตาเดียวกับ _handleIntegrityEvidence ใน 8_IntegrityTriage.js */
+export function essayEvidenceFixture(email) {
+    const t = INTEGRITY_REPORT_TEAMS.find(x => x.email === email);
+    if (!t) {
+        return { status: 'success', available: false, message: 'ไม่พบทีมนี้ในรายงาน (fixture)' };
+    }
+
+    // ทีมที่มีคู่เทียบใช้คำตอบชุดเต็ม ทีมอื่นใช้ชุดเดียวกันแต่ไม่มี diff
+    const mine = EV_TARGET_ESSAYS;
+    const scores = [0, 0, 0, 0, 0, 0];
+
+    const excerpts = ESSAY_SLOTS.map((slot, i) => ({
+        label: slot.label,
+        max: slot.max,
+        score: scores[i],
+        chars: mine[i].length,
+        text: mine[i],
+        hits: evPatternHits(mine[i]),
+    }));
+
+    const diffs = (t.similarPairs || [])
+        .filter(p => p.similarity >= 0.80)
+        .map(p => ({
+            pairId: [email, p.otherEmail].sort().join('|'),
+            otherEmail: p.otherEmail,
+            otherTeamName: p.otherTeamName,
+            otherSchoolName: 'โรงเรียนนอกคิวศึกษา',
+            otherFound: true,
+            similarity: p.similarity,
+            sameSchool: p.sameSchool,
+            severity: p.severity,
+            sharedRareAnswers: p.sharedRareAnswers,
+            // ตัดข้อที่คำตอบสั้นกว่าเกณฑ์ MIN_CHARS_PER_SLOT ออก เหมือนฝั่ง server
+            slots: ESSAY_SLOTS
+                .map((slot, i) => ({ slot, i }))
+                .filter(({ i }) => mine[i].length >= 40 && EV_OUTSIDE_ESSAYS[i].length >= 40)
+                .map(({ slot, i }) => ({
+                    label: slot.label,
+                    similarity: evJaccard(mine[i], EV_OUTSIDE_ESSAYS[i]),
+                    aRanges: evSharedRanges(mine[i], EV_OUTSIDE_ESSAYS[i]),
+                    bText: EV_OUTSIDE_ESSAYS[i],
+                    bRanges: evSharedRanges(EV_OUTSIDE_ESSAYS[i], mine[i]),
+                })),
+        }));
+
+    return {
+        status: 'success',
+        available: true,
+        team: {
+            email: t.email,
+            teamName: t.teamName,
+            schoolName: t.schoolName,
+            quota: t.quota,
+            sheetName: t.quota === 'โรงเรียน' ? 'เรียงทีมโรงเรียน' : 'เรียงทีมผสม',
+            severity: t.severity,
+            flags: t.flags,
+            flagTypes: t.flagTypes,
+            autoScore: 280,
+            essayTotal: 0,
+            finalRank: '-',
+            qualifiedStatus: 'Need Essay Grading',
+            verifyStatus: '',
+        },
+        timing: {
+            submitMinutes: t.submitMinutes,
+            speedRank: t.speedRank,
+            percentile: 0.4,
+            cohort: { n: 815, p5: 73.6, q1: 136.6, median: 181.3, q3: 214.0 },
+            floorMin: 45,
+            severeMin: 30,
+            flagged: t.speedFlagged,
+        },
+        typing: {
+            cpm: t.cpm,
+            charsTotal: t.charsTotal,
+            percentile: 99.1,
+            cohort: { n: 815, median: 38, q3: 57, p95: 96 },
+            watch: 150,
+            impossible: 200,
+            flagged: t.typingFlagged,
+        },
+        excerpts,
+        diffs,
+        similarityFlag: 0.80,
+        similaritySevere: 0.90,
+        caveat: 'หลักฐานประกอบการพิจารณาของกรรมการเท่านั้น — ตัวเลขทุกตัวเป็นเกณฑ์คัดกรอง ' +
+            'ไม่ใช่ข้อพิสูจน์ และห้ามใช้ข้อกล่าวหา "ใช้ AI" เพียงลำพังในการตัดสิทธิ์',
         generatedAt: new Date().toLocaleString('th-TH'),
         isFixture: true,
     };

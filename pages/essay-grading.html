@@ -89,6 +89,69 @@
             outline: 2px solid #1e3a8a;
             outline-offset: -2px;
         }
+        #integrityTable td.it-actions {
+            white-space: nowrap;
+        }
+
+        /* หน้าต่างหลักฐาน (Evidence Modal) */
+        .ev-pane {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 12px;
+            line-height: 1.8;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+        /* ไฮไลต์แยกสีตามชนิดหลักฐาน — "ตรงกับอีกทีม" กับ "สำนวน LLM"
+           มีน้ำหนักเป็นพยานต่างกันมาก จึงต้องแยกออกจากกันด้วยสายตา */
+        .hl-shared { background: #fecaca; border-bottom: 2px solid #dc2626; }
+        .hl-llm    { background: #ddd6fe; border-bottom: 2px solid #7c3aed; }
+        .hl-echo   { background: #bfdbfe; border-bottom: 2px solid #2563eb; }
+        .hl-md     { background: #fde68a; border-bottom: 2px solid #d97706; }
+
+        /* แถบเทียบตำแหน่งของทีมกับ cohort (timeline / อัตราพิมพ์) */
+        .gauge {
+            position: relative;
+            height: 30px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .gauge-tick {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            border-left: 1px dashed #94a3b8;
+        }
+        .gauge-tick > span {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            transform: translateX(-50%);
+            font-size: 9px;
+            color: #64748b;
+            white-space: nowrap;
+            padding-top: 3px;
+        }
+        .gauge-me {
+            position: absolute;
+            top: -4px;
+            bottom: -4px;
+            width: 3px;
+            background: #0f1f4b;
+            border-radius: 2px;
+            box-shadow: 0 0 0 2px #fff;
+        }
+        .gauge-me > span {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            font-weight: 800;
+            color: #0f1f4b;
+            white-space: nowrap;
+            padding-bottom: 3px;
+        }
     </style>
 </head>
 
@@ -302,6 +365,28 @@
         </div>
     </section>
 
+    <!-- ── หน้าต่างหลักฐาน & การตัดสิน (Integrity Evidence) ───────────────────
+         เปิดจากปุ่มในตารางรายงานความผิดปกติ. โครงสร้าง: สรุปธง → แถบเทียบเวลา/
+         อัตราพิมพ์กับ cohort → คำตอบ Essay พร้อมไฮไลต์ → เทียบคู่ที่ซ้ำ ≥ เกณฑ์
+         → กล่องตัดสิน. ปุ่มตัดสิทธิ์ถูกกันไว้หลังรหัสฝ่ายจัดการ (โหมด Blind) -->
+    <div id="modalEvidence" class="hidden fixed inset-0 z-40 bg-black/50 p-3 md:p-6 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-[1200px] mx-auto shadow-2xl flex flex-col">
+
+            <div class="px-5 py-4 border-b border-slate-200 flex items-start gap-3 sticky top-0 bg-white rounded-t-2xl z-10">
+                <div class="flex-1 min-w-0">
+                    <h2 id="evTitle" class="text-lg font-extrabold text-slate-800 leading-tight">หลักฐานประกอบการพิจารณา</h2>
+                    <p id="evMeta" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="closeEvidence()"
+                    class="shrink-0 w-9 h-9 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold">✕</button>
+            </div>
+
+            <div id="evBody" class="p-5 space-y-5">
+                <p class="text-center text-slate-400 text-sm py-10">กำลังโหลดหลักฐาน...</p>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-lg"></div>
 
     <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest">
@@ -313,7 +398,7 @@
         // ที่เด้งไป login.html ทันที) ถ้าเปิดหน้านี้ด้วย ?fixture=1 ไม่ต้อง login เลย
         // dynamic-import เฉพาะโหมดจริง
         import { DASHBOARD_API_URL, escapeEmail, db, auth, ref, set, get, update, remove, onValue, onDisconnect } from '../js/firebase-config.js';
-        import { essayFixturePayload, fixtureOccupancy, essaySheetViewFixture, essayIntegrityReportFixture } from '../js/essay-grading-fixture.js';
+        import { essayFixturePayload, fixtureOccupancy, essaySheetViewFixture, essayIntegrityReportFixture, essayEvidenceFixture } from '../js/essay-grading-fixture.js';
 
         const useFixture = new URLSearchParams(location.search).get('fixture') === '1';
         const demoMode = useFixture || !DASHBOARD_API_URL;
@@ -361,6 +446,11 @@
         // integrityFilter = คีย์ธงที่กรองอยู่ ('' = ทุกธง)
         let integrityData = null;
         let integrityFilter = '';
+        // ทีมที่ "ผ่านแล้ว" แต่ติดธง SEVERE — คนละกลุ่มกับคิวตรวจ Essay โดยตั้งใจ
+        // (ทีมกลุ่มนี้ไม่ได้รอคะแนน Essay แต่รอการพิจารณาของกรรมการ)
+        let integrityReviewTeams = [];
+        let evidenceData = null;      // payload ของ ?action=getIntegrityEvidence ที่เปิดอยู่
+        let evidenceEmail = null;
         const SEVERITY_BADGE = {
             SEVERE: { text: '🚨 เพ่งเล็ง', cls: 'bg-red-100 text-red-700 border-red-200' },
             WARN: { text: '⚠️ ข้อสังเกต', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -417,6 +507,7 @@
                 currentScores: [...(t.currentScores || Array(t.essayAnswers?.length || 6).fill(0))],
             }));
             slots = data.essaySlots || [];
+            integrityReviewTeams = data.integrityReviewTeams || [];
             rebuildBlindNumbers();
             renderQueue();
         }
@@ -446,6 +537,7 @@
                 if (data.status !== 'success') throw new Error(data.message || 'โหลดคิวไม่สำเร็จ');
                 slots = data.essaySlots || [];
                 teams = data.teams || [];
+                integrityReviewTeams = data.integrityReviewTeams || [];
                 rebuildBlindNumbers();
                 showBanner(teams.length ? '' : 'sky', 'fa-circle-info',
                     teams.length ? '' : 'ยังไม่มีทีมที่ต้องตรวจ Essay — คิวจะขึ้นหลังรัน Sync (เมนู GAS ข้อ 1) และมีทีมคะแนนเท่ากันตรงเส้นแบ่งโควตา');
@@ -462,6 +554,7 @@
             const data = essayFixturePayload();
             slots = data.essaySlots || [];
             teams = (data.teams || []).map(t => ({ ...t, currentScores: [...(t.currentScores || Array(t.essayAnswers?.length || 6).fill(0))] }));
+            integrityReviewTeams = data.integrityReviewTeams || [];
             // ถ้ากดบันทึกใน demo ก่อน refresh แล้ว ก็กลับเป็น Graded เดิม — ไม่คง state ข้าม reload
             rebuildBlindNumbers();
             renderQueue();
@@ -480,7 +573,10 @@
         // ── Blind masking helpers (คืนสตริงดิบ — ผู้เรียกใน innerHTML ต้อง esc เอง) ──
         function rebuildBlindNumbers() {
             blindNum = new Map();
-            [...teams].sort((a, b) => a.email < b.email ? -1 : a.email > b.email ? 1 : 0)
+            // รวมกลุ่มพิจารณาความผิดปกติเข้ามาด้วย ไม่งั้นทีมกลุ่มนั้นจะไม่มีเลขสุ่มตรวจ
+            // และขึ้นเป็น "#00" ในหน้าต่างหลักฐานตอนอยู่โหมด Blind
+            [...teams, ...integrityReviewTeams]
+                .sort((a, b) => a.email < b.email ? -1 : a.email > b.email ? 1 : 0)
                 .forEach((t, i) => blindNum.set(t.email, i + 1));
         }
         const anonLabel = (n) => `ทีมสุ่มตรวจ #${String(n).padStart(2, '0')}`;
@@ -1108,6 +1204,8 @@
                 card('🔴 ตรวจเข้ม', s.severe ?? 0, `🟠 เฝ้าระวัง ${esc(s.warn ?? 0)} ทีม`, 'border-red-200'),
                 card('ส่งเร็วผิดปกติ', s.speedrun ?? 0, `อัตราพิมพ์สูงผิดปกติ ${esc(s.typing ?? 0)} ทีม`, 'border-amber-200'),
                 card(`คู่ Essay ซ้ำ ≥ ${simPct}%`, s.similarPairs ?? 0, `ต่างโรงเรียน ${esc(s.crossSchoolPairs ?? 0)} คู่`, 'border-red-200'),
+                card('ทีมที่ผ่านแล้วแต่ติดธง 🔴', integrityReviewTeams.length,
+                     'รอการพิจารณาของกรรมการ', 'border-red-300'),
             ].join('');
 
             // ตัวกรองธง — นับจากทีมที่ถูกตั้งธงจริงเท่านั้น ธงที่ไม่มีใครติดจะไม่ขึ้นปุ่ม
@@ -1147,6 +1245,7 @@
                     <th class="text-right">ตัว/นาที</th>
                     <th class="text-right">Essay ซ้ำสูงสุด</th>
                     <th class="text-left">ธงที่ตรวจพบ</th>
+                    <th class="text-left">การจัดการ</th>
                 </tr>`;
 
             const body = shown.map(t => {
@@ -1169,6 +1268,12 @@
                     <td class="text-right">${esc(Math.round(t.cpm))}</td>
                     <td class="text-right">${esc(sim)}</td>
                     <td class="text-left text-[11px]">${flagList}</td>
+                    <td class="it-actions">
+                        <button data-evidence="${esc(t.email)}"
+                            class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50">
+                            🔍 ดูหลักฐาน &amp; ตัดสิน
+                        </button>
+                    </td>
                 </tr>`;
             }).join('');
 
@@ -1178,6 +1283,455 @@
             // เปิดหน้าตรวจผ่านทางเดียวกับตารางอันดับ (มี alert เมื่อทีมไม่อยู่ในคิวให้แล้ว)
             document.querySelectorAll('#integrityTable tr.it-row').forEach(tr =>
                 tr.addEventListener('click', () => openGradingFromSheet(tr.dataset.email)));
+            // ปุ่มหลักฐานอยู่ในแถวที่คลิกได้ — ต้องกันไม่ให้คลิกทะลุไปเปิดหน้าตรวจด้วย
+            document.querySelectorAll('#integrityTable [data-evidence]').forEach(b =>
+                b.addEventListener('click', ev => {
+                    ev.stopPropagation();
+                    openEvidence(b.dataset.evidence);
+                }));
+        }
+
+
+        // ── หน้าต่างหลักฐาน & การตัดสิน (Integrity Evidence) ───────────────
+        // อ่าน ?action=getIntegrityEvidence (8_IntegrityTriage.js) แล้วส่งผลการ
+        // ตัดสินกลับด้วย POST adminIntegrityDecision (7_EssayGradingApi.js).
+        //
+        // ทุกช่วงไฮไลต์คำนวณจากฝั่ง server เป็นช่วง index (start/end) บนข้อความดิบ
+        // ฝั่งนี้แค่ระบายสีตามช่วงที่ได้มา — ไม่มีการตรวจจับซ้ำที่ฝั่ง client
+        // เพื่อไม่ให้ตัวเลขที่กรรมการเห็นมาจากสองสูตรที่ต่างกัน
+
+        const MARK_PRIORITY = { 'hl-shared': 4, 'hl-llm': 3, 'hl-echo': 2, 'hl-md': 1 };
+        const HIT_CLASS = { markdown: 'hl-md', llm: 'hl-llm', echo: 'hl-echo' };
+
+        /**
+         * ระบายสีข้อความตามช่วง marks [{start,end,cls}] ที่ทับซ้อนกันได้
+         * เลือกสีที่มีลำดับความสำคัญสูงกว่าเมื่อทับกัน แล้วรวมช่วงสีเดียวกันติดกัน
+         */
+        function renderMarked(text, marks) {
+            const n = (text || '').length;
+            if (!n) return '<span class="text-slate-300">(ไม่มีคำตอบ)</span>';
+            const cls = new Array(n).fill('');
+            (marks || []).forEach(m => {
+                const from = Math.max(0, m.start | 0), to = Math.min(n, m.end | 0);
+                for (let i = from; i < to; i++) {
+                    if (!cls[i] || MARK_PRIORITY[m.cls] > MARK_PRIORITY[cls[i]]) cls[i] = m.cls;
+                }
+            });
+            let out = '', i = 0;
+            while (i < n) {
+                const c = cls[i];
+                let j = i;
+                while (j < n && cls[j] === c) j++;
+                const chunk = esc(text.slice(i, j));
+                out += c ? `<span class="${c}">${chunk}</span>` : chunk;
+                i = j;
+            }
+            return out;
+        }
+
+        async function openEvidence(email) {
+            evidenceEmail = email;
+            evidenceData = null;
+            $('modalEvidence').classList.remove('hidden');
+            $('evTitle').textContent = 'หลักฐานประกอบการพิจารณา';
+            $('evMeta').textContent = '';
+            $('evBody').innerHTML = `<p class="text-center text-slate-400 text-sm py-10">กำลังโหลดหลักฐาน...</p>`;
+            try {
+                let data;
+                if (demoMode) {
+                    data = essayEvidenceFixture(email);
+                } else {
+                    const res = await fetch(`${API_URL}?action=getIntegrityEvidence&email=${encodeURIComponent(email)}&idToken=${encodeURIComponent(await window.idToken())}`);
+                    data = await res.json();
+                    if (data.status !== 'success') throw new Error(data.message || 'โหลดหลักฐานไม่สำเร็จ');
+                }
+                if (!data.available) throw new Error(data.message || 'ยังไม่มีรายงานตรวจสอบความผิดปกติ');
+                evidenceData = data;
+                // ตัวบ่งชี้ทีมสำรองต้องใช้ตารางอันดับของโควตานั้น — โหลดถ้ายังไม่มี
+                if (!sheetData[data.team.quota]) await loadSheetView(data.team.quota);
+                renderEvidence();
+            } catch (err) {
+                $('evBody').innerHTML = `<p class="text-center text-red-500 text-sm py-10">${esc(err.message)}</p>`;
+            }
+        }
+
+        window.closeEvidence = () => {
+            $('modalEvidence').classList.add('hidden');
+            evidenceData = null;
+            evidenceEmail = null;
+        };
+
+        /**
+         * ทีมที่ "มีสิทธิ์ได้เลื่อน" ถ้าทีมนี้ถูกตัดสิทธิ์ — คำนวณฝั่ง client จาก
+         * ตารางอันดับของโควตาเดียวกัน
+         *
+         * ⚠️ เป็นการคาดการณ์เพื่อประกอบการตัดสินใจเท่านั้น ไม่ใช่สิ่งที่ระบบทำให้
+         * อัตโนมัติ: _rankQuota() (1_DataSync.js) ยังนับแถวที่ถูกตัดสิทธิ์เป็นหนึ่ง
+         * ที่นั่งในการไล่อันดับ การเลื่อนจริงจึงต้องให้ฝ่ายวิชาการจัดการเอง
+         * (ดูข้อความกำกับในกล่อง)
+         */
+        const QUALIFIED_SET = new Set(['Qualified', 'Qualified (Auto)']);
+
+        function promotionCandidate(team) {
+            const data = sheetData[team.quota];
+            if (!data || !data.rows) return null;
+            const isSchool = team.quota === 'โรงเรียน';
+
+            // ผู้มีสิทธิ์ได้เลื่อน = ทีมคะแนนสูงสุดที่ ยังไม่ผ่าน ในโควตาเดียวกัน
+            // (นิยามนี้ไม่อิงเลขที่นั่งที่ 75/25 จึงใช้ได้แม้ตารางยังไม่ครบทุกแถว)
+            const waiting = data.rows
+                .filter(r => r.email !== team.email
+                    && !QUALIFIED_SET.has(r.qualifiedStatus)
+                    && r.qualifiedStatus !== 'Disqualified')
+                .sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
+            const next = waiting[0];
+            if (!next) return null;
+
+            // เพดาน 3 ทีม/โรงเรียน ใช้เฉพาะโควตาโรงเรียน — ทีมลำดับถัดไปอาจถูกข้าม
+            let schoolCount = null;
+            if (isSchool && next.schoolName) {
+                schoolCount = data.rows.filter(r => r.email !== team.email
+                    && QUALIFIED_SET.has(r.qualifiedStatus)
+                    && (r.schoolName || '') === next.schoolName).length;
+            }
+            return { row: next, isSchool, schoolCount };
+        }
+
+        function renderEvidence() {
+            const d = evidenceData;
+            if (!d) return;
+            const t = d.team;
+            const badge = SEVERITY_BADGE[t.severity];
+
+            $('evTitle').innerHTML =
+                `${badge ? `<span class="text-[11px] align-middle border px-2 py-0.5 rounded-full mr-2 ${badge.cls}">${badge.text}</span>` : ''}` +
+                esc(dispAnyTeamRaw(t.email, t.teamName));
+            $('evMeta').textContent =
+                `โควตา ${t.quota} · อันดับ ${t.finalRank} · Auto ${t.autoScore} + Essay ${t.essayTotal} · ` +
+                `สถานะ ${t.qualifiedStatus || '(ว่าง)'} / ${VERIFY_LABEL[t.verifyStatus] ?? t.verifyStatus}`;
+
+            const flagChips = (t.flags || []).map(f =>
+                `<span class="inline-block bg-slate-100 text-slate-700 rounded px-2 py-1 mr-1 mb-1 text-[11px]">${esc(f)}</span>`).join('')
+                || '<span class="text-slate-400 text-xs">— ไม่มีธง —</span>';
+
+            $('evBody').innerHTML = [
+                `<div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 text-xs leading-snug">
+                    <p class="font-extrabold mb-1">⚠️ อ่านก่อนตัดสิน</p>
+                    <p>${esc(d.caveat || '')}</p>
+                 </div>`,
+                `<div><p class="text-xs font-extrabold text-slate-700 mb-2">ธงที่ตรวจพบ</p>${flagChips}</div>`,
+                renderEvidenceGauges(d),
+                renderEvidenceExcerpts(d),
+                renderEvidenceDiffs(d),
+                renderDecisionBox(d)
+            ].join('');
+
+            document.querySelectorAll('[data-decision]').forEach(b =>
+                b.addEventListener('click', () => submitDecision(b.dataset.decision)));
+        }
+
+        // ── แถบเทียบเวลา / อัตราพิมพ์ ─────────────────────────────────────
+        function gaugeHtml(opts) {
+            const { value, max, zones, ticks, me } = opts;
+            const pct = v => Math.max(0, Math.min(100, (v / max) * 100));
+            const stops = zones.map(z => `${z.color} ${pct(z.from)}%, ${z.color} ${pct(z.to)}%`).join(', ');
+            const tickHtml = ticks.filter(k => k.at > 0 && k.at <= max).map(k =>
+                `<div class="gauge-tick" style="left:${pct(k.at)}%"><span>${esc(k.label)}</span></div>`).join('');
+            return `
+                <div class="gauge" style="background:linear-gradient(to right, ${stops})">
+                    ${tickHtml}
+                    <div class="gauge-me" style="left:${pct(value)}%"><span>${esc(me)}</span></div>
+                </div>`;
+        }
+
+        function renderEvidenceGauges(d) {
+            const tm = d.timing, ty = d.typing;
+
+            // แกนเวลา 0 → เวลาสอบเต็ม (240 นาที) หรือไกลกว่านั้นถ้าทีมส่งช้ากว่า
+            const tMax = Math.max(240, Math.ceil(tm.submitMinutes + 10));
+            const timeGauge = gaugeHtml({
+                value: tm.submitMinutes, max: tMax,
+                zones: [
+                    { from: 0, to: tm.severeMin ?? 30, color: '#fecaca' },
+                    { from: tm.severeMin ?? 30, to: tm.floorMin ?? 45, color: '#fed7aa' },
+                    { from: tm.floorMin ?? 45, to: tMax, color: '#f1f5f9' },
+                ],
+                ticks: [
+                    { at: tm.severeMin, label: `🔴 ${tm.severeMin}` },
+                    { at: tm.floorMin, label: `🟠 ${tm.floorMin}` },
+                    { at: tm.cohort?.p5, label: `p5 ${tm.cohort?.p5}` },
+                    { at: tm.cohort?.median, label: `มัธยฐาน ${tm.cohort?.median}` },
+                ],
+                me: `${tm.submitMinutes} นาที`
+            });
+
+            // แกนอัตราพิมพ์ 0 → เกินระดับ "เป็นไปไม่ได้" ไว้เล็กน้อย
+            const cMax = Math.max((ty.impossible ?? 200) * 1.4, Math.ceil(ty.cpm * 1.15), 60);
+            const cpmGauge = gaugeHtml({
+                value: ty.cpm, max: cMax,
+                zones: [
+                    { from: 0, to: ty.watch ?? 150, color: '#f1f5f9' },
+                    { from: ty.watch ?? 150, to: ty.impossible ?? 200, color: '#fed7aa' },
+                    { from: ty.impossible ?? 200, to: cMax, color: '#fecaca' },
+                ],
+                ticks: [
+                    { at: ty.cohort?.median, label: `มัธยฐาน ${ty.cohort?.median}` },
+                    { at: ty.watch, label: `🟠 ${ty.watch}` },
+                    { at: ty.impossible, label: `🔴 ${ty.impossible}` },
+                ],
+                me: `${ty.cpm} ตัว/นาที`
+            });
+
+            return `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <p class="text-xs font-extrabold text-slate-700">⏱️ เวลาส่ง (นาทีหลังเปิดฟอร์ม)</p>
+                    <p class="text-[11px] text-slate-500 mb-6">
+                        เร็วกว่า ${esc(100 - (tm.percentile ?? 0))}% ของผู้เข้าสอบ ·
+                        ลำดับที่ส่งเร็วที่สุดอันดับ ${esc(tm.speedRank || '—')} จาก ${esc(tm.cohort?.n ?? 0)} ทีม
+                        ${tm.flagged ? '<b class="text-red-600">· ติดธง</b>' : ''}
+                    </p>
+                    ${timeGauge}
+                    <p class="text-[10px] text-slate-400 mt-6 leading-snug">
+                        Google Forms บันทึกเฉพาะ "เวลาส่ง" — ตัวเลขนี้คือเวลาหลังฟอร์มเปิด
+                        <b>ไม่ใช่</b>เวลาที่ทีมใช้ทำจริง (ทีมที่เริ่ม 16:30 แล้วส่ง 16:55 จะอ่านได้ 235 นาที)
+                    </p>
+                </div>
+                <div>
+                    <p class="text-xs font-extrabold text-slate-700">⌨️ อัตราพิมพ์ขั้นต่ำ (ตัวอักษร/นาที)</p>
+                    <p class="text-[11px] text-slate-500 mb-6">
+                        พิมพ์รวม ${esc(ty.charsTotal)} ตัวอักษร · สูงกว่า ${esc(ty.percentile ?? 0)}% ของผู้เข้าสอบ
+                        ${ty.flagged ? '<b class="text-red-600">· ติดธง</b>' : ''}
+                    </p>
+                    ${cpmGauge}
+                    <p class="text-[10px] text-slate-400 mt-6 leading-snug">
+                        คิดจาก "นาทีหลังเปิดฟอร์ม" ซึ่งเป็นเวลามากที่สุดที่ทีมจะใช้ได้
+                        ค่านี้จึงเป็น<b>ขอบล่าง</b>ของอัตราพิมพ์จริง — ถ้าขอบล่างยังสูงเกินมนุษย์ ก็ไม่มีเวลาเริ่มใดช่วยได้
+                    </p>
+                </div>
+            </div>`;
+        }
+
+        // ── คำตอบ Essay ของทีมนี้ พร้อมไฮไลต์ Markdown / LLM / ทวนโจทย์ ───
+        function renderEvidenceExcerpts(d) {
+            const anyHit = (d.excerpts || []).some(e => (e.hits || []).length);
+            const blocks = (d.excerpts || []).map(e => {
+                const marks = (e.hits || []).map(h => ({ start: h.start, end: h.end, cls: HIT_CLASS[h.kind] }));
+                const names = [...new Set((e.hits || []).map(h => h.name))];
+                return `
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2 flex-wrap">
+                        <span class="text-xs font-extrabold text-slate-700">ข้อ ${esc(e.label)}</span>
+                        <span class="text-[11px] text-slate-500">${esc(e.score)}/${esc(e.max)} คะแนน · ${esc(e.chars)} ตัวอักษร</span>
+                        ${names.map(n => `<span class="text-[10px] bg-white border border-slate-200 rounded px-1.5 py-0.5">${esc(n)}</span>`).join('')}
+                    </div>
+                    <div class="ev-pane px-3 py-2">${renderMarked(e.text, marks)}</div>
+                </div>`;
+            }).join('');
+
+            return `
+            <div>
+                <div class="flex items-center gap-3 flex-wrap mb-2">
+                    <p class="text-xs font-extrabold text-slate-700">📝 คำตอบ Essay ของทีมนี้</p>
+                    <span class="text-[10px]"><span class="hl-md px-1">Markdown</span></span>
+                    <span class="text-[10px]"><span class="hl-llm px-1">สำนวน LLM</span></span>
+                    <span class="text-[10px]"><span class="hl-echo px-1">ทวนโจทย์</span></span>
+                </div>
+                ${anyHit ? '' : '<p class="text-[11px] text-slate-400 mb-2">— ไม่พบร่องรอย Markdown / สำนวน LLM / การทวนโจทย์ —</p>'}
+                <div class="space-y-2">${blocks}</div>
+            </div>`;
+        }
+
+        // ── เทียบคำตอบกับทีมที่ซ้ำ ≥ เกณฑ์ (side-by-side) ─────────────────
+        function renderEvidenceDiffs(d) {
+            const simPct = Math.round((d.similarityFlag ?? 0.8) * 100);
+            if (!(d.diffs || []).length) {
+                return `<div>
+                    <p class="text-xs font-extrabold text-slate-700 mb-1">🔁 การเทียบคำตอบกับทีมอื่น</p>
+                    <p class="text-[11px] text-slate-400">— ไม่มีทีมที่คำตอบ Essay ซ้ำถึงเกณฑ์ ${simPct}% —</p>
+                </div>`;
+            }
+
+            const blocks = d.diffs.map(p => {
+                const severe = p.similarity >= (d.similaritySevere ?? 0.9);
+                const head = `
+                    <div class="px-3 py-2 flex flex-wrap items-center gap-2 ${severe ? 'bg-red-50' : 'bg-amber-50'} border-b border-slate-100">
+                        <span class="text-xs font-extrabold ${severe ? 'text-red-700' : 'text-amber-800'}">
+                            ซ้ำ ${(p.similarity * 100).toFixed(1)}%
+                        </span>
+                        <span class="text-xs text-slate-600">กับ ${esc(dispAnyTeamRaw(p.otherEmail, p.otherTeamName))}</span>
+                        <span class="text-[11px] px-1.5 py-0.5 rounded ${p.sameSchool ? 'bg-slate-200 text-slate-600' : 'bg-red-200 text-red-800 font-bold'}">
+                            ${p.sameSchool ? 'โรงเรียนเดียวกัน' : '⚠️ ต่างโรงเรียน'}
+                        </span>
+                        ${p.sharedRareAnswers ? `<span class="text-[11px] text-slate-600">คำตอบหายากตรงกัน ${esc(p.sharedRareAnswers)} ข้อ</span>` : ''}
+                    </div>`;
+
+                if (!p.otherFound) {
+                    return `<div class="border border-slate-200 rounded-xl overflow-hidden">${head}
+                        <p class="px-3 py-3 text-[11px] text-slate-400">ไม่พบแถวของทีมคู่เทียบในชีตจัดอันดับ — แสดงข้อความเทียบไม่ได้</p></div>`;
+                }
+                if (!p.slots.length) {
+                    return `<div class="border border-slate-200 rounded-xl overflow-hidden">${head}
+                        <p class="px-3 py-3 text-[11px] text-slate-400">คำตอบรายข้อสั้นเกินเกณฑ์เทียบ — ดูคะแนนซ้ำรวมด้านบนแทน</p></div>`;
+                }
+
+                const slotRows = p.slots.map(sl => {
+                    const mine = (d.excerpts || []).find(e => e.label === sl.label);
+                    return `
+                    <div class="border-t border-slate-100">
+                        <p class="px-3 pt-2 text-[11px] font-extrabold text-slate-600">
+                            ข้อ ${esc(sl.label)} — ซ้ำ ${(sl.similarity * 100).toFixed(1)}%
+                        </p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-100">
+                            <div class="bg-white">
+                                <p class="px-3 pt-2 text-[10px] text-slate-400">ทีมนี้</p>
+                                <div class="ev-pane px-3 py-2">${renderMarked(mine ? mine.text : '',
+                                    (sl.aRanges || []).map(r => ({ start: r.start, end: r.end, cls: 'hl-shared' })))}</div>
+                            </div>
+                            <div class="bg-white">
+                                <p class="px-3 pt-2 text-[10px] text-slate-400">${esc(dispAnyTeamRaw(p.otherEmail, p.otherTeamName))}</p>
+                                <div class="ev-pane px-3 py-2">${renderMarked(sl.bText,
+                                    (sl.bRanges || []).map(r => ({ start: r.start, end: r.end, cls: 'hl-shared' })))}</div>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                return `<div class="border border-slate-200 rounded-xl overflow-hidden">${head}${slotRows}</div>`;
+            }).join('');
+
+            return `
+            <div>
+                <div class="flex items-center gap-3 flex-wrap mb-2">
+                    <p class="text-xs font-extrabold text-slate-700">🔁 เทียบคำตอบกับทีมที่ซ้ำ ≥ ${simPct}%</p>
+                    <span class="text-[10px]"><span class="hl-shared px-1">ข้อความที่ตรงกันทั้งสองฝั่ง</span></span>
+                </div>
+                <div class="space-y-3">${blocks}</div>
+            </div>`;
+        }
+
+        // ── กล่องตัดสิน ────────────────────────────────────────────────────
+        function renderDecisionBox(d) {
+            const t = d.team;
+            const promo = promotionCandidate(t);
+            const alreadyDq = t.qualifiedStatus === 'Disqualified';
+
+            // ตัวบ่งชี้ทีมที่จะได้เลื่อน — ต้องเขียนให้ชัดว่าเป็นการ "คาดการณ์"
+            // ไม่ใช่สิ่งที่เกิดขึ้นเอง มิฉะนั้นเจ้าหน้าที่จะเข้าใจว่าระบบเลื่อนให้แล้ว
+            let promoHtml = '';
+            if (promo) {
+                const capWarn = promo.isSchool && promo.schoolCount !== null && promo.schoolCount >= 3;
+                promoHtml = `
+                <div class="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-xs">
+                    <p class="font-extrabold text-sky-900 mb-1">🔄 ถ้าตัดสิทธิ์ทีมนี้ — ทีมลำดับถัดไปในโควตา ${esc(t.quota)}</p>
+                    <p class="text-slate-700">
+                        <b>${esc(dispAnyTeamRaw(promo.row.email, promo.row.teamName))}</b>
+                        · คะแนนรวม ${esc(promo.row.totalScore)}
+                        ${promo.isSchool && promo.row.schoolName && !isBlindMode ? `· ${esc(promo.row.schoolName)}` : ''}
+                    </p>
+                    ${promo.isSchool ? `
+                    <p class="text-[11px] mt-1 ${capWarn ? 'text-red-700 font-bold' : 'text-slate-500'}">
+                        ${capWarn
+                            ? `⚠️ โรงเรียนนี้มีทีมผ่านครบ ${esc(promo.schoolCount)} ทีมแล้ว — ตามเพดาน 3 ทีม/โรงเรียน ทีมนี้จะถูกข้าม ต้องไล่ไปทีมถัดไป`
+                            : `โรงเรียนนี้มีทีมผ่านอยู่ ${esc(promo.schoolCount ?? 0)} ทีม (เพดาน 3 ทีม/โรงเรียน)`}
+                    </p>` : ''}
+                    <p class="text-[11px] text-red-700 font-bold mt-2 leading-snug">
+                        ⚠️ เป็นการคาดการณ์เพื่อประกอบการตัดสินใจเท่านั้น — <u>ระบบไม่ได้เลื่อนให้อัตโนมัติ</u>
+                        เครื่องมือจัดอันดับยังนับแถวที่ถูกตัดสิทธิ์เป็นหนึ่งที่นั่ง การเลื่อนต้องให้ฝ่ายวิชาการดำเนินการเอง
+                    </p>
+                </div>`;
+            }
+
+            const btn = (decision, cls, label, hint) => `
+                <button data-decision="${decision}"
+                    class="flex-1 min-w-[190px] text-left px-4 py-3 rounded-xl border-2 font-bold text-sm ${cls}">
+                    ${label}
+                    <span class="block font-normal text-[11px] opacity-80 mt-0.5">${hint}</span>
+                </button>`;
+
+            return `
+            <div class="border-t border-slate-200 pt-4 space-y-3">
+                ${promoHtml}
+                ${alreadyDq ? `<div class="bg-red-50 border border-red-300 text-red-800 rounded-xl px-4 py-2 text-xs font-bold">
+                    ทีมนี้ถูกตัดสิทธิ์ไว้แล้ว — เลือก "ปลดธง" เพื่อยกเลิกการตัดสิทธิ์และให้ระบบคิดอันดับใหม่</div>` : ''}
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">
+                        เหตุผลประกอบการตัดสิน <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="evReason" rows="2" placeholder="ระบุเหตุผลและหลักฐานที่ใช้ — จะถูกบันทึกลง Error_Log และ Essay_Grading_Log"
+                        class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"></textarea>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    ${btn('CLEARED', 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
+                          '🟢 ปลดธง (Cleared)', 'ลบธงออกจากรายงาน — ไม่แตะคะแนน')}
+                    ${btn('PENALIZE_ESSAY', 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100',
+                          '🟡 ตัดคะแนน Essay เป็น 0', 'ตั้งคะแนน Essay ทุกข้อเป็น 0 แล้วมาร์ค Graded')}
+                    ${btn('DISQUALIFY', 'border-red-400 bg-red-50 text-red-800 hover:bg-red-100',
+                          '🔴 ตัดสิทธิ์ (Disqualify)', isBlindMode ? '🔒 ต้องปลดล็อกด้วยรหัสฝ่ายจัดการก่อน' : 'ตั้งสถานะเป็นตัดสิทธิ์ + ล็อกแถว')}
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">
+                    ทุกการตัดสินถูกบันทึกพร้อมอีเมลผู้ตัดสิน (จาก token ที่ล็อกอิน) และเหตุผล ลงทั้ง Error_Log และ Essay_Grading_Log
+                </p>
+            </div>`;
+        }
+
+        async function submitDecision(decision) {
+            const d = evidenceData;
+            if (!d) return;
+            const reason = ($('evReason').value || '').trim();
+            if (!reason) { alert('กรุณาระบุเหตุผลประกอบการตัดสินก่อน'); $('evReason').focus(); return; }
+
+            // ตัดสิทธิ์เป็นการกระทำที่ย้อนกลับยากที่สุดในหน้านี้ — กันไว้หลังรหัส
+            // ฝ่ายจัดการเดียวกับที่ใช้ปลดโหมด Blind (ดูหมายเหตุที่ DEV_UNMASK_PW:
+            // เป็นการกันเผลอ ไม่ใช่การคุมสิทธิ์จริง สิทธิ์จริงอยู่ที่ staff_whitelist)
+            if (decision === 'DISQUALIFY') {
+                if (isBlindMode) {
+                    const pw = prompt('การตัดสิทธิ์ต้องใช้รหัสฝ่ายจัดการ:');
+                    if (pw === null) return;
+                    if (pw !== DEV_UNMASK_PW) { alert('❌ รหัสผ่านไม่ถูกต้อง'); return; }
+                }
+                const name = dispAnyTeamRaw(d.team.email, d.team.teamName);
+                if (!confirm(`ยืนยันตัดสิทธิ์ทีม "${name}" ?\n\n` +
+                             `• Qualified_Status จะเป็น "Disqualified" และแถวจะถูกล็อก (Verified)\n` +
+                             `• ระบบจะ "ไม่" เลื่อนทีมสำรองให้อัตโนมัติ ต้องดำเนินการเอง\n` +
+                             `• ยกเลิกได้ภายหลังด้วยปุ่ม "ปลดธง"\n\nเหตุผล: ${reason}`)) return;
+            }
+
+            const buttons = document.querySelectorAll('[data-decision]');
+            buttons.forEach(b => { b.disabled = true; b.classList.add('opacity-50'); });
+            try {
+                if (demoMode) {
+                    toast(`(เดโม) บันทึกผลตัดสิน ${decision} แล้ว`);
+                } else {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: 'adminIntegrityDecision',
+                            idToken: await window.idToken(),
+                            email: d.team.email,
+                            decision, reason
+                        })
+                    });
+                    const out = await res.json();
+                    if (out.status !== 'success') throw new Error(out.message || 'บันทึกผลตัดสินไม่สำเร็จ');
+                    toast('✅ บันทึกผลตัดสินเรียบร้อย');
+                    if (out.requiresFinalRanking) {
+                        alert('บันทึกแล้ว — อย่าลืมรันเมนู GAS "ประมวลผลคะแนนสุทธิ" (processFinalRanking) ' +
+                              'เพื่อให้อันดับและทีมสำรองอัปเดตตามผลการตัดสินนี้');
+                    }
+                }
+                closeEvidence();
+                // ผลการตัดสินเปลี่ยนทั้งรายงานธง คิวตรวจ และตารางอันดับ — โหลดใหม่ทั้งหมด
+                integrityData = null;
+                sheetData['โรงเรียน'] = null;
+                sheetData['ผสม'] = null;
+                await reloadQueue();
+                await loadIntegrityView();
+            } catch (err) {
+                alert('❌ ' + err.message);
+                buttons.forEach(b => { b.disabled = false; b.classList.remove('opacity-50'); });
+            }
         }
 
         // ── Blind toggle (ปุ่ม navbar) ────────────────────────────────────
@@ -1215,6 +1769,8 @@
             if (view === 'question') renderQuestionCards();
             if (view === 'sheet' && sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
             if (view === 'integrity' && integrityData) renderIntegrityView();
+            // หน้าต่างหลักฐานมีชื่อทีม (ทั้งทีมนี้และทีมคู่เทียบ) — ต้อง render ใหม่ด้วย
+            if (evidenceData) renderEvidence();
         }
 
         function toast(msg) {
