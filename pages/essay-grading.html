@@ -305,6 +305,13 @@
                     class="sheet-tab px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50">
                     โควตาทีมผสม (25 ทีม)
                 </button>
+                <!-- ตัวกรองด่วน — สลับกับ sheetStatusFilter ตัวเดียวกัน (sheetView.status)
+                     จำนวนในวงเล็บนับจากทุกแถวของโควตา ไม่ขึ้นกับตัวกรองที่เปิดอยู่ -->
+                <button id="tabFlaggedOnly" onclick="toggleFlaggedOnly()" disabled
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="กรองเฉพาะทีมที่ถูกตั้งธง SEVERE / WARN ในโควตานี้">
+                    🚨 เฉพาะทีมที่ต้องเพ่งเล็ง <span id="flaggedCount" class="opacity-70"></span>
+                </button>
                 <span class="ml-auto text-[11px] text-slate-400">
                     <i class="fa-solid fa-circle-info mr-1"></i>
                     คลิกแถวเพื่อเปิดหลักฐาน (ทีมติดธง) หรือแผงตรวจ Essay (ทีมในคิว)
@@ -502,6 +509,10 @@
         // integrityFilter = คีย์ธงที่กรองอยู่ ('' = ทุกธง)
         let integrityData = null;
         let integrityFilter = '';
+        // คำขอที่ยังค้างอยู่ ต่อโควตา / ต่อรายงาน — กันการยิงซ้ำเมื่อ prefetch เบื้องหลัง
+        // กับการสลับแท็บของผู้ใช้เกิดพร้อมกัน (ดู loadSheetView / loadIntegrityView)
+        const sheetLoading = {};
+        let integrityLoading = null;
         // ทีมที่ "ผ่านแล้ว" แต่ติดธง SEVERE — คนละกลุ่มกับคิวตรวจ Essay โดยตั้งใจ
         // (ทีมกลุ่มนี้ไม่ได้รอคะแนน Essay แต่รอการพิจารณาของกรรมการ)
         let integrityReviewTeams = [];
@@ -567,6 +578,7 @@
             integrityReviewTeams = data.integrityReviewTeams || [];
             rebuildBlindNumbers();
             renderQueue();
+            prefetchViews();
         }
 
         function renderDemoHints() {
@@ -599,6 +611,7 @@
                 showBanner(teams.length ? '' : 'sky', 'fa-circle-info',
                     teams.length ? '' : 'ยังไม่มีทีมที่ต้องตรวจ Essay — คิวจะขึ้นหลังรัน Sync (เมนู GAS ข้อ 1) และมีทีมคะแนนเท่ากันตรงเส้นแบ่งโควตา');
                 renderQueue();
+                prefetchViews();
                 // ถ้าทีมที่เปิดอยู่หลุดจากคิว (เช่นถูก Verified) ให้ปิดแผง
                 if (current && !teams.find(t => t.email === current.email)) closePanel();
             } catch (err) {
@@ -615,6 +628,7 @@
             // ถ้ากดบันทึกใน demo ก่อน refresh แล้ว ก็กลับเป็น Graded เดิม — ไม่คง state ข้าม reload
             rebuildBlindNumbers();
             renderQueue();
+            prefetchViews();
             if (current && !teams.find(t => t.email === current.email)) closePanel();
         }
 
@@ -665,8 +679,188 @@
             return n ? anonLabel(n) : 'ทีมอื่นนอกคิว (ปกปิด)';
         }
         const dispPairTeamRaw = (p) => dispAnyTeamRaw(p.otherEmail, p.otherTeamName);
+        // โรงเรียนของทีมคู่เทียบระบุตัวตนได้พอ ๆ กับชื่อทีม — ต้องปิดในโหมด Blind ด้วย
+        const dispPairSchoolRaw = (p) => isBlindMode
+            ? '— (ปกปิด)'
+            : (p.otherSchoolName || '(ไม่ทราบโรงเรียน)');
 
-        /** กล่องแจ้งเตือนหัวแผงตรวจ — ธงเฉพาะทีมนี้ + คู่ที่คำตอบซ้ำ */
+        // ── รายการตรวจสอบสำหรับกรรมการ (Investigation Checklist) ───────────
+        // เกณฑ์ที่ข้อความในเช็กลิสต์อ้างถึง — ใช้ค่าจริงจากรายงานเมื่อโหลดแล้ว
+        // ค่าเริ่มต้นตรงกับ INTEGRITY_CONFIG (8_IntegrityTriage.js) ไว้ใช้ก่อนโหลดเสร็จ
+        const IT_FALLBACK_THRESHOLDS = {
+            speedrunFloorMin: 45, speedrunSevereMin: 30,
+            cpmWatch: 150, cpmImpossible: 200,
+            similarityFlag: 0.8, similaritySevere: 0.9,
+        };
+        const itThresholds = () => ({ ...IT_FALLBACK_THRESHOLDS, ...(integrityData?.thresholds || {}) });
+        const SLOT_SIM_BADGE = 0.8;      // เกณฑ์ขึ้นธงระดับข้อบนหัวข้อ Essay
+        const fmt1 = (n) => Number(n || 0).toFixed(1);
+        const pct1 = (x) => (Number(x || 0) * 100).toFixed(1);
+
+        // ธงมิติที่ไม่มีรายการตรวจของตัวเอง — รวมเป็นข้อสุดท้ายของเช็กลิสต์
+        const IT_OTHER_FLAG_LABEL = {
+            llm: 'สำนวนที่พบบ่อยในข้อความจาก LLM',
+            echo: 'ทวนโจทย์ก่อนตอบ (prompt echo)',
+            clump: 'ส่งพร้อมกับทีมอื่นในกรอบเวลาเดียวกัน',
+            structural: 'โครงสร้างคำตอบสมมาตรเกินไปทุกข้อ',
+            saq: 'รูปแบบคำตอบสั้นผิดธรรมชาติ',
+        };
+
+        /**
+         * แปลง "ธง" (ผลคัดกรอง) เป็น "สิ่งที่ต้องไปดู" ทีละข้อ พร้อมตัวเลขอ้างอิง
+         *
+         * it      — payload integrity ของทีม (คิว / ตารางอันดับ / หน้าต่างหลักฐาน)
+         *           ต้องมี selfEmail ติดมาด้วย (ผ่าน withSelfEmail) เพราะปุ่มเทียบ
+         *           ข้อความต้องรู้ว่าจะเปิดหน้าต่างหลักฐานของทีมไหน
+         * mdSlots — ข้อที่พบ Markdown; `null` แปลว่า "ไม่ทราบว่าอยู่ข้อไหน"
+         *           (payload ตารางอันดับไม่ได้ส่งคำตอบมาด้วย จึงคำนวณรายข้อไม่ได้)
+         *           ห้ามแสดงว่า "ไม่พบ Markdown" ในกรณีนั้น — เป็น false negative
+         *           แบบเดียวกับกล่องธงว่างเพราะยังไม่ได้รันรายงาน
+         *
+         * คืน [{ title, lines[] }] โดย lines เป็น HTML ที่ escape มาแล้วในนี้
+         */
+        function buildChecklist(it, mdSlots) {
+            if (!it || it.severity === 'NONE') return [];
+            const th = itThresholds();
+            const items = [];
+
+            // 1) เวลาส่ง / อัตราพิมพ์
+            if (it.speedFlagged || it.typingFlagged || (it.cpm || 0) >= th.cpmWatch) {
+                const bits = [];
+                if (it.submitMinutes != null) {
+                    bits.push(`ส่งที่นาที ${esc(fmt1(it.submitMinutes))} หลังเปิดฟอร์ม` +
+                        (it.speedRank ? ` (เร็วเป็นอันดับ ${esc(it.speedRank)})` : ''));
+                }
+                if (it.cpm) {
+                    const ratio = it.cpm / th.cpmImpossible;
+                    bits.push(`${esc(Math.round(it.cpm))} ตัว/นาที` + (
+                        ratio >= 1 ? ` — เกินเพดานพิมพ์ของมนุษย์ (${esc(th.cpmImpossible)}) ราว ${esc(ratio.toFixed(1))} เท่า`
+                        : it.cpm >= th.cpmWatch ? ` — เกินระดับเฝ้าระวัง (${esc(th.cpmWatch)})` : ''));
+                }
+                items.push({
+                    title: 'ตรวจเวลาส่ง / อัตราพิมพ์',
+                    lines: [bits.join(' · '),
+                        'เทียบกับ cohort ได้ในหน้าต่างหลักฐาน — ตัวเลขนี้คือ "นาทีหลังเปิดฟอร์ม" ไม่ใช่เวลาที่ทีมใช้ทำจริง'],
+                });
+            }
+
+            // 2) ร่องรอย Markdown
+            if (it.markdownHits) {
+                const known = Array.isArray(mdSlots);
+                items.push({
+                    title: 'ตรวจร่องรอย Markdown ในคำตอบ',
+                    lines: [known
+                        ? (mdSlots.length
+                            ? `พบไวยากรณ์ Markdown ในข้อ ${esc(mdSlots.join(', '))} (รายงานนับได้ ${esc(it.markdownHits)} รูปแบบ)`
+                            : `รายงานนับได้ ${esc(it.markdownHits)} รูปแบบ แต่ไม่พบในคำตอบชุดปัจจุบัน — ตรวจซ้ำในหน้าต่างหลักฐาน`)
+                        : `พบ ${esc(it.markdownHits)} รูปแบบ — <b>ยังไม่ทราบว่าอยู่ข้อใด</b> เปิดหน้าต่างหลักฐานเพื่อดูรายข้อ`],
+                });
+            }
+
+            // 3) คำตอบ Essay ซ้ำกับทีมอื่น — ข้อที่มีน้ำหนักเป็นพยานมากที่สุด
+            const pairs = (it.similarPairs || []).filter(p => (p.similarity || 0) >= th.similarityFlag);
+            if (pairs.length) {
+                items.push({
+                    title: 'ตรวจความซ้ำของคำตอบ Essay กับทีมอื่น',
+                    lines: pairs.map(p => checklistPairLine(p, it.selfEmail)),
+                });
+            }
+
+            // 4) คำตอบหายากตรงกัน (คนละสัญญาณกับความซ้ำของข้อความ)
+            if (it.sharedRareAnswers) {
+                items.push({
+                    title: 'ตรวจคำตอบหายากที่ตรงกัน',
+                    lines: [`เลือกคำตอบหายากตรงกับอีกทีม ${esc(it.sharedRareAnswers)} ข้อ — ดูรายข้อในรายงานความผิดปกติ`],
+                });
+            }
+
+            // 5) ธงมิติอื่นที่เหลือ
+            const others = (it.flagTypes || [])
+                .filter(k => IT_OTHER_FLAG_LABEL[k])
+                .map(k => {
+                    const n = k === 'llm' ? it.llmHits : k === 'echo' ? it.echoHits : 0;
+                    return esc(IT_OTHER_FLAG_LABEL[k]) + (n ? ` (${esc(n)} จุด)` : '');
+                });
+            if (others.length) {
+                items.push({ title: 'ข้อสังเกตอื่นจากระบบคัดกรอง', lines: others });
+            }
+            return items;
+        }
+
+        /** payload integrity ไม่มีอีเมลของตัวเอง — ปุ่มเทียบข้อความต้องใช้ */
+        const withSelfEmail = (it, email) => (it ? { ...it, selfEmail: email } : it);
+
+        /** หนึ่งบรรทัดของคู่ทีมที่คำตอบซ้ำ — ชื่อ/โรงเรียน/Δt + ปุ่มเปิดเทียบข้อความ */
+        function checklistPairLine(p, selfEmail) {
+            const slot = p.topSlot
+                ? `ข้อ ${esc(p.topSlot)} ซ้ำ ${esc(pct1(p.topSlotSimilarity || p.similarity))}%`
+                : `ซ้ำรวม ${esc(pct1(p.similarity))}%`;
+            const rel = p.sameSchool === true ? 'โรงเรียนเดียวกัน'
+                : p.sameSchool === false ? '⚠️ ต่างโรงเรียน' : 'ไม่ทราบความสัมพันธ์';
+            const dt = p.deltaMinutes == null
+                ? 'ไม่ทราบเวลาส่งของคู่เทียบ'
+                : `ส่งห่างกัน Δt ${esc(fmt1(p.deltaMinutes))} นาที`;
+            return `${slot} กับ <b>${esc(dispPairTeamRaw(p))}</b>
+                <span class="opacity-80">(${esc(dispPairSchoolRaw(p))})</span>
+                <span class="inline-block px-1.5 py-0.5 rounded text-[10px] ${p.sameSchool === false ? 'bg-red-200 text-red-800 font-bold' : 'bg-slate-200 text-slate-700'}">${rel}</span>
+                <span class="opacity-80">· ${dt}</span>
+                ${p.sharedRareAnswers ? `<span class="opacity-80">· คำตอบหายากตรงกัน ${esc(p.sharedRareAnswers)} ข้อ</span>` : ''}
+                ${selfEmail ? `<button data-diff-email="${esc(selfEmail)}"
+                    class="ml-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-white hover:bg-slate-900 whitespace-nowrap">
+                    🔍 เทียบข้อความเคียงกัน
+                </button>` : ''}`;
+        }
+
+        /** เช็กลิสต์ที่ติ๊กได้ (ไม่บันทึก — เป็นตัวช่วยระหว่างอ่านคำตอบเท่านั้น) */
+        function renderChecklist(items) {
+            if (!items.length) return '';
+            const rows = items.map(it => `
+                <label class="flex items-start gap-2 py-1 cursor-pointer">
+                    <input type="checkbox" class="mt-0.5 shrink-0 accent-slate-700">
+                    <span class="min-w-0">
+                        <b>${esc(it.title)}</b>
+                        ${it.lines.map(l => `<span class="block leading-relaxed">${l}</span>`).join('')}
+                    </span>
+                </label>`).join('');
+            return `<div class="mt-2 border-t border-black/10 pt-2">
+                <p class="font-extrabold mb-1">📋 รายการตรวจสอบสำหรับกรรมการ</p>
+                ${rows}
+            </div>`;
+        }
+
+        // ปุ่ม "เทียบข้อความเคียงกัน" ปรากฏได้ทั้งในแผงตรวจ กล่องธง และหน้าต่างหลักฐาน
+        // — ผูก listener ครั้งเดียวแบบ delegated แทนการไล่ผูกใหม่ทุกจุดที่ render
+        document.addEventListener('click', (ev) => {
+            const btn = ev.target.closest && ev.target.closest('[data-diff-email]');
+            if (!btn || !btn.dataset.diffEmail) return;
+            ev.stopPropagation();
+            openEvidenceDiff(btn.dataset.diffEmail);
+        });
+
+        async function openEvidenceDiff(email) {
+            if (!(evidenceData && evidenceEmail === email)) await openEvidence(email);
+            $('evDiffs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        /**
+         * ธงระดับข้อบนหัวข้อ Essay — ขึ้นเฉพาะข้อที่มีหลักฐานของตัวเอง (คำตอบซ้ำ
+         * ถึงเกณฑ์ในข้อนั้น หรือพบ Markdown ในข้อนั้น) ไม่ใช่ธงของทั้งทีม การเอา
+         * ธงระดับทีมมาแปะทุกข้อจะทำให้ข้อที่สะอาดถูกอ่านว่าน่าสงสัยไปด้วย
+         */
+        function slotWarnBadges(team, label) {
+            const it = team && team.integrity;
+            if (!it || it.severity === 'NONE') return '';
+            const out = [];
+            if ((it.markdownSlots || []).includes(label)) out.push('พบ Markdown');
+            (it.similarPairs || []).forEach(p => {
+                const sim = p.topSlotSimilarity || 0;
+                if (p.topSlot === label && sim >= SLOT_SIM_BADGE) out.push(`ซ้ำ ${pct1(sim)}% กับอีกทีม`);
+            });
+            if (!out.length) return '';
+            return `<span class="text-[10px] font-bold border border-red-300 bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">⚠️ ${esc(out.join(' · '))}</span>`;
+        }
+
+        /** กล่องแจ้งเตือนหัวแผงตรวจ — ธงเฉพาะทีมนี้ + เช็กลิสต์ที่ทำตามได้ */
         function renderIntegrityBox(team) {
             const it = team && team.integrity;
             if (!it || it.severity === 'NONE') return '';
@@ -679,18 +873,12 @@
                 : '⚠️ ทีมนี้มีข้อสังเกตจากระบบคัดกรองความผิดปกติ';
 
             const flags = (it.flags || []).map(f => `<li>${esc(f)}</li>`).join('');
-            const pairs = (it.similarPairs || [])
-                .map(p => `<li>${esc(dispPairTeamRaw(p))} — ซ้ำ ${esc((p.similarity * 100).toFixed(1))}%${
-                    p.sameSchool ? ' (โรงเรียนเดียวกัน)' : ' <b>(ต่างโรงเรียน)</b>'}${
-                    p.sharedRareAnswers ? ` · คำตอบหายากตรงกัน ${esc(p.sharedRareAnswers)} ข้อ` : ''}</li>`)
-                .join('');
 
             return `
             <div class="mb-4 border rounded-xl px-4 py-3 text-xs leading-snug ${tone}">
                 <p class="font-extrabold mb-1">${head}</p>
                 ${flags ? `<ul class="list-disc list-inside space-y-0.5">${flags}</ul>` : ''}
-                ${pairs ? `<p class="font-bold mt-2 mb-0.5">คำตอบ Essay ใกล้เคียงกับ:</p>
-                           <ul class="list-disc list-inside space-y-0.5">${pairs}</ul>` : ''}
+                ${renderChecklist(buildChecklist(withSelfEmail(it, team.email), it.markdownSlots || null))}
                 <p class="mt-2 opacity-80">
                     เป็นเพียงเกณฑ์คัดกรองให้ "เพ่งเล็งเป็นพิเศษ" ตอนอ่านคำตอบ —
                     <b>ห้ามใช้หักคะแนนหรือตัดสิทธิ์โดยอัตโนมัติ</b> ให้ตรวจตามคุณภาพคำตอบตามปกติ
@@ -824,7 +1012,9 @@
                 return `
                 <div class="border border-slate-200 rounded-xl p-3">
                     <div class="flex items-center justify-between gap-3 mb-2">
-                        <span class="text-xs font-bold text-slate-600">ข้อ ${esc(sl.label)}</span>
+                        <span class="text-xs font-bold text-slate-600 flex items-center gap-1.5 flex-wrap">
+                            ข้อ ${esc(sl.label)}${slotWarnBadges(team, sl.label)}
+                        </span>
                         <div class="flex items-center gap-1">
                             <input type="number" data-slot="${i}" min="0" max="${sl.max}" step="0.5"
                                 value="${esc(val)}"
@@ -961,9 +1151,12 @@
             $('btnSheetMode').classList.toggle('queue-active', mode === 'sheet');
             $('btnIntegrityMode').classList.toggle('queue-active', mode === 'integrity');
             // re-render ทุกครั้งที่เข้า (ไม่ใช่แค่ตอนโหลดครั้งแรก) เพื่อให้สลับ Blind แล้วชื่อในตารางอัปเดต
-            if (mode === 'sheet') { if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]); else loadSheetView(sheetTab); }
+            if (mode === 'sheet') {
+                if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+                else { updateFlaggedToggle(null); loadSheetView(sheetTab).catch(() => { }); }
+            }
             if (mode === 'question') renderQuestionView();
-            if (mode === 'integrity') { if (integrityData) renderIntegrityView(); else loadIntegrityView(); }
+            if (mode === 'integrity') { if (integrityData) renderIntegrityView(); else loadIntegrityView().catch(() => { }); }
         };
 
         // ── By-Question View (ตรวจเปรียบเทียบทีละข้อ) ──────────────────────
@@ -1116,12 +1309,27 @@
             $('tabSchool').classList.toggle('queue-active', quota === 'โรงเรียน');
             $('tabMixed').classList.toggle('queue-active', quota === 'ผสม');
             if (sheetData[quota]) renderSheetTable(sheetData[quota]);
-            else loadSheetView(quota);
+            else { updateFlaggedToggle(null); loadSheetView(quota).catch(() => { }); }
         };
 
-        async function loadSheetView(quota) {
-            $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>`;
-            try {
+        /**
+         * โหลดตารางอันดับของโควตาหนึ่งแล้ว cache ไว้ใน sheetData
+         *
+         * มีผู้เรียก 3 ทาง — สลับแท็บ, prefetch เบื้องหลังหลังโหลดคิว, และหน้าต่าง
+         * หลักฐาน (ใช้คำนวณทีมที่จะได้เลื่อน) จึงต้อง:
+         *   • คืน cache ทันทีถ้ามีแล้ว — สลับแท็บไม่ยิงเน็ตอีกเลย
+         *   • คืน promise เดิมถ้าคำขอเดียวกันยังค้างอยู่ — ไม่ยิงซ้ำ
+         *   • เขียน "กำลังโหลด..." / ข้อความ error เฉพาะตอนที่แท็บนี้เปิดอยู่จริง
+         *     มิฉะนั้น prefetch จะทับตารางที่ผู้ใช้กำลังอ่านอยู่
+         */
+        function loadSheetView(quota) {
+            if (sheetData[quota]) return Promise.resolve(sheetData[quota]);
+            if (sheetLoading[quota]) return sheetLoading[quota];
+
+            const isActive = () => view === 'sheet' && sheetTab === quota;
+            if (isActive()) $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>`;
+
+            const task = (async () => {
                 let data;
                 if (demoMode) {
                     data = essaySheetViewFixture(quota);
@@ -1131,16 +1339,31 @@
                     if (data.status !== 'success') throw new Error(data.message || 'โหลดตารางอันดับไม่สำเร็จ');
                 }
                 sheetData[quota] = data;
-                if (sheetTab === quota) renderSheetTable(data);
-            } catch (err) {
-                $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-red-500 text-sm">${esc(err.message)}</p>`;
-            }
+                if (isActive()) renderSheetTable(data);
+                return data;
+            })();
+
+            sheetLoading[quota] = task;
+            // prefetch ที่ล้มเหลวต้องเงียบ — cache ยังว่าง ครั้งหน้าที่สลับมาจะโหลดใหม่เอง
+            task.catch(err => {
+                if (isActive()) $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-red-500 text-sm">${esc(err.message)}</p>`;
+            }).finally(() => { delete sheetLoading[quota]; });
+            return task;
         }
 
-        // ตารางอันดับแยกโควตาแบ่งเป็น 3 ส่วน บนสุด -> ล่างสุด:
-        //   1) กล่องทีมที่ต้องเพ่งเล็ง (ธง SEVERE/WARN จาก Integrity Triage)
-        //   2) ตารางอันดับหลัก + เส้นแบ่งโควตา (กรอง/เรียงได้)
-        //   3) ตารางทีมที่ถูกตัดสิทธิ์
+        /** โหลดข้อมูลของแท็บที่เหลือไว้เบื้องหลังทันทีหลังคิวขึ้น — สลับแท็บหลังจากนี้
+         *  อ่านจาก cache ล้วน ไม่มีการรอเน็ต */
+        function prefetchViews() {
+            loadSheetView('โรงเรียน').catch(() => { });
+            loadSheetView('ผสม').catch(() => { });
+            loadIntegrityView().catch(() => { });
+        }
+
+        // ตารางอันดับแยกโควตา บนสุด -> ล่างสุด:
+        //   1) ตารางอันดับหลัก + เส้นแบ่งโควตา (กรอง/เรียงได้) — อยู่บนสุดเสมอ
+        //   2) ตารางทีมที่ถูกตัดสิทธิ์
+        // ทีมที่ต้องเพ่งเล็งไม่มีกล่องของตัวเองแล้ว — เข้าถึงผ่านปุ่มกรองด่วน
+        // "🚨 เฉพาะทีมที่ต้องเพ่งเล็ง" ข้างแท็บโควตา (ธงยังขึ้นในแถวเหมือนเดิม)
         //
         // เลขสุ่มตรวจ (Blind mode) ต้องคิดจากลำดับใน rows "ทั้งชุด" ก่อนกรองและ
         // ก่อนแบ่งส่วน ถ้าคิดจาก index ของแต่ละส่วน/ผลกรอง ทีมเดียวกันจะได้คนละเลข
@@ -1161,13 +1384,14 @@
             if (!rows.length) {
                 $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">— ยังไม่มีข้อมูลอันดับ (รันเมนู GAS ข้อ 1 ก่อน) —</p>`;
                 $('sheetCount').textContent = '';
+                updateFlaggedToggle(null);
                 return;
             }
 
             sheetBlindNum = new Map(rows.map((r, i) => [r.email, i + 1]));
 
-            // กล่องเตือนใช้ "ทุกทีมที่ติดธงในโควตานี้" เสมอ ไม่ขึ้นกับตัวกรอง —
-            // กล่องเตือนที่ว่างเพราะตัวกรองจะถูกอ่านว่า "ไม่มีทีมน่าสงสัย" ซึ่งอันตราย
+            // จำนวนบนปุ่มกรองด่วนนับจาก "ทุกทีมที่ติดธงในโควตานี้" เสมอ ไม่ขึ้นกับตัวกรอง
+            // ที่เปิดอยู่ — ตัวเลขที่ลดลงเพราะตัวกรองจะถูกอ่านว่า "มีทีมน่าสงสัยน้อยลง"
             const flagged = rows.filter(r => r.qualifiedStatus !== 'Disqualified' && severityOf(r) !== 'NONE');
 
             const shown = sortSheetRows(rows.filter(matchesSheetFilters));
@@ -1176,8 +1400,10 @@
 
             $('sheetCount').textContent = `แสดง ${shown.length} จาก ${rows.length} ทีม`;
 
+            updateFlaggedToggle(flagged.length);
+
             $('sheetTableWrap').innerHTML =
-                renderSheetAlertBox(data, flagged) +
+                renderSheetTriageNotice(data) +
                 renderSheetRankingTable(data, rankedShown) +
                 renderSheetDqTable(data, dqShown);
 
@@ -1187,11 +1413,6 @@
                 el.addEventListener('click', (ev) => {
                     ev.stopPropagation();
                     openEvidence(el.dataset.sheetEvidence);
-                }));
-            document.querySelectorAll('#sheetTableWrap [data-sheet-grade]').forEach(el =>
-                el.addEventListener('click', (ev) => {
-                    ev.stopPropagation();
-                    openGradingFromSheet(el.dataset.sheetGrade);
                 }));
             document.querySelectorAll('#sheetTableWrap [data-sheet-sort]').forEach(el =>
                 el.addEventListener('click', () => onSheetSortChange(el.dataset.sheetSort, true)));
@@ -1273,6 +1494,26 @@
             if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
         };
 
+        /**
+         * ปุ่มกรองด่วน "เฉพาะทีมที่ต้องเพ่งเล็ง" ใช้ sheetView.status ตัวเดียวกับ
+         * dropdown สถานะ (ค่า 'FLAGGED') — ไม่มี state แยกของตัวเอง มิฉะนั้นสอง
+         * ตัวควบคุมจะเขียนทับกันเงียบ ๆ ตอนผู้ใช้สลับไปมา
+         */
+        window.toggleFlaggedOnly = () => {
+            sheetView.status = sheetView.status === 'FLAGGED' ? 'ALL' : 'FLAGGED';
+            $('sheetStatusFilter').value = sheetView.status;
+            if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+        };
+
+        /** n = จำนวนทีมติดธงในโควตานี้ (null = ยังไม่โหลดข้อมูล → ปิดปุ่ม ไม่โชว์เลข) */
+        function updateFlaggedToggle(n) {
+            const btn = $('tabFlaggedOnly');
+            if (!btn) return;
+            btn.disabled = (n === null);
+            $('flaggedCount').textContent = (n === null) ? '' : `(${n} ทีม)`;
+            btn.classList.toggle('queue-active', sheetView.status === 'FLAGGED');
+        }
+
         window.resetSheetFilters = () => {
             sheetView.q = ''; sheetView.status = 'ALL'; sheetView.verify = 'ALL'; sheetView.sort = 'RANK';
             $('sheetSearch').value = '';
@@ -1297,62 +1538,14 @@
                 title="คลิกที่แถวนี้เพื่อดูหลักฐาน &amp; ตัดสิน">${b.text}</span>`;
         }
 
-        // ── ส่วนที่ 1: กล่องทีมที่ต้องเพ่งเล็ง ─────────────────────────────
-        // integrityAvailable:false ต้องบอกให้ชัดว่า "ยังไม่ได้รันรายงาน" ไม่ใช่ปล่อย
-        // กล่องว่าง ซึ่งกรรมการจะอ่านว่า "ตรวจแล้วไม่พบอะไร"
-        function renderSheetAlertBox(data, flagged) {
-            if (data.integrityAvailable === false) {
-                return `<div class="m-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-                    ⚪ ยังไม่ได้รันรายงานตรวจสอบความผิดปกติ — ตารางนี้จึงยังไม่แสดงธงใด ๆ
-                    (ต้องรันเมนู GAS "ตรวจสอบความผิดปกติ" ก่อน)
-                </div>`;
-            }
-            if (!flagged.length) {
-                return `<div class="m-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                    ✅ ไม่มีทีมในโควตานี้ที่ถูกระบบคัดกรองตั้งธง
-                </div>`;
-            }
-
-            const items = flagged
-                .slice()
-                .sort((a, b) => SEVERITY_ORDER[severityOf(a)] - SEVERITY_ORDER[severityOf(b)] || rankValue(a) - rankValue(b))
-                .map(r => {
-                    const severe = severityOf(r) === 'SEVERE';
-                    const inQueue = teams.some(t => t.email === r.email);
-                    const flags = ((r.integrity && r.integrity.flags) || [])
-                        .map(f => `<li>${esc(f)}</li>`).join('');
-                    return `
-                    <li class="border rounded-xl px-3 py-2 ${severe ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="font-extrabold text-sm ${severe ? 'text-red-800' : 'text-amber-900'}">
-                                ${severe ? '🚨' : '⚠️'} ${esc(dispSheetTeam(r))}
-                            </span>
-                            <span class="text-[11px] text-slate-500">
-                                อันดับ ${esc(r.rank)} · รวม ${esc(r.totalScore)} · ${esc(r.qualifiedStatus || '(ว่าง)')}
-                            </span>
-                            <span class="ml-auto flex gap-2">
-                                <button data-sheet-evidence="${esc(r.email)}"
-                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-slate-800 text-white hover:bg-slate-900 whitespace-nowrap">
-                                    🔍 ดูหลักฐาน &amp; ตัดสิน
-                                </button>
-                                <button data-sheet-grade="${esc(r.email)}" ${inQueue ? '' : 'disabled'}
-                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                                    title="${inQueue ? 'เปิดแผงตรวจ Essay ของทีมนี้' : 'ทีมนี้ไม่ได้อยู่ในคิวตรวจ Essay'}">
-                                    ✏️ ตรวจ Essay
-                                </button>
-                            </span>
-                        </div>
-                        ${flags ? `<ul class="list-disc list-inside mt-1 text-[11px] text-slate-700 space-y-0.5">${flags}</ul>` : ''}
-                    </li>`;
-                }).join('');
-
-            return `
-            <div class="m-3 rounded-xl border border-red-200 bg-white overflow-hidden">
-                <p class="px-4 py-2 bg-red-100 text-red-900 text-xs font-extrabold">
-                    ทีมที่ต้องเพ่งเล็งในโควตานี้ (${flagged.length} ทีม)
-                    <span class="font-normal opacity-80">— ธงคัดกรอง ไม่ใช่คำตัดสิน · แสดงทุกทีมเสมอ ไม่ขึ้นกับตัวกรอง</span>
-                </p>
-                <ul class="p-3 space-y-2">${items}</ul>
+        // ── หมายเหตุกำกับหัวตาราง ─────────────────────────────────────────
+        // เหลือไว้เฉพาะกรณี integrityAvailable:false ซึ่งต้องบอกให้ชัดว่า "ยังไม่ได้
+        // รันรายงาน" ไม่ใช่ปล่อยตารางไร้ธง ซึ่งกรรมการจะอ่านว่า "ตรวจแล้วไม่พบอะไร"
+        function renderSheetTriageNotice(data) {
+            if (data.integrityAvailable !== false) return '';
+            return `<div class="m-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-500">
+                ⚪ ยังไม่ได้รันรายงานตรวจสอบความผิดปกติ — ตารางนี้จึงยังไม่แสดงธงใด ๆ
+                (ต้องรันเมนู GAS "ตรวจสอบความผิดปกติ" ก่อน)
             </div>`;
         }
 
@@ -1477,9 +1670,14 @@
         // ข้อมูลมาจากชีต Integrity_Triage / Integrity_Similar_Pairs ที่เมนู GAS
         // "ตรวจสอบความผิดปกติ" เขียนไว้ — ถ้ายังไม่รัน API จะตอบ available:false
         // และหน้านี้บอกให้ไปรันก่อน (ไม่ใช่แสดงว่า "ไม่พบความผิดปกติ" ซึ่งจะเข้าใจผิด)
-        async function loadIntegrityView() {
-            $('itTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>`;
-            try {
+        function loadIntegrityView() {
+            if (integrityData) return Promise.resolve(integrityData);
+            if (integrityLoading) return integrityLoading;
+
+            const isActive = () => view === 'integrity';
+            if (isActive()) $('itTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>`;
+
+            const task = (async () => {
                 let data;
                 if (demoMode) {
                     data = essayIntegrityReportFixture();
@@ -1489,10 +1687,15 @@
                     if (data.status !== 'success') throw new Error(data.message || 'โหลดรายงานความผิดปกติไม่สำเร็จ');
                 }
                 integrityData = data;
-                if (view === 'integrity') renderIntegrityView();
-            } catch (err) {
-                $('itTableWrap').innerHTML = `<p class="p-6 text-center text-red-500 text-sm">${esc(err.message)}</p>`;
-            }
+                if (isActive()) renderIntegrityView();
+                return data;
+            })();
+
+            integrityLoading = task;
+            task.catch(err => {
+                if (isActive()) $('itTableWrap').innerHTML = `<p class="p-6 text-center text-red-500 text-sm">${esc(err.message)}</p>`;
+            }).finally(() => { integrityLoading = null; });
+            return task;
         }
 
         function renderIntegrityView() {
@@ -1668,7 +1871,7 @@
                 if (!data.available) throw new Error(data.message || 'ยังไม่มีรายงานตรวจสอบความผิดปกติ');
                 evidenceData = data;
                 // ตัวบ่งชี้ทีมสำรองต้องใช้ตารางอันดับของโควตานั้น — โหลดถ้ายังไม่มี
-                if (!sheetData[data.team.quota]) await loadSheetView(data.team.quota);
+                if (!sheetData[data.team.quota]) await loadSheetView(data.team.quota).catch(() => { });
                 renderEvidence();
             } catch (err) {
                 $('evBody').innerHTML = `<p class="text-center text-red-500 text-sm py-10">${esc(err.message)}</p>`;
@@ -1750,6 +1953,7 @@
                     <p>${esc(d.caveat || '')}</p>
                  </div>`,
                 `<div><p class="text-xs font-extrabold text-slate-700 mb-2">ธงที่ตรวจพบ</p>${flagChips}</div>`,
+                renderEvidenceChecklist(d),
                 renderEvidenceGauges(d),
                 renderEvidenceExcerpts(d),
                 renderEvidenceDiffs(d),
@@ -1762,6 +1966,40 @@
                 closeEvidence();
                 openGradingFromSheet(t.email);
             });
+        }
+
+        /**
+         * เช็กลิสต์ในหน้าต่างหลักฐาน — ประกอบ payload หน้าตาเดียวกับ t.integrity
+         * จากข้อมูลที่หน้าต่างนี้มี ซึ่งละเอียดที่สุดในสามแหล่ง: รู้ทั้งข้อที่พบ
+         * Markdown (จาก excerpts.hits) และคู่เทียบพร้อมโรงเรียน/Δt ครบทุกคู่
+         */
+        function renderEvidenceChecklist(d) {
+            const hitsOfKind = (kind) => (d.excerpts || [])
+                .reduce((n, e) => n + (e.hits || []).filter(h => h.kind === kind).length, 0);
+            const mdSlots = (d.excerpts || [])
+                .filter(e => (e.hits || []).some(h => h.kind === 'markdown'))
+                .map(e => e.label);
+
+            const it = {
+                selfEmail: d.team.email,
+                severity: d.team.severity,
+                flagTypes: d.team.flagTypes,
+                submitMinutes: d.timing?.submitMinutes,
+                speedRank: d.timing?.speedRank,
+                speedFlagged: d.timing?.flagged,
+                cpm: d.typing?.cpm,
+                typingFlagged: d.typing?.flagged,
+                markdownHits: hitsOfKind('markdown'),
+                llmHits: hitsOfKind('llm'),
+                echoHits: hitsOfKind('echo'),
+                sharedRareAnswers: (d.diffs || []).reduce((m, p) => Math.max(m, p.sharedRareAnswers || 0), 0),
+                similarPairs: d.diffs || [],
+            };
+            const items = buildChecklist(it, mdSlots);
+            if (!items.length) return '';
+            return `<div class="border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-700">
+                ${renderChecklist(items)}
+            </div>`;
         }
 
         // ── แถบเทียบเวลา / อัตราพิมพ์ ─────────────────────────────────────
@@ -1880,7 +2118,7 @@
         function renderEvidenceDiffs(d) {
             const simPct = Math.round((d.similarityFlag ?? 0.8) * 100);
             if (!(d.diffs || []).length) {
-                return `<div>
+                return `<div id="evDiffs">
                     <p class="text-xs font-extrabold text-slate-700 mb-1">🔁 การเทียบคำตอบกับทีมอื่น</p>
                     <p class="text-[11px] text-slate-400">— ไม่มีทีมที่คำตอบ Essay ซ้ำถึงเกณฑ์ ${simPct}% —</p>
                 </div>`;
@@ -1935,7 +2173,7 @@
             }).join('');
 
             return `
-            <div>
+            <div id="evDiffs">
                 <div class="flex items-center gap-3 flex-wrap mb-2">
                     <p class="text-xs font-extrabold text-slate-700">🔁 เทียบคำตอบกับทีมที่ซ้ำ ≥ ${simPct}%</p>
                     <span class="text-[10px]"><span class="hl-shared px-1">ข้อความที่ตรงกันทั้งสองฝั่ง</span></span>
@@ -2061,10 +2299,10 @@
                 sheetData['โรงเรียน'] = null;
                 sheetData['ผสม'] = null;
                 await reloadQueue();
-                await loadIntegrityView();
+                await loadIntegrityView().catch(() => { });
                 // การล้าง cache ไม่ได้แตะ DOM ที่ render ไว้แล้ว — ถ้ากรรมการตัดสินจาก
                 // ตารางอันดับ ต้องโหลดตารางของโควตาที่เปิดอยู่ใหม่ให้เห็นผลทันที
-                if (view === 'sheet') await loadSheetView(sheetTab);
+                if (view === 'sheet') await loadSheetView(sheetTab).catch(() => { });
             } catch (err) {
                 alert('❌ ' + err.message);
                 buttons.forEach(b => { b.disabled = false; b.classList.remove('opacity-50'); });

@@ -48,13 +48,29 @@ const FIXTURE_TEAMS = [
             ],
             flagTypes: ['speedrun', 'typing', 'markdown', 'similarity'],
             submitMinutes: 34.5,
+            speedRank: 2,
             cpm: 151,
             charsTotal: 5210,
             maxSimilarity: 0.88,
             crossSchool: true,
             sharedRareAnswers: 7,
+            speedFlagged: true,
+            typingFlagged: true,
+            markdownHits: 4,
+            llmHits: 0,
+            echoHits: 0,
+            // มีเฉพาะใน payload ของคิว (_handleEssayQueue คำนวณจากคำตอบที่อ่านมาแล้ว)
+            // — ตารางอันดับไม่มีคำตอบ จึงไม่มีฟิลด์นี้โดยตั้งใจ ใช้ทดสอบสองเส้นทาง
+            // ของเช็กลิสต์: "รู้ว่าอยู่ข้อไหน" กับ "ไม่ทราบว่าอยู่ข้อไหน"
+            markdownSlots: ['1.1', '2.1'],
             similarPairs: [
-                { otherEmail: 'outside.teamx@gmail.com', otherTeamName: 'ทีมนอกคิวเอ็กซ์', similarity: 0.88, sharedRareAnswers: 7, sameSchool: false, severity: 'SEVERE' },
+                {
+                    otherEmail: 'outside.teamx@gmail.com', otherTeamName: 'ทีมนอกคิวเอ็กซ์',
+                    similarity: 0.88, sharedRareAnswers: 7, sameSchool: false, severity: 'SEVERE',
+                    topSlot: '2.1', topSlotSimilarity: 0.93,
+                    otherSchoolName: 'โรงเรียนนอกคิวศึกษา', otherQuota: 'โรงเรียน',
+                    otherSubmitMinutes: 41.8, deltaMinutes: 7.3,
+                },
             ],
         },
     },
@@ -81,11 +97,18 @@ const FIXTURE_TEAMS = [
             flags: ['สำนวนที่พบบ่อยในข้อความจาก LLM (3 จุด)'],
             flagTypes: ['llm'],
             submitMinutes: 168.2,
+            speedRank: 402,
             cpm: 44,
             charsTotal: 7400,
             maxSimilarity: 0,
             crossSchool: null,
             sharedRareAnswers: 0,
+            speedFlagged: false,
+            typingFlagged: false,
+            markdownHits: 0,
+            llmHits: 3,
+            echoHits: 0,
+            markdownSlots: [],
             similarPairs: [],
         },
     },
@@ -163,9 +186,11 @@ const FIXTURE_SCHOOL_ROSTER = [
     { rank: 3,   email: 'school.q3@gmail.com',    teamName: 'ทีมเรียนเก่งสาม',    schoolName: 'โรงเรียนสมมติพิทยา',  autoScore: 315, essayTotal: 0, totalScore: 315, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
     // แถบคะแนนเท่ากันตรงเส้นแบ่ง (rank 73–77) — ต้องตรวจ Essay
     { rank: 73,  email: 'school.essayA@gmail.com', teamName: 'ทีมคะแนนเท่าเอ',     schoolName: 'โรงเรียนทดสอบศึกษา',  autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY',
-      integrity: { severity: 'SEVERE', flags: ['ส่งเร็วผิดปกติ (35 นาที)', 'อัตราพิมพ์สูงผิดปกติ (180 ตัว/นาที)'], flagTypes: ['speedrun', 'typing'], submitMinutes: 35, cpm: 180, charsTotal: 6300, maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, similarPairs: [] } },
+      integrity: { severity: 'SEVERE', flags: ['ส่งเร็วผิดปกติ (35 นาที)', 'อัตราพิมพ์สูงผิดปกติ (180 ตัว/นาที)'], flagTypes: ['speedrun', 'typing'], submitMinutes: 35, speedRank: 3, cpm: 180, charsTotal: 6300, maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, speedFlagged: true, typingFlagged: true, markdownHits: 0, llmHits: 0, echoHits: 0, similarPairs: [] } },
     { rank: 74,  email: 'demo.school1@gmail.com',  teamName: 'ทีมสมมติหนึ่ง',      schoolName: 'โรงเรียนตัวอย่างวิทยา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY',
-      integrity: { severity: 'WARN', flags: ['ร่องรอย Markdown ในคำตอบ (3 จุด)'], flagTypes: ['markdown'], submitMinutes: 120, cpm: 45, charsTotal: 5400, maxSimilarity: 0.72, crossSchool: true, sharedRareAnswers: 2, similarPairs: [] } },
+      // ไม่มี markdownSlots โดยตั้งใจ — payload essaySheetView ไม่ได้ส่งคำตอบมาด้วย
+      // เช็กลิสต์ต้องขึ้นว่า "ยังไม่ทราบว่าอยู่ข้อใด" ไม่ใช่ "ไม่พบ Markdown"
+      integrity: { severity: 'WARN', flags: ['ร่องรอย Markdown ในคำตอบ (3 จุด)'], flagTypes: ['markdown'], submitMinutes: 120, cpm: 45, charsTotal: 5400, maxSimilarity: 0.72, crossSchool: true, sharedRareAnswers: 2, speedFlagged: false, typingFlagged: false, markdownHits: 3, llmHits: 0, echoHits: 0, similarPairs: [] } },
     { rank: 75,  email: 'demo.school3@gmail.com',  teamName: 'ทีมตัวอย่างสาม',      schoolName: 'โรงเรียนจำลองศึกษา',  autoScore: 280, essayTotal: 27, totalScore: 307, verifyStatus: 'Graded', qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
     { rank: 76,  email: 'school.essayD@gmail.com', teamName: 'ทีมคะแนนเท่าดี',     schoolName: 'โรงเรียนสอบผ่านวิทยา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
     { rank: 77,  email: 'school.essayE@gmail.com', teamName: 'ทีมคะแนนเท่าอี',     schoolName: 'โรงเรียนใกล้เส้นศึกษา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
@@ -187,7 +212,7 @@ const FIXTURE_MIXED_ROSTER = [
     { rank: 2,  email: 'mixed.q2@gmail.com',    teamName: 'ทีมผสมเก่งสอง',   schoolName: '', autoScore: 318, essayTotal: 0, totalScore: 318, verifyStatus: '', qualifiedStatus: 'Qualified (Auto)',   colorKey: 'QUALIFIED' },
     // แถบคะแนนเท่ากันตรงเส้นแบ่ง (rank 23–27) — ต้องตรวจ Essay
     { rank: 23, email: 'mixed.essayA@gmail.com', teamName: 'ทีมผสมคะแนนเท่าเอ', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY',
-      integrity: { severity: 'SEVERE', flags: ['ส่งเร็วผิดปกติ (28 นาที)', 'โครงสร้างคำตอบสมมาตรเกินไป'], flagTypes: ['speedrun', 'structural'], submitMinutes: 28, cpm: 195, charsTotal: 5460, maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, similarPairs: [] } },
+      integrity: { severity: 'SEVERE', flags: ['ส่งเร็วผิดปกติ (28 นาที)', 'โครงสร้างคำตอบสมมาตรเกินไป'], flagTypes: ['speedrun', 'structural'], submitMinutes: 28, speedRank: 1, cpm: 195, charsTotal: 5460, maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, speedFlagged: true, typingFlagged: false, markdownHits: 0, llmHits: 0, echoHits: 0, similarPairs: [] } },
     { rank: 24, email: 'mixed.essayB@gmail.com', teamName: 'ทีมผสมคะแนนเท่าบี', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
     { rank: 25, email: 'demo.mixed2@gmail.com',  teamName: 'ทีมผสมสอง',       schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
     { rank: 26, email: 'mixed.essayD@gmail.com', teamName: 'ทีมผสมคะแนนเท่าดี', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
@@ -383,6 +408,28 @@ const INTEGRITY_REPORT_PAIRS = [
     },
 ];
 
+// เติม metadata ของทีมคู่เทียบ (ข้อที่ซ้ำมากที่สุด / โรงเรียน / เวลาส่ง / Δt) แบบ
+// เดียวกับที่ _itBuildIntegrityIndex() ทำหลังสร้าง byEmail — เขียนเป็นรอบเดียวแทน
+// การก๊อปฟิลด์เดิมลงทุกคู่ ทั้งรายงานและหน้าต่างหลักฐานจึงได้ข้อมูลชุดเดียวกัน
+(() => {
+    const byEmail = new Map(INTEGRITY_REPORT_TEAMS.map(t => [t.email, t]));
+    const pairOf = (a, b) => INTEGRITY_REPORT_PAIRS.find(x =>
+        (x.aEmail === a && x.bEmail === b) || (x.aEmail === b && x.bEmail === a));
+    INTEGRITY_REPORT_TEAMS.forEach(t => {
+        t.similarPairs.forEach(p => {
+            const other = byEmail.get(p.otherEmail);
+            const pair = pairOf(t.email, p.otherEmail);
+            p.topSlot = pair ? pair.topSlot : '';
+            p.topSlotSimilarity = pair ? pair.topSlotSimilarity : 0;
+            p.otherSchoolName = other ? other.schoolName : '';
+            p.otherQuota = other ? other.quota : '';
+            p.otherSubmitMinutes = other ? other.submitMinutes : null;
+            p.deltaMinutes = other
+                ? Number(Math.abs(other.submitMinutes - t.submitMinutes).toFixed(1)) : null;
+        });
+    });
+})();
+
 /** คืน payload หน้าตาเดียวกับ _handleIntegrityReport ใน 8_IntegrityTriage.js */
 export function essayIntegrityReportFixture() {
     return {
@@ -544,11 +591,18 @@ const FIXTURE_INTEGRITY_REVIEW = [
             ],
             flagTypes: ['speedrun', 'typing'],
             submitMinutes: 28.0,
+            speedRank: 1,
             cpm: 233,
             charsTotal: 6520,
             maxSimilarity: 0,
             crossSchool: null,
             sharedRareAnswers: 0,
+            speedFlagged: true,
+            typingFlagged: true,
+            markdownHits: 0,
+            llmHits: 0,
+            echoHits: 0,
+            markdownSlots: [],
             similarPairs: [],
         },
     },
@@ -581,12 +635,16 @@ export function essayEvidenceFixture(email) {
             pairId: [email, p.otherEmail].sort().join('|'),
             otherEmail: p.otherEmail,
             otherTeamName: p.otherTeamName,
-            otherSchoolName: 'โรงเรียนนอกคิวศึกษา',
+            otherSchoolName: p.otherSchoolName,
             otherFound: true,
             similarity: p.similarity,
             sameSchool: p.sameSchool,
             severity: p.severity,
             sharedRareAnswers: p.sharedRareAnswers,
+            topSlot: p.topSlot,
+            topSlotSimilarity: p.topSlotSimilarity,
+            otherSubmitMinutes: p.otherSubmitMinutes,
+            deltaMinutes: p.deltaMinutes,
             // ตัดข้อที่คำตอบสั้นกว่าเกณฑ์ MIN_CHARS_PER_SLOT ออก เหมือนฝั่ง server
             slots: ESSAY_SLOTS
                 .map((slot, i) => ({ slot, i }))
