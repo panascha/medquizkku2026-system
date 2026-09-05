@@ -65,6 +65,30 @@
             letter-spacing: .05em;
             padding: 4px 0;
         }
+
+        /* รายงานความผิดปกติ (Integrity Triage) — ใช้หัวตารางแบบเดียวกับ Sheet View */
+        #integrityTable th {
+            position: sticky;
+            top: 0;
+            background: #0f1f4b;
+            color: #fff;
+            font-weight: 700;
+            white-space: nowrap;
+            z-index: 1;
+        }
+        #integrityTable td,
+        #integrityTable th {
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(0, 0, 0, .06);
+            vertical-align: top;
+        }
+        #integrityTable tr.it-row {
+            cursor: pointer;
+        }
+        #integrityTable tr.it-row:hover {
+            outline: 2px solid #1e3a8a;
+            outline-offset: -2px;
+        }
     </style>
 </head>
 
@@ -125,6 +149,10 @@
             class="view-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50">
             <i class="fa-solid fa-table mr-1"></i> ตารางอันดับ <span class="opacity-60">(Quota Sheet)</span>
         </button>
+        <button id="btnIntegrityMode" onclick="switchView('integrity')"
+            class="view-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50">
+            🕵️ รายงานความผิดปกติ <span class="opacity-60">(Integrity Triage)</span>
+        </button>
     </div>
 
     <main id="queueView" class="flex-1 max-w-[1500px] mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
@@ -164,6 +192,8 @@
 
                 <div id="occWarn" class="hidden mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-xs">
                 </div>
+                <!-- Integrity Triage Alert Box — ว่างเมื่อทีมนี้ไม่มีธง -->
+                <div id="integrityBox"></div>
                 <div id="statusPill" class="mb-4"></div>
 
                 <div id="slots" class="space-y-4"></div>
@@ -242,6 +272,36 @@
         </div>
     </section>
 
+    <!-- รายงานความผิดปกติ (Integrity Triage) — อ่านจากชีต Integrity_Triage / Integrity_Similar_Pairs
+         ที่เมนู GAS "ตรวจสอบความผิดปกติ" เขียนไว้ ไม่ได้คำนวณใหม่ที่นี่ -->
+    <section id="integrityView" class="hidden flex-1 max-w-[1500px] mx-auto w-full p-4 space-y-3">
+
+        <!-- คำเตือนกำกับ — ต้องอยู่เหนือทุกตัวเลข เช่นเดียวกับแบนเนอร์แถวบนสุดของชีตรายงาน -->
+        <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 text-xs leading-snug">
+            <p class="font-extrabold mb-1">⚠️ นี่คือ "เกณฑ์คัดกรองเบื้องต้น" (Triage) ไม่ใช่คำตัดสิน</p>
+            <ul class="list-disc list-inside space-y-0.5">
+                <li>ระเบียบรอบ 0 เป็นการสอบแบบ open-resource และ<b>ไม่ได้ระบุข้อห้ามใช้ AI</b> — ตัดสิทธิ์ย้อนหลังด้วยข้อหา "ใช้ AI" ไม่ได้ และ AI detector มี false-positive สูง</li>
+                <li>สิ่งที่ใช้เป็นหลักฐานได้คือ <b>การลอกคำตอบ/เผยแพร่ข้อสอบระหว่างสอบ</b> (คำตอบ Essay ซ้ำข้ามทีม โดยเฉพาะต่างโรงเรียน)</li>
+                <li>ทุกแถวเป็นเพียงธงให้กรรมการฝ่ายวิชาการ <b>"เพ่งเล็งเป็นพิเศษ" ตอนตรวจ Essay</b> เท่านั้น — ห้ามใช้ตัดสิทธิ์อัตโนมัติ</li>
+                <li>เวลาที่แสดงคือ "นาทีหลังเปิดฟอร์ม" ไม่ใช่เวลาที่ใช้ทำจริง (Google Forms บันทึกเฉพาะเวลาส่ง)</li>
+            </ul>
+        </div>
+
+        <div id="itSummary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col max-h-[70vh]">
+            <div id="itFilters" class="px-3 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2"></div>
+            <div id="itTableWrap" class="flex-1 overflow-auto">
+                <p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>
+            </div>
+            <p class="px-4 py-3 border-t border-slate-100 text-[11px] text-slate-400 leading-snug">
+                <i class="fa-solid fa-circle-info mr-1"></i>
+                คลิกแถวเพื่อเปิดหน้าตรวจของทีมนั้น — เปิดได้เฉพาะทีมที่อยู่ในคิวตรวจ Essay เท่านั้น
+                (ทีมที่ถูกตั้งธงแต่ไม่ได้อยู่ตรงเส้นแบ่งโควตา จะไม่มีแผงตรวจให้เปิด)
+            </p>
+        </div>
+    </section>
+
     <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-lg"></div>
 
     <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest">
@@ -253,7 +313,7 @@
         // ที่เด้งไป login.html ทันที) ถ้าเปิดหน้านี้ด้วย ?fixture=1 ไม่ต้อง login เลย
         // dynamic-import เฉพาะโหมดจริง
         import { DASHBOARD_API_URL, escapeEmail, db, auth, ref, set, get, update, remove, onValue, onDisconnect } from '../js/firebase-config.js';
-        import { essayFixturePayload, fixtureOccupancy, essaySheetViewFixture } from '../js/essay-grading-fixture.js';
+        import { essayFixturePayload, fixtureOccupancy, essaySheetViewFixture, essayIntegrityReportFixture } from '../js/essay-grading-fixture.js';
 
         const useFixture = new URLSearchParams(location.search).get('fixture') === '1';
         const demoMode = useFixture || !DASHBOARD_API_URL;
@@ -280,7 +340,7 @@
         let authRef = null;           // Firebase Auth (มีเฉพาะโหมดจริง)
 
         // ── Sheet View state ──────────────────────────────────────────────
-        let view = 'queue';                              // 'queue' | 'question' | 'sheet'
+        let view = 'queue';                              // 'queue' | 'question' | 'sheet' | 'integrity'
         let qSlot = 0;                                    // ข้อที่เลือกในโหมด By-Question
         const qDirty = new Set();                         // email ที่แก้คะแนนแล้วยังไม่บันทึก
         const qDraftTimers = new Map();                  // debounce draft ต่อทีม (คีย์ = email)
@@ -295,6 +355,16 @@
         let sheetTab = 'โรงเรียน';                        // 'โรงเรียน' | 'ผสม'
         const sheetData = { 'โรงเรียน': null, 'ผสม': null };  // cached payloads
         const QUOTA_CUTOFF = { 'โรงเรียน': 75, 'ผสม': 25 };
+
+        // ── Integrity Triage ──────────────────────────────────────────────
+        // integrityData = payload ของ ?action=integrityReport (cache ไว้ ไม่โหลดซ้ำทุกครั้งที่สลับแท็บ)
+        // integrityFilter = คีย์ธงที่กรองอยู่ ('' = ทุกธง)
+        let integrityData = null;
+        let integrityFilter = '';
+        const SEVERITY_BADGE = {
+            SEVERE: { text: '🚨 เพ่งเล็ง', cls: 'bg-red-100 text-red-700 border-red-200' },
+            WARN: { text: '⚠️ ข้อสังเกต', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+        };
         // ตรงกับ EXAM_CONFIG.COLOR (1_DataSync.js) — RESERVED/NOT_QUALIFIED สีเดียวกันโดยตั้งใจ
         const SHEET_COLORS = {
             QUALIFIED:     { bg: '#b7efc5', font: '#000000' },
@@ -420,6 +490,62 @@
             ? `${t.quota} · — (ปกปิด)`
             : [t.quota, t.schoolName, t.email].filter(Boolean).join(' · ');
 
+        // ── Integrity helpers ─────────────────────────────────────────────
+        // ธง triage มาจาก 8_IntegrityTriage.js ผ่าน payload คิว (t.integrity)
+        // severity: 'SEVERE' | 'WARN' | 'NONE' — null เมื่อยังไม่ได้รันรายงาน
+        const severityOf = (t) => (t && t.integrity && t.integrity.severity) || 'NONE';
+
+        function integrityBadge(t) {
+            const b = SEVERITY_BADGE[severityOf(t)];
+            if (!b) return '';
+            return `<span class="text-[10px] border px-1.5 py-0.5 rounded-full ${b.cls}">${b.text}</span>`;
+        }
+
+        /**
+         * ชื่อ "ทีมคู่เทียบ" ในกล่องแจ้งเตือน — ต้องเคารพ Blind mode เหมือนชื่อทีมอื่น ๆ
+         * ทีมคู่เทียบส่วนใหญ่ไม่ได้อยู่ในคิว (คู่ที่เทียบคือทั้ง cohort ไม่ใช่แค่ ~30 ทีมตรงเส้นแบ่ง)
+         * จึงไม่มีเลขสุ่มตรวจให้ใช้ — กรณีนั้นปิดบังทั้งชื่อ
+         */
+        function dispAnyTeamRaw(email, teamName) {
+            if (!isBlindMode) return teamName || email || '(ไม่ทราบทีม)';
+            const n = blindNum.get(email);
+            return n ? anonLabel(n) : 'ทีมอื่นนอกคิว (ปกปิด)';
+        }
+        const dispPairTeamRaw = (p) => dispAnyTeamRaw(p.otherEmail, p.otherTeamName);
+
+        /** กล่องแจ้งเตือนหัวแผงตรวจ — ธงเฉพาะทีมนี้ + คู่ที่คำตอบซ้ำ */
+        function renderIntegrityBox(team) {
+            const it = team && team.integrity;
+            if (!it || it.severity === 'NONE') return '';
+            const severe = it.severity === 'SEVERE';
+            const tone = severe
+                ? 'bg-red-50 border-red-300 text-red-900'
+                : 'bg-amber-50 border-amber-300 text-amber-900';
+            const head = severe
+                ? '🚨 ทีมนี้ถูกตั้งธง "ตรวจเข้ม" โดยระบบคัดกรองความผิดปกติ'
+                : '⚠️ ทีมนี้มีข้อสังเกตจากระบบคัดกรองความผิดปกติ';
+
+            const flags = (it.flags || []).map(f => `<li>${esc(f)}</li>`).join('');
+            const pairs = (it.similarPairs || [])
+                .map(p => `<li>${esc(dispPairTeamRaw(p))} — ซ้ำ ${esc((p.similarity * 100).toFixed(1))}%${
+                    p.sameSchool ? ' (โรงเรียนเดียวกัน)' : ' <b>(ต่างโรงเรียน)</b>'}${
+                    p.sharedRareAnswers ? ` · คำตอบหายากตรงกัน ${esc(p.sharedRareAnswers)} ข้อ` : ''}</li>`)
+                .join('');
+
+            return `
+            <div class="mb-4 border rounded-xl px-4 py-3 text-xs leading-snug ${tone}">
+                <p class="font-extrabold mb-1">${head}</p>
+                ${flags ? `<ul class="list-disc list-inside space-y-0.5">${flags}</ul>` : ''}
+                ${pairs ? `<p class="font-bold mt-2 mb-0.5">คำตอบ Essay ใกล้เคียงกับ:</p>
+                           <ul class="list-disc list-inside space-y-0.5">${pairs}</ul>` : ''}
+                <p class="mt-2 opacity-80">
+                    เป็นเพียงเกณฑ์คัดกรองให้ "เพ่งเล็งเป็นพิเศษ" ตอนอ่านคำตอบ —
+                    <b>ห้ามใช้หักคะแนนหรือตัดสิทธิ์โดยอัตโนมัติ</b> ให้ตรวจตามคุณภาพคำตอบตามปกติ
+                    แล้วรายงานข้อสงสัยต่อหัวหน้าฝ่ายวิชาการ
+                </p>
+            </div>`;
+        }
+
         function renderQueue() {
             if (!teams.length) {
                 $('queueList').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">— ไม่มีทีมในคิว —</p>`;
@@ -436,7 +562,10 @@
                         ${active ? 'queue-active' : 'bg-white border-slate-200 hover:bg-slate-50'}">
                     <div class="flex items-center justify-between gap-2">
                         <span class="font-bold text-sm truncate">${esc(dispNameRaw(t))}</span>
-                        ${graded ? '<span class="shrink-0 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">ตรวจแล้ว</span>' : ''}
+                        <span class="shrink-0 flex items-center gap-1">
+                            ${integrityBadge(t)}
+                            ${graded ? '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">ตรวจแล้ว</span>' : ''}
+                        </span>
                     </div>
                     <div class="flex items-center justify-between gap-2 mt-0.5">
                         <span class="text-[11px] ${active ? 'text-blue-100' : 'text-slate-400'} truncate">
@@ -521,6 +650,7 @@
             $('gTeamName').textContent = dispNameRaw(team);
             $('gMeta').textContent = dispMetaRaw(team);
             $('gAutoScore').textContent = team.autoScore;
+            $('integrityBox').innerHTML = renderIntegrityBox(team);
 
             const maxTotal = slots.reduce((s, sl) => s + sl.max, 0);
             $('gEssayMax').textContent = maxTotal;
@@ -672,12 +802,15 @@
             $('queueView').classList.toggle('hidden', mode !== 'queue');
             $('questionView').classList.toggle('hidden', mode !== 'question');
             $('sheetView').classList.toggle('hidden', mode !== 'sheet');
+            $('integrityView').classList.toggle('hidden', mode !== 'integrity');
             $('btnQueueMode').classList.toggle('queue-active', mode === 'queue');
             $('btnQuestionMode').classList.toggle('queue-active', mode === 'question');
             $('btnSheetMode').classList.toggle('queue-active', mode === 'sheet');
+            $('btnIntegrityMode').classList.toggle('queue-active', mode === 'integrity');
             // re-render ทุกครั้งที่เข้า (ไม่ใช่แค่ตอนโหลดครั้งแรก) เพื่อให้สลับ Blind แล้วชื่อในตารางอัปเดต
             if (mode === 'sheet') { if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]); else loadSheetView(sheetTab); }
             if (mode === 'question') renderQuestionView();
+            if (mode === 'integrity') { if (integrityData) renderIntegrityView(); else loadIntegrityView(); }
         };
 
         // ── By-Question View (ตรวจเปรียบเทียบทีละข้อ) ──────────────────────
@@ -924,6 +1057,129 @@
             selectTeam(email);
         }
 
+        // ── Integrity Triage View (รายงานความผิดปกติ) ─────────────────────
+        // ข้อมูลมาจากชีต Integrity_Triage / Integrity_Similar_Pairs ที่เมนู GAS
+        // "ตรวจสอบความผิดปกติ" เขียนไว้ — ถ้ายังไม่รัน API จะตอบ available:false
+        // และหน้านี้บอกให้ไปรันก่อน (ไม่ใช่แสดงว่า "ไม่พบความผิดปกติ" ซึ่งจะเข้าใจผิด)
+        async function loadIntegrityView() {
+            $('itTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>`;
+            try {
+                let data;
+                if (demoMode) {
+                    data = essayIntegrityReportFixture();
+                } else {
+                    const res = await fetch(`${API_URL}?action=integrityReport&idToken=${encodeURIComponent(await window.idToken())}`);
+                    data = await res.json();
+                    if (data.status !== 'success') throw new Error(data.message || 'โหลดรายงานความผิดปกติไม่สำเร็จ');
+                }
+                integrityData = data;
+                if (view === 'integrity') renderIntegrityView();
+            } catch (err) {
+                $('itTableWrap').innerHTML = `<p class="p-6 text-center text-red-500 text-sm">${esc(err.message)}</p>`;
+            }
+        }
+
+        function renderIntegrityView() {
+            const d = integrityData;
+            if (!d) return;
+
+            if (!d.available) {
+                $('itSummary').innerHTML = '';
+                $('itFilters').innerHTML = '';
+                $('itTableWrap').innerHTML =
+                    `<div class="p-8 text-center text-slate-500 text-sm space-y-2">
+                        <p class="text-3xl">🕵️</p>
+                        <p class="font-bold">${esc(d.message || 'ยังไม่มีรายงานตรวจสอบความผิดปกติ')}</p>
+                        <p class="text-xs text-slate-400">รันเมนู GAS "ตรวจสอบความผิดปกติ" (runIntegrityTriage) บน Sheet ก่อน แล้วกลับมารีเฟรชหน้านี้</p>
+                    </div>`;
+                return;
+            }
+
+            const s = d.summary || {};
+            const simPct = Math.round((d.thresholds?.similarityFlag ?? 0.8) * 100);
+            const card = (label, value, sub, tone) => `
+                <div class="bg-white border ${tone} rounded-2xl px-4 py-3">
+                    <p class="text-[11px] text-slate-500 leading-tight">${label}</p>
+                    <p class="text-2xl font-extrabold leading-tight mt-0.5">${esc(value)}</p>
+                    <p class="text-[11px] text-slate-400 leading-tight">${sub}</p>
+                </div>`;
+            $('itSummary').innerHTML = [
+                card('ทีมที่ถูกตั้งธง', s.flagged ?? 0, `จากทั้งหมด ${esc(s.teamsTotal ?? 0)} ทีม`, 'border-slate-200'),
+                card('🔴 ตรวจเข้ม', s.severe ?? 0, `🟠 เฝ้าระวัง ${esc(s.warn ?? 0)} ทีม`, 'border-red-200'),
+                card('ส่งเร็วผิดปกติ', s.speedrun ?? 0, `อัตราพิมพ์สูงผิดปกติ ${esc(s.typing ?? 0)} ทีม`, 'border-amber-200'),
+                card(`คู่ Essay ซ้ำ ≥ ${simPct}%`, s.similarPairs ?? 0, `ต่างโรงเรียน ${esc(s.crossSchoolPairs ?? 0)} คู่`, 'border-red-200'),
+            ].join('');
+
+            // ตัวกรองธง — นับจากทีมที่ถูกตั้งธงจริงเท่านั้น ธงที่ไม่มีใครติดจะไม่ขึ้นปุ่ม
+            const rows = d.teams || [];
+            const counts = {};
+            rows.forEach(t => (t.flagTypes || []).forEach(k => { counts[k] = (counts[k] || 0) + 1; }));
+            const chip = (key, label, n, active) => `
+                <button data-itfilter="${esc(key)}"
+                    class="it-filter ${active ? 'queue-active' : ''} px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50">
+                    ${esc(label)} <span class="opacity-60">(${esc(n)})</span>
+                </button>`;
+            $('itFilters').innerHTML =
+                chip('', 'ทุกธง', rows.length, integrityFilter === '') +
+                (d.flagTypes || [])
+                    .filter(f => counts[f.key])
+                    .map(f => chip(f.key, f.label, counts[f.key], integrityFilter === f.key))
+                    .join('');
+            document.querySelectorAll('.it-filter').forEach(b =>
+                b.addEventListener('click', () => { integrityFilter = b.dataset.itfilter; renderIntegrityView(); }));
+
+            const shown = integrityFilter
+                ? rows.filter(t => (t.flagTypes || []).includes(integrityFilter))
+                : rows;
+
+            if (!shown.length) {
+                $('itTableWrap').innerHTML =
+                    `<p class="p-6 text-center text-slate-400 text-sm">— ไม่มีทีมที่ตรงกับตัวกรองนี้ —</p>`;
+                return;
+            }
+
+            const head = `
+                <tr>
+                    <th class="text-left">ระดับ</th>
+                    <th class="text-left">ทีม</th>
+                    <th class="text-left">โควตา</th>
+                    <th class="text-right">นาทีหลังเปิดฟอร์ม</th>
+                    <th class="text-right">ตัว/นาที</th>
+                    <th class="text-right">Essay ซ้ำสูงสุด</th>
+                    <th class="text-left">ธงที่ตรวจพบ</th>
+                </tr>`;
+
+            const body = shown.map(t => {
+                const inQueue = teams.some(q => q.email === t.email);
+                const badge = SEVERITY_BADGE[t.severity];
+                const sim = t.maxSimilarity
+                    ? `${(t.maxSimilarity * 100).toFixed(1)}%${t.crossSchool === true ? ' ⚠️' : ''}`
+                    : '—';
+                const flagList = (t.flags || []).map(f =>
+                    `<span class="inline-block bg-slate-100 text-slate-600 rounded px-1.5 py-0.5 mr-1 mb-1">${esc(f)}</span>`).join('');
+                return `
+                <tr class="it-row ${inQueue ? '' : 'opacity-60'}" data-email="${esc(t.email)}"
+                    title="${inQueue ? 'คลิกเพื่อเปิดตรวจทีมนี้' : 'ทีมนี้ไม่อยู่ในคิวตรวจ Essay'}">
+                    <td class="text-left whitespace-nowrap">
+                        <span class="text-[10px] border px-1.5 py-0.5 rounded-full ${badge ? badge.cls : ''}">${badge ? badge.text : '—'}</span>
+                    </td>
+                    <td class="text-left">${esc(dispAnyTeamRaw(t.email, t.teamName))}</td>
+                    <td class="text-left">${esc(t.quota)}</td>
+                    <td class="text-right">${esc(Number(t.submitMinutes).toFixed(1))}</td>
+                    <td class="text-right">${esc(Math.round(t.cpm))}</td>
+                    <td class="text-right">${esc(sim)}</td>
+                    <td class="text-left text-[11px]">${flagList}</td>
+                </tr>`;
+            }).join('');
+
+            $('itTableWrap').innerHTML =
+                `<table id="integrityTable" class="w-full text-xs border-collapse"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+
+            // เปิดหน้าตรวจผ่านทางเดียวกับตารางอันดับ (มี alert เมื่อทีมไม่อยู่ในคิวให้แล้ว)
+            document.querySelectorAll('#integrityTable tr.it-row').forEach(tr =>
+                tr.addEventListener('click', () => openGradingFromSheet(tr.dataset.email)));
+        }
+
         // ── Blind toggle (ปุ่ม navbar) ────────────────────────────────────
         window.toggleBlind = () => {
             if (isBlindMode) {
@@ -950,9 +1206,15 @@
 
         function rerenderAll() {
             renderQueue();
-            if (current) { $('gTeamName').textContent = dispNameRaw(current); $('gMeta').textContent = dispMetaRaw(current); }
+            if (current) {
+                $('gTeamName').textContent = dispNameRaw(current);
+                $('gMeta').textContent = dispMetaRaw(current);
+                // กล่อง Integrity มีชื่อทีมคู่เทียบอยู่ข้างใน — ต้อง render ใหม่ตอนสลับ Blind ด้วย
+                $('integrityBox').innerHTML = renderIntegrityBox(current);
+            }
             if (view === 'question') renderQuestionCards();
             if (view === 'sheet' && sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+            if (view === 'integrity' && integrityData) renderIntegrityView();
         }
 
         function toast(msg) {

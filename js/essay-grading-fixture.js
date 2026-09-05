@@ -35,6 +35,28 @@ const FIXTURE_TEAMS = [
         ],
         currentScores: [0, 0, 0, 0, 0, 0],
         verifyStatus: '',
+        // 🚨 SEVERE — ติดหลายมิติพร้อมกัน และ Essay ซ้ำกับทีมที่ "ไม่ได้อยู่ในคิว"
+        // (คู่เทียบมาจากทั้ง cohort ไม่ใช่แค่ทีมตรงเส้นแบ่งโควตา) เพื่อทดสอบการปิดบัง
+        // ชื่อในโหมด Blind กรณีที่หาเลขสุ่มตรวจของทีมคู่เทียบไม่ได้
+        integrity: {
+            severity: 'SEVERE',
+            flags: [
+                'ส่งเร็วผิดปกติ (34.5 นาทีหลังเปิดฟอร์ม)',
+                'อัตราพิมพ์สูงผิดปกติ (อย่างน้อย 151 ตัว/นาที)',
+                'ร่องรอย Markdown ในคำตอบ (4 จุด)',
+                'Essay ซ้ำกับอีกทีม 88.0% (ต่างโรงเรียน)',
+            ],
+            flagTypes: ['speedrun', 'typing', 'markdown', 'similarity'],
+            submitMinutes: 34.5,
+            cpm: 151,
+            charsTotal: 5210,
+            maxSimilarity: 0.88,
+            crossSchool: true,
+            sharedRareAnswers: 7,
+            similarPairs: [
+                { otherEmail: 'outside.teamx@gmail.com', otherTeamName: 'ทีมนอกคิวเอ็กซ์', similarity: 0.88, sharedRareAnswers: 7, sameSchool: false, severity: 'SEVERE' },
+            ],
+        },
     },
     {
         email: 'demo.mixed2@gmail.com',
@@ -53,6 +75,19 @@ const FIXTURE_TEAMS = [
         ],
         currentScores: [0, 0, 0, 0, 0, 0],
         verifyStatus: '',
+        // ⚠️ WARN — ติดมิติเดียว (สำนวน LLM) ไม่มีคู่ Essay ซ้ำ
+        integrity: {
+            severity: 'WARN',
+            flags: ['สำนวนที่พบบ่อยในข้อความจาก LLM (3 จุด)'],
+            flagTypes: ['llm'],
+            submitMinutes: 168.2,
+            cpm: 44,
+            charsTotal: 7400,
+            maxSimilarity: 0,
+            crossSchool: null,
+            sharedRareAnswers: 0,
+            similarPairs: [],
+        },
     },
     {
         email: 'demo.school3@gmail.com',
@@ -71,6 +106,19 @@ const FIXTURE_TEAMS = [
         ],
         currentScores: [5, 4, 10, 3, 3, 2],
         verifyStatus: 'Graded',
+        // ไม่มีธง — การ์ดคิวต้องไม่ขึ้น badge และแผงตรวจต้องไม่มีกล่องแจ้งเตือน
+        integrity: {
+            severity: 'NONE',
+            flags: [],
+            flagTypes: [],
+            submitMinutes: 201.7,
+            cpm: 38,
+            charsTotal: 7700,
+            maxSimilarity: 0,
+            crossSchool: null,
+            sharedRareAnswers: 0,
+            similarPairs: [],
+        },
     },
 ];
 
@@ -94,6 +142,8 @@ export function essayFixturePayload() {
         status: 'success',
         teams: FIXTURE_TEAMS.map(t => ({ ...t })),
         essaySlots: ESSAY_SLOTS.map(s => ({ ...s })),
+        integrityAvailable: true,
+        integritySummary: INTEGRITY_SUMMARY,
         generatedAt: new Date().toLocaleString('th-TH'),
         isFixture: true,
     };
@@ -164,4 +214,169 @@ export function fixtureOccupancy() {
         };
     }
     return copy;
+}
+
+// ── รายงานความผิดปกติ (Integrity Triage) ────────────────────────────────────
+// หน้าตาเดียวกับ _handleIntegrityReport ใน 8_IntegrityTriage.js
+// ของจริงอ่านจากชีต Integrity_Triage / Integrity_Similar_Pairs ที่เมนู GAS
+// "ตรวจสอบความผิดปกติ" เขียนไว้ — ตัวเลขทุกตัวข้างล่างสมมติทั้งหมด
+//
+// สำคัญ: teams ที่นี่คือ "ทีมที่ถูกตั้งธงทั้ง cohort" ไม่ใช่แค่ทีมในคิวตรวจ Essay
+// จึงมีทั้งทีมที่คลิกแล้วเปิดแผงตรวจได้ (อีเมลตรงกับ FIXTURE_TEAMS) และทีมที่
+// คลิกแล้วขึ้น alert ว่าไม่อยู่ในคิว — ทั้งสองทางต้องทดสอบได้จาก fixture นี้
+
+const INTEGRITY_SUMMARY = {
+    teamsTotal: 815,
+    flagged: 5,
+    severe: 2,
+    warn: 3,
+    speedrun: 2,
+    typing: 1,
+    markdown: 2,
+    llm: 2,
+    similarPairs: 2,
+    crossSchoolPairs: 1,
+};
+
+const INTEGRITY_FLAG_TYPES = [
+    { key: 'speedrun', label: 'ส่งเร็วผิดปกติ' },
+    { key: 'typing', label: 'อัตราพิมพ์สูงผิดปกติ' },
+    { key: 'clump', label: 'ส่งพร้อมกันเป็นกลุ่ม' },
+    { key: 'markdown', label: 'ร่องรอย Markdown' },
+    { key: 'llm', label: 'สำนวน LLM' },
+    { key: 'echo', label: 'ทวนโจทย์ (prompt echo)' },
+    { key: 'structural', label: 'โครงสร้างคำตอบสมมาตรเกินไป' },
+    { key: 'saq', label: 'คำตอบสั้นผิดธรรมชาติ' },
+    { key: 'similarity', label: 'Essay ซ้ำกับทีมอื่น' },
+    { key: 'rare', label: 'คำตอบหายากตรงกัน' },
+];
+
+const INTEGRITY_REPORT_TEAMS = [
+    {
+        // อยู่ในคิว — คลิกแล้วเปิดแผงตรวจได้
+        email: 'demo.school1@gmail.com', teamName: 'ทีมสมมติหนึ่ง',
+        schoolName: 'โรงเรียนตัวอย่างวิทยา', quota: 'โรงเรียน',
+        severity: 'SEVERE', submitMinutes: 34.5, speedRank: 2, cpm: 151, charsTotal: 5210,
+        clumpSize: 0, markdownHits: 4, llmHits: 0, echoHits: 0,
+        structuralUniform: false, saqFlag: false,
+        maxSimilarity: 0.88, crossSchool: true, sharedRareAnswers: 7, sharedRareTerms: 2,
+        speedFlagged: true, typingFlagged: true, clumped: false,
+        flagTypes: ['speedrun', 'typing', 'markdown', 'similarity', 'rare'],
+        flags: [
+            'ส่งเร็วผิดปกติ (34.5 นาทีหลังเปิดฟอร์ม)',
+            'อัตราพิมพ์สูงผิดปกติ (อย่างน้อย 151 ตัว/นาที)',
+            'ร่องรอย Markdown ในคำตอบ (4 จุด)',
+            'Essay ซ้ำกับอีกทีม 88.0% (ต่างโรงเรียน)',
+            'เลือกคำตอบหายากตรงกับอีกทีม 7 ข้อ',
+        ],
+        similarPairs: [
+            { otherEmail: 'outside.teamx@gmail.com', otherTeamName: 'ทีมนอกคิวเอ็กซ์', similarity: 0.88, sharedRareAnswers: 7, sameSchool: false, severity: 'SEVERE' },
+        ],
+    },
+    {
+        // ไม่อยู่ในคิว — คลิกแล้วต้องขึ้น alert ว่าเปิดตรวจไม่ได้
+        email: 'outside.teamx@gmail.com', teamName: 'ทีมนอกคิวเอ็กซ์',
+        schoolName: 'โรงเรียนนอกคิวศึกษา', quota: 'โรงเรียน',
+        severity: 'SEVERE', submitMinutes: 41.8, speedRank: 4, cpm: 96, charsTotal: 4010,
+        clumpSize: 0, markdownHits: 0, llmHits: 0, echoHits: 0,
+        structuralUniform: false, saqFlag: false,
+        maxSimilarity: 0.88, crossSchool: true, sharedRareAnswers: 7, sharedRareTerms: 2,
+        speedFlagged: true, typingFlagged: false, clumped: false,
+        flagTypes: ['speedrun', 'similarity', 'rare'],
+        flags: [
+            'ส่งเร็วผิดปกติ (41.8 นาทีหลังเปิดฟอร์ม)',
+            'Essay ซ้ำกับอีกทีม 88.0% (ต่างโรงเรียน)',
+            'เลือกคำตอบหายากตรงกับอีกทีม 7 ข้อ',
+        ],
+        similarPairs: [
+            { otherEmail: 'demo.school1@gmail.com', otherTeamName: 'ทีมสมมติหนึ่ง', similarity: 0.88, sharedRareAnswers: 7, sameSchool: false, severity: 'SEVERE' },
+        ],
+    },
+    {
+        email: 'demo.mixed2@gmail.com', teamName: 'ทีมผสมสอง',
+        schoolName: '', quota: 'ผสม',
+        severity: 'WARN', submitMinutes: 168.2, speedRank: 402, cpm: 44, charsTotal: 7400,
+        clumpSize: 0, markdownHits: 0, llmHits: 3, echoHits: 0,
+        structuralUniform: false, saqFlag: false,
+        maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, sharedRareTerms: 0,
+        speedFlagged: false, typingFlagged: false, clumped: false,
+        flagTypes: ['llm'],
+        flags: ['สำนวนที่พบบ่อยในข้อความจาก LLM (3 จุด)'],
+        similarPairs: [],
+    },
+    {
+        // คู่ซ้ำ "โรงเรียนเดียวกัน" — ระดับ WARN ตามกติกาใน _itFinalizePairs
+        email: 'outside.pairA@gmail.com', teamName: 'ทีมคู่ซ้ำเอ',
+        schoolName: 'โรงเรียนจำลองศึกษา', quota: 'โรงเรียน',
+        severity: 'WARN', submitMinutes: 152.4, speedRank: 331, cpm: 61, charsTotal: 9300,
+        clumpSize: 3, markdownHits: 0, llmHits: 0, echoHits: 0,
+        structuralUniform: false, saqFlag: false,
+        maxSimilarity: 0.91, crossSchool: false, sharedRareAnswers: 4, sharedRareTerms: 1,
+        speedFlagged: false, typingFlagged: false, clumped: true,
+        flagTypes: ['clump', 'similarity'],
+        flags: [
+            'ส่งพร้อมกับทีมอื่นในกรอบเวลาเดียวกัน (3 ทีม)',
+            'Essay ซ้ำกับอีกทีม 91.0% (โรงเรียนเดียวกัน)',
+        ],
+        similarPairs: [
+            { otherEmail: 'outside.pairB@gmail.com', otherTeamName: 'ทีมคู่ซ้ำบี', similarity: 0.91, sharedRareAnswers: 4, sameSchool: true, severity: 'WARN' },
+        ],
+    },
+    {
+        email: 'outside.pairB@gmail.com', teamName: 'ทีมคู่ซ้ำบี',
+        schoolName: 'โรงเรียนจำลองศึกษา', quota: 'โรงเรียน',
+        severity: 'WARN', submitMinutes: 153.1, speedRank: 333, cpm: 58, charsTotal: 8880,
+        clumpSize: 3, markdownHits: 2, llmHits: 0, echoHits: 0,
+        structuralUniform: false, saqFlag: false,
+        maxSimilarity: 0.91, crossSchool: false, sharedRareAnswers: 4, sharedRareTerms: 1,
+        speedFlagged: false, typingFlagged: false, clumped: true,
+        flagTypes: ['clump', 'markdown', 'similarity'],
+        flags: [
+            'ส่งพร้อมกับทีมอื่นในกรอบเวลาเดียวกัน (3 ทีม)',
+            'ร่องรอย Markdown ในคำตอบ (2 จุด)',
+            'Essay ซ้ำกับอีกทีม 91.0% (โรงเรียนเดียวกัน)',
+        ],
+        similarPairs: [
+            { otherEmail: 'outside.pairA@gmail.com', otherTeamName: 'ทีมคู่ซ้ำเอ', similarity: 0.91, sharedRareAnswers: 4, sameSchool: true, severity: 'WARN' },
+        ],
+    },
+];
+
+const INTEGRITY_REPORT_PAIRS = [
+    {
+        severity: 'SEVERE', similarity: 0.88, sharedRareAnswers: 7, sharedRareTerms: 2, sameSchool: false,
+        aEmail: 'demo.school1@gmail.com', aTeamName: 'ทีมสมมติหนึ่ง',
+        bEmail: 'outside.teamx@gmail.com', bTeamName: 'ทีมนอกคิวเอ็กซ์',
+        topSlot: '2.1', topSlotSimilarity: 0.93,
+    },
+    {
+        severity: 'WARN', similarity: 0.91, sharedRareAnswers: 4, sharedRareTerms: 1, sameSchool: true,
+        aEmail: 'outside.pairA@gmail.com', aTeamName: 'ทีมคู่ซ้ำเอ',
+        bEmail: 'outside.pairB@gmail.com', bTeamName: 'ทีมคู่ซ้ำบี',
+        topSlot: '1.2', topSlotSimilarity: 0.95,
+    },
+];
+
+/** คืน payload หน้าตาเดียวกับ _handleIntegrityReport ใน 8_IntegrityTriage.js */
+export function essayIntegrityReportFixture() {
+    return {
+        status: 'success',
+        available: true,
+        summary: { ...INTEGRITY_SUMMARY },
+        flagTypes: INTEGRITY_FLAG_TYPES.map(f => ({ ...f })),
+        thresholds: {
+            speedrunFloorMin: 45,
+            speedrunSevereMin: 30,
+            cpmWatch: 150,
+            cpmImpossible: 200,
+            similarityFlag: 0.80,
+            similaritySevere: 0.90,
+        },
+        teams: INTEGRITY_REPORT_TEAMS.map(t => ({ ...t, similarPairs: t.similarPairs.map(p => ({ ...p })) })),
+        pairs: INTEGRITY_REPORT_PAIRS.map(p => ({ ...p })),
+        caveat: 'เกณฑ์คัดกรองเบื้องต้นเท่านั้น — ใช้เพื่อ "เพ่งเล็งเป็นพิเศษ" ตอนตรวจ Essay ' +
+            'ห้ามใช้ตัดสิทธิ์อัตโนมัติ และห้ามใช้ข้อกล่าวหา "ใช้ AI" เพียงลำพัง',
+        generatedAt: new Date().toLocaleString('th-TH'),
+        isFixture: true,
+    };
 }
