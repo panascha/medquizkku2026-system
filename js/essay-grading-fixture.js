@@ -557,7 +557,8 @@ const FIXTURE_INTEGRITY_REVIEW = [
 /** สร้าง payload หน้าตาเดียวกับ _handleIntegrityEvidence ใน 8_IntegrityTriage.js */
 export function essayEvidenceFixture(email) {
     const t = INTEGRITY_REPORT_TEAMS.find(x => x.email === email);
-    if (!t) {
+    const roster = [...FIXTURE_SCHOOL_ROSTER, ...FIXTURE_MIXED_ROSTER].find(r => r.email === email);
+    if (!t && !roster) {
         return { status: 'success', available: false, message: 'ไม่พบทีมนี้ในรายงาน (fixture)' };
     }
 
@@ -574,7 +575,7 @@ export function essayEvidenceFixture(email) {
         hits: evPatternHits(mine[i]),
     }));
 
-    const diffs = (t.similarPairs || [])
+    const diffs = (t?.similarPairs || [])
         .filter(p => p.similarity >= 0.80)
         .map(p => ({
             pairId: [email, p.otherEmail].sort().join('|'),
@@ -599,41 +600,59 @@ export function essayEvidenceFixture(email) {
                 })),
         }));
 
+    // ทีมที่ไม่ติดธง (ไม่อยู่ใน INTEGRITY_REPORT_TEAMS) — ใช้ข้อมูลเฉพาะเจาะจงจาก roster
+    // ให้ตัวเลขสมมติที่ "ปกติ" (ตรงกลาง cohort, ไม่มีธง)
+    const isFlagged = !!t;
+    const cleanDefaults = {
+        severity: 'NONE',
+        flags: [],
+        flagTypes: [],
+        submitMinutes: 180,
+        speedRank: roster?.rank || 0,
+        cpm: 38,
+        charsTotal: 5800,
+        speedFlagged: false,
+        typingFlagged: false,
+        similarPairs: [],
+    };
+    const eff = t || cleanDefaults;
+
     return {
         status: 'success',
         available: true,
         team: {
-            email: t.email,
-            teamName: t.teamName,
-            schoolName: t.schoolName,
-            quota: t.quota,
-            sheetName: t.quota === 'โรงเรียน' ? 'เรียงทีมโรงเรียน' : 'เรียงทีมผสม',
-            severity: t.severity,
-            flags: t.flags,
-            flagTypes: t.flagTypes,
-            autoScore: 280,
-            essayTotal: 0,
-            finalRank: '-',
-            qualifiedStatus: 'Need Essay Grading',
-            verifyStatus: '',
+            email,
+            teamName: t?.teamName || roster?.teamName || '',
+            schoolName: t?.schoolName || roster?.schoolName || '',
+            quota: t?.quota || (roster && roster.schoolName ? 'โรงเรียน' : 'ผสม'),
+            sheetName: (t?.quota || (roster && roster.schoolName ? 'โรงเรียน' : 'ผสม')) === 'โรงเรียน'
+                ? 'เรียงทีมโรงเรียน' : 'เรียงทีมผสม',
+            severity: eff.severity,
+            flags: eff.flags,
+            flagTypes: eff.flagTypes,
+            autoScore: roster?.autoScore || 280,
+            essayTotal: roster?.essayTotal || 0,
+            finalRank: roster?.rank ?? '-',
+            qualifiedStatus: roster?.qualifiedStatus || 'Need Essay Grading',
+            verifyStatus: roster?.verifyStatus || '',
         },
         timing: {
-            submitMinutes: t.submitMinutes,
-            speedRank: t.speedRank,
-            percentile: 0.4,
+            submitMinutes: eff.submitMinutes,
+            speedRank: eff.speedRank,
+            percentile: isFlagged ? 0.4 : 50,
             cohort: { n: 815, p5: 73.6, q1: 136.6, median: 181.3, q3: 214.0 },
             floorMin: 45,
             severeMin: 30,
-            flagged: t.speedFlagged,
+            flagged: eff.speedFlagged,
         },
         typing: {
-            cpm: t.cpm,
-            charsTotal: t.charsTotal,
-            percentile: 99.1,
+            cpm: eff.cpm,
+            charsTotal: eff.charsTotal,
+            percentile: isFlagged ? 99.1 : 50,
             cohort: { n: 815, median: 38, q3: 57, p95: 96 },
             watch: 150,
             impossible: 200,
-            flagged: t.typingFlagged,
+            flagged: eff.typingFlagged,
         },
         excerpts,
         diffs,

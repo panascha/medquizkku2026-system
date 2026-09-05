@@ -1449,17 +1449,11 @@
         }
 
         /**
-         * คลิกแถวในตารางอันดับ: ทีมที่ติดธงหรือถูกตัดสิทธิ์ → เปิดหน้าต่างหลักฐาน,
-         * ทีมที่อยู่ในคิวตรวจ → เปิดแผงตรวจ Essay, นอกนั้นบอกว่าไม่มีอะไรให้เปิด
+         * ทุกแถวในตารางอันดับ: เปิด Evidence Modal เป็น default เสมอ
+         * (ทีมสะอาดก็ดูข้อมูลพื้นฐานใน modal ได้ — แล้วกดไปตรวจ Essay จากในนั้น)
          */
         function handleSheetRowClick(email) {
-            const row = ((sheetData[sheetTab] || {}).rows || []).find(r => r.email === email);
-            if (row && (severityOf(row) !== 'NONE' || row.qualifiedStatus === 'Disqualified')) {
-                openEvidence(email);
-                return;
-            }
-            if (teams.some(t => t.email === email)) { openGradingFromSheet(email); return; }
-            toast('ทีมนี้ไม่ติดธงและไม่อยู่ในคิวตรวจ Essay — ไม่มีรายละเอียดให้เปิด');
+            openEvidence(email);
         }
 
         function openGradingFromSheet(email) {
@@ -1733,7 +1727,17 @@
                 `<span class="inline-block bg-slate-100 text-slate-700 rounded px-2 py-1 mr-1 mb-1 text-[11px]">${esc(f)}</span>`).join('')
                 || '<span class="text-slate-400 text-xs">— ไม่มีธง —</span>';
 
+            const inQueue = teams.some(team => team.email === t.email);
+            const gradeBtn = inQueue ? `
+                <div class="flex justify-center">
+                    <button id="evGradeBtn"
+                        class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-md">
+                        ✏️ ไปที่หน้าตรวจ Essay (Grade Essay)
+                    </button>
+                </div>` : '';
+
             $('evBody').innerHTML = [
+                gradeBtn,
                 `<div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 text-xs leading-snug">
                     <p class="font-extrabold mb-1">⚠️ อ่านก่อนตัดสิน</p>
                     <p>${esc(d.caveat || '')}</p>
@@ -1747,6 +1751,10 @@
 
             document.querySelectorAll('[data-decision]').forEach(b =>
                 b.addEventListener('click', () => submitDecision(b.dataset.decision)));
+            $('evGradeBtn')?.addEventListener('click', () => {
+                closeEvidence();
+                openGradingFromSheet(t.email);
+            });
         }
 
         // ── แถบเทียบเวลา / อัตราพิมพ์ ─────────────────────────────────────
