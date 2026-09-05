@@ -1288,10 +1288,13 @@
             : (r.teamName || '(ไม่มีชื่อทีม)');
         const dispSheetSchool = (r) => isBlindMode ? '— (ปกปิด)' : (r.schoolName || '');
 
+        // ธงเต็ม (🚨 เพ่งเล็ง / ⚠️ ข้อสังเกต) ไม่ใช่อีโมจิเดี่ยว — บนพื้นสีของแถว
+        // (SHEET_COLORS สีเขียวของทีมที่ผ่าน) อีโมจิเปล่า ๆ อ่านเหมือนเป็นเครื่องตกแต่ง
         function sheetFlagBadge(r) {
-            const sev = severityOf(r);
-            if (sev === 'NONE') return '';
-            return sev === 'SEVERE' ? '🚨' : '⚠️';
+            const b = SEVERITY_BADGE[severityOf(r)];
+            if (!b) return '';
+            return `<span class="text-[10px] font-bold border px-1.5 py-0.5 rounded-full whitespace-nowrap ${b.cls}"
+                title="คลิกที่แถวนี้เพื่อดูหลักฐาน &amp; ตัดสิน">${b.text}</span>`;
         }
 
         // ── ส่วนที่ 1: กล่องทีมที่ต้องเพ่งเล็ง ─────────────────────────────
@@ -1392,7 +1395,11 @@
                 <tr class="sheet-clickable" data-sheet-row="${esc(r.email)}"
                     style="background:${c.bg}; color:${c.font}">
                     <td class="text-right font-bold">${esc(r.rank)}</td>
-                    <td class="text-left">${sheetFlagBadge(r)} ${esc(dispSheetTeam(r))}</td>
+                    <td class="text-left">
+                        <span class="inline-flex items-center gap-1.5 flex-wrap">
+                            <span class="font-bold">${esc(dispSheetTeam(r))}</span>${sheetFlagBadge(r)}
+                        </span>
+                    </td>
                     ${isSchool ? `<td class="text-left">${esc(dispSheetSchool(r))}</td>` : ''}
                     <td class="text-right">${esc(r.autoScore)}</td>
                     <td class="text-right">${esc(r.essayTotal)}</td>
