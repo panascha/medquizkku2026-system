@@ -1715,8 +1715,9 @@
                         <p class="mb-1">${sample}</p>
                         <p class="opacity-80">
                             การนับโควตาฝั่งชีตใช้ชื่อโรงเรียน<u>ตามตัวอักษร</u> ชื่อที่พิมพ์ต่างกันจึงถูกนับเป็นคนละโรงเรียน
-                            ถ้ายืนยันว่าเป็นที่เดียวกัน ให้แก้ชื่อให้ตรงกันใน Master DB แล้วรัน
-                            <b>“1. Sync ข้อมูล &amp; จัดลำดับเบื้องต้น”</b> ใหม่
+                            ถ้ายืนยันว่าเป็นที่เดียวกัน กด “ตรวจดูทั้งหมด” แล้วใช้ปุ่ม <b>รวมชื่อโรงเรียน</b> ในหน้าต่างนั้น
+                            (แก้ชื่อให้ทั้ง Master DB และชีตอันดับพร้อมกัน) จากนั้นอันดับกับธงโควตาจะยังเป็นของเดิม
+                            จนกว่าจะรัน <b>“2. ประมวลผลคะแนนสุทธิ”</b> ในแท็บผู้ดูแล
                         </p>
                     </div>
                     <button onclick="openSchoolDup()"
@@ -1727,32 +1728,227 @@
             </div>`;
         }
 
-        window.openSchoolDup = () => {
+        // ── รวมชื่อโรงเรียน (standardizeSchoolNames) ───────────────────────────
+        //
+        // แก้ "ชื่อ" อย่างเดียว ไม่คิดอันดับใหม่ — ฝั่ง GAS ตั้งใจไม่คิดให้ เพราะการ
+        // รวมชื่อจนทีมหนึ่งเกินเพดาน 3 ทีม จะเลื่อนอันดับของทุกทีมที่อยู่ต่ำกว่า
+        // และเปลี่ยนชุดทีมที่ต้องตรวจ Essay ด้วย ต้องรัน "2. ประมวลผลคะแนนสุทธิ"
+        // ทั้งชุดเท่านั้น (และรันตอนที่ตรวจ Essay ครบแล้วจริงๆ)
+        //
+        // ปุ่มยืนยันเป็นแบบสองจังหวะในหน้าต่างเอง ไม่ใช่ confirm() ของเบราว์เซอร์
+        // เพราะต้องให้เห็น "รวมกี่ทีม / เกินโควตาไหม" ตอนกดยืนยัน ซึ่ง confirm()
+        // แสดงตัวเลขที่คำนวณสดไม่ได้ดีเท่า
+        let schoolMergeStatus = '';   // แถบผลลัพธ์บนสุดของหน้าต่าง (คงไว้จนปิดหน้าต่าง)
+        let mergeArmed = -1;          // index ของกลุ่มที่กด "รวมชื่อ" ค้างรอยืนยันอยู่
+
+        /** ชื่อที่ถูกติ๊กเลือกอยู่ในกลุ่มนี้ */
+        function pickedVariants(ci) {
+            return [...document.querySelectorAll(`.mergePick[data-ci="${ci}"]`)]
+                .filter(el => el.checked)
+                .map(el => schoolClusters[ci].names[Number(el.dataset.ni)])
+                .filter(Boolean);
+        }
+
+        function canonicalInput(ci) {
+            const el = $(`mergeName-${ci}`);
+            return el ? el.value.trim() : '';
+        }
+
+        /** อัปเดตบรรทัดสรุป + สถานะปุ่มของกลุ่มหนึ่ง (เรียกทุกครั้งที่ติ๊ก/พิมพ์) */
+        window.updateMergePreview = (ci) => {
+            const prev = $(`mergePrev-${ci}`);
+            const btn = $(`mergeBtn-${ci}`);
+            if (!prev || !btn) return;
+
             const max = sheetData[sheetTab] ? maxPerSchoolOf(sheetData[sheetTab]) : DEFAULT_MAX_PER_SCHOOL;
-            $('schoolDupBody').innerHTML = schoolClusters.length
-                ? schoolClusters.map(c => `
-                    <div class="rounded-xl border ${c.exceeds ? 'border-red-300' : 'border-slate-200'} overflow-hidden">
-                        <p class="px-4 py-2 text-xs font-extrabold ${c.exceeds ? 'bg-red-100 text-red-900' : 'bg-slate-100 text-slate-700'}">
-                            รวม ${c.totalTeams} ทีม ${c.exceeds ? `— เกินเพดาน ${max} ทีม/โรงเรียน` : `— ยังไม่เกินเพดาน ${max} ทีม`}
-                        </p>
-                        <table class="w-full text-xs border-collapse">
-                            <thead><tr>
-                                <th class="text-left">ชื่อโรงเรียนตามที่กรอก</th>
-                                <th class="text-right">จำนวนทีม</th>
-                                <th class="text-left">ทีมในกลุ่มนี้</th>
-                            </tr></thead>
-                            <tbody>${c.names.map(n => `
-                                <tr>
-                                    <td class="text-left font-bold">${esc(isBlindMode ? '— (ปกปิด)' : n.raw)}</td>
-                                    <td class="text-right">${n.teams.length}</td>
-                                    <td class="text-left">${n.teams.map(t =>
-                                        `<span class="inline-block bg-slate-100 rounded px-1.5 py-0.5 mr-1 mb-1">${esc(dispSheetTeam(t))} · อันดับ ${esc(t.rank)}${t.schoolTeamRank !== '' ? ` · ในรร. ${esc(t.schoolTeamRank)}` : ''}</span>`
-                                    ).join('')}</td>
-                                </tr>`).join('')}
-                            </tbody>
-                        </table>
-                    </div>`).join('')
-                : `<p class="text-center text-slate-400 text-sm py-8">— ไม่พบชื่อโรงเรียนที่คล้ายกัน —</p>`;
+            const picked = pickedVariants(ci);
+            const name = canonicalInput(ci);
+            const teams = picked.reduce((s, n) => s + n.teams.length, 0);
+            const willChange = picked.filter(n => n.raw !== name);
+
+            let msg;
+            if (!name) msg = `<span class="text-red-700 font-bold">ยังไม่ได้ใส่ชื่อมาตรฐาน</span>`;
+            else if (!picked.length) msg = `<span class="text-red-700 font-bold">ยังไม่ได้เลือกชื่อที่จะรวม</span>`;
+            else if (!willChange.length) msg = `<span class="text-slate-500">ทุกชื่อที่เลือกตรงกับชื่อมาตรฐานอยู่แล้ว — ไม่มีอะไรต้องแก้</span>`;
+            else msg = `รวม <b>${willChange.length}</b> ชื่อ (<b>${teams}</b> ทีม) เป็น “${esc(name)}”` +
+                (teams > max
+                    ? ` <span class="text-red-700 font-bold">— รวมแล้วเกินเพดาน ${max} ทีม/โรงเรียน ทีมลำดับที่ ${max + 1} เป็นต้นไปจะถูกตัดเป็น “ติดกฎโควตา”</span>`
+                    : ` <span class="text-slate-500">— ยังไม่เกินเพดาน ${max} ทีม</span>`);
+
+            prev.innerHTML = msg;
+            const ok = !!name && willChange.length > 0;
+            btn.disabled = !ok;
+            btn.className = `shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold border ${ok
+                ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
+                : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'}`;
+
+            if (mergeArmed !== ci) btn.textContent = 'รวมชื่อโรงเรียน';
+        };
+
+        /** กดครั้งแรก = ขอยืนยัน, กดซ้ำ = ทำจริง (การรวมชื่อย้อนกลับเองไม่ได้) */
+        window.armOrRunMerge = (ci) => {
+            const btn = $(`mergeBtn-${ci}`);
+            if (!btn || btn.disabled) return;
+            if (mergeArmed !== ci) {
+                if (mergeArmed >= 0) window.updateMergePreview(mergeArmed);
+                mergeArmed = ci;
+                btn.textContent = 'กดอีกครั้งเพื่อยืนยัน (ย้อนกลับไม่ได้)';
+                btn.className = 'shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold border bg-red-600 border-red-600 text-white hover:bg-red-700';
+                return;
+            }
+            mergeArmed = -1;
+            submitSchoolMerge(ci, btn);
+        };
+
+        async function submitSchoolMerge(ci, btn) {
+            const name = canonicalInput(ci);
+            const picked = pickedVariants(ci);
+            const originals = picked.map(n => n.raw);
+            const quota = sheetTab;
+            const teams = picked.reduce((s, n) => s + n.teams.length, 0);
+
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังแก้ชื่อ...';
+            try {
+                let data;
+                if (demoMode) {
+                    // โหมดทดลอง: แก้ชื่อในข้อมูลจำลองที่ cache ไว้ ให้เห็นผลจริงของ
+                    // "แก้ชื่อแต่ไม่คิดอันดับใหม่" — ลำดับใน รร. จะยังไม่ขยับ ตรงกับ
+                    // พฤติกรรมจริงของฝั่ง GAS
+                    const rows = (sheetData[quota] && sheetData[quota].rows) || [];
+                    let n = 0;
+                    rows.forEach(r => {
+                        const cur = String(r.schoolName || '').trim();
+                        if (originals.includes(cur) && cur !== name) { r.schoolName = name; n++; }
+                    });
+                    data = {
+                        status: 'success', targetSchoolName: name, updatedTeamsCount: n,
+                        masterUpdated: n, rankingUpdated: n, verifiedFrozenCount: 0,
+                        rankingStale: n > 0, demo: true
+                    };
+                } else {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'standardizeSchoolNames',
+                            idToken: await window.idToken(),
+                            targetSchoolName: name,
+                            originalSchoolNames: originals,
+                            quota
+                        })
+                    });
+                    data = await res.json();
+                    if (data.status !== 'success') throw new Error(data.message || 'แก้ชื่อโรงเรียนไม่สำเร็จ');
+                }
+
+                schoolMergeStatus = `
+                <div class="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-xs text-emerald-900 leading-snug">
+                    <p class="font-extrabold mb-1">✅ แก้ชื่อเป็น “${esc(data.targetSchoolName)}” แล้ว ${data.updatedTeamsCount} จุด${data.demo ? ' (โหมดทดลอง)' : ''}</p>
+                    <p>Master DB ${data.masterUpdated} แถว · ชีตอันดับ ${data.rankingUpdated} แถว${
+                        data.verifiedFrozenCount ? ` · <b class="text-red-700">Verified อยู่ ${data.verifiedFrozenCount} แถว</b>` : ''}</p>
+                    ${data.rankingStale ? `
+                    <p class="mt-1 font-bold">⚠️ อันดับกับธงโควตายังเป็นของเดิม — ต้องไปกด
+                        “2. ประมวลผลคะแนนสุทธิ” ในแท็บผู้ดูแล <u>หลังตรวจ Essay ครบแล้ว</u>
+                        จึงจะนับเพดาน ${maxPerSchoolOf(sheetData[quota] || {})} ทีม/โรงเรียน ใหม่</p>` : ''}
+                    ${data.verifiedFrozenCount ? `
+                    <p class="mt-1">แถวที่ Verified จะไม่ถูกคิดอันดับใหม่ (ขั้นที่ 2 ข้ามแถวเหล่านั้นเสมอ)
+                        ถ้าต้องให้คิดใหม่ ต้องปลดล็อกเป็น Graded ก่อน</p>` : ''}
+                    <p class="mt-1 opacity-80">ชื่อเดิมรายทีมถูกบันทึกไว้ในชีต Admin_Action_Log แล้ว (ใช้ย้อนกลับได้)</p>
+                </div>`;
+
+                if (!demoMode) {
+                    delete sheetData[quota];
+                    await loadSheetView(quota).catch(() => { });
+                }
+                if (view === 'sheet' && sheetData[quota]) renderSheetTable(sheetData[quota]);
+                renderSchoolDupBody();
+            } catch (err) {
+                schoolMergeStatus = `
+                <div class="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-xs text-red-900">
+                    <p class="font-extrabold">❌ แก้ชื่อไม่สำเร็จ</p>
+                    <p>${esc(err.message)}</p>
+                </div>`;
+                btn.disabled = false;
+                btn.innerHTML = orig;
+                renderSchoolDupBody();
+            }
+        }
+
+        function schoolClusterCard(c, ci, max) {
+            const rows = c.names.map((n, ni) => `
+                <tr>
+                    <td class="text-center align-top pt-2">
+                        <input type="checkbox" class="mergePick" data-ci="${ci}" data-ni="${ni}" checked
+                            onchange="updateMergePreview(${ci})">
+                    </td>
+                    <td class="text-left font-bold">${esc(n.raw)}</td>
+                    <td class="text-right">${n.teams.length}</td>
+                    <td class="text-left">${n.teams.map(t =>
+                        `<span class="inline-block bg-slate-100 rounded px-1.5 py-0.5 mr-1 mb-1">${esc(dispSheetTeam(t))} · อันดับ ${esc(t.rank)}${t.schoolTeamRank !== '' ? ` · ในรร. ${esc(t.schoolTeamRank)}` : ''}</span>`
+                    ).join('')}</td>
+                </tr>`).join('');
+
+            return `
+            <div class="rounded-xl border ${c.exceeds ? 'border-red-300' : 'border-slate-200'} overflow-hidden">
+                <p class="px-4 py-2 text-xs font-extrabold ${c.exceeds ? 'bg-red-100 text-red-900' : 'bg-slate-100 text-slate-700'}">
+                    รวม ${c.totalTeams} ทีม ${c.exceeds ? `— เกินเพดาน ${max} ทีม/โรงเรียน` : `— ยังไม่เกินเพดาน ${max} ทีม`}
+                </p>
+                <table class="w-full text-xs border-collapse">
+                    <thead><tr>
+                        <th class="text-center w-8" title="ติ๊กเฉพาะชื่อที่เป็นโรงเรียนเดียวกันจริง">รวม</th>
+                        <th class="text-left">ชื่อโรงเรียนตามที่กรอก</th>
+                        <th class="text-right">จำนวนทีม</th>
+                        <th class="text-left">ทีมในกลุ่มนี้</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 space-y-2">
+                    <p class="text-[11px] text-slate-500 leading-snug">
+                        ระบบเดาจากความคล้ายของตัวอักษรเท่านั้น — <b>ชื่อยาวที่ต่างกันแค่ชื่อจังหวัดท้ายชื่อจะถูกจับเป็นกลุ่มเดียวกัน</b>
+                        (เช่น จุฬาภรณราชวิทยาลัย เลย กับ เชียงราย ได้ความคล้าย 0.87 ทั้งที่เป็นคนละโรงเรียน)
+                        ให้เอาติ๊กออกจากชื่อที่ไม่ใช่ที่เดียวกันก่อนกดรวม
+                    </p>
+                    <label class="block text-[11px] font-bold text-slate-600">ชื่อมาตรฐานที่จะใช้</label>
+                    <input id="mergeName-${ci}" type="text" value="${esc(c.names[0].raw)}"
+                        oninput="updateMergePreview(${ci})"
+                        class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <p id="mergePrev-${ci}" class="flex-1 min-w-[240px] text-[11px] leading-snug"></p>
+                        <button id="mergeBtn-${ci}" onclick="armOrRunMerge(${ci})"
+                            class="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold border bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed">
+                            รวมชื่อโรงเรียน
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        /** วาดเนื้อในหน้าต่างใหม่ทั้งหมด — เรียกซ้ำได้หลังรวมชื่อสำเร็จ */
+        function renderSchoolDupBody() {
+            const max = sheetData[sheetTab] ? maxPerSchoolOf(sheetData[sheetTab]) : DEFAULT_MAX_PER_SCHOOL;
+            mergeArmed = -1;
+
+            // โหมด Blind ปิดชื่อโรงเรียนทั้งหน้า — เลือกรวมชื่อที่มองไม่เห็นไม่ได้
+            // และเป็นการแก้ที่ย้อนกลับไม่ได้ จึงปิดเครื่องมือทั้งก้อนแทนการปิดแค่ชื่อ
+            if (isBlindMode) {
+                $('schoolDupBody').innerHTML = schoolMergeStatus + `
+                <p class="text-center text-slate-400 text-sm py-8">
+                    — ปลดล็อกชื่อจริง (โหมดฝ่ายจัดการ) เพื่อดูและรวมชื่อโรงเรียน —
+                </p>`;
+                return;
+            }
+
+            $('schoolDupBody').innerHTML = schoolMergeStatus + (schoolClusters.length
+                ? schoolClusters.map((c, ci) => schoolClusterCard(c, ci, max)).join('')
+                : `<p class="text-center text-slate-400 text-sm py-8">— ไม่พบชื่อโรงเรียนที่คล้ายกัน —</p>`);
+
+            schoolClusters.forEach((c, ci) => window.updateMergePreview(ci));
+        }
+
+        window.openSchoolDup = () => {
+            schoolMergeStatus = '';
+            renderSchoolDupBody();
             $('modalSchoolDup').classList.remove('hidden');
         };
         window.closeSchoolDup = () => $('modalSchoolDup').classList.add('hidden');

@@ -207,6 +207,16 @@ const FIXTURE_SCHOOL_ROSTER = [
     // 3 ทีม/รร. รวมกับ "โรงเรียนจำลองศึกษา" อีก 2 ทีมเป็น 4 ทีม (เคสของแบนเนอร์เตือน)
     { rank: 40,  email: 'school.dup1@gmail.com',  teamName: 'ทีมชื่อรรซ้ำหนึ่ง',  schoolName: 'รร.จำลองศึกษา',      schoolTeamRank: 1, quotaExceeded: false, autoScore: 295, essayTotal: 0, totalScore: 295, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
     { rank: 41,  email: 'school.dup2@gmail.com',  teamName: 'ทีมชื่อรรซ้ำสอง',    schoolName: 'รร.จำลองศึกษา',      schoolTeamRank: 2, quotaExceeded: false, autoScore: 293, essayTotal: 0, totalScore: 293, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    // เคส false positive ที่ต้องเอาติ๊กออกก่อนรวม: ชื่อยาวเหมือนกันหมด ต่างแค่ชื่อ
+    // จังหวัดท้ายชื่อ — คู่ "เลย" กับ "เชียงราย" ได้ Dice 0.868 (>= 0.85) จึงถูกจับ
+    // เป็นกลุ่มเดียวกันทั้งที่เป็นคนละโรงเรียนจริงๆ ส่วน "เลย" เว้นวรรค/ไม่เว้นวรรค
+    // ได้ 1.000 คือคู่ที่ควรรวมจริง กลุ่มนี้จึงบังคับให้ต้องใช้ checkbox เลือกทีละชื่อ
+    // (นี่คือรูปแบบเดียวกับเครือจุฬาภรณราชวิทยาลัยในข้อมูลจริง)
+    { rank: 42,  email: 'school.prov1@gmail.com', teamName: 'ทีมจังหวัดหนึ่ง',   schoolName: 'โรงเรียนวิทยาศาสตร์จำลองราชวิทยาลัย เลย',      schoolTeamRank: 1, quotaExceeded: false, autoScore: 291, essayTotal: 0, totalScore: 291, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    { rank: 43,  email: 'school.prov2@gmail.com', teamName: 'ทีมจังหวัดสอง',     schoolName: 'โรงเรียนวิทยาศาสตร์จำลองราชวิทยาลัย เลย',      schoolTeamRank: 2, quotaExceeded: false, autoScore: 290, essayTotal: 0, totalScore: 290, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    { rank: 44,  email: 'school.prov3@gmail.com', teamName: 'ทีมจังหวัดสาม',     schoolName: 'โรงเรียนวิทยาศาสตร์จำลองราชวิทยาลัยเลย',       schoolTeamRank: 1, quotaExceeded: false, autoScore: 289, essayTotal: 0, totalScore: 289, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    { rank: 45,  email: 'school.prov4@gmail.com', teamName: 'ทีมจังหวัดสี่',      schoolName: 'โรงเรียนวิทยาศาสตร์จำลองราชวิทยาลัยเลย',       schoolTeamRank: 2, quotaExceeded: false, autoScore: 288, essayTotal: 0, totalScore: 288, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    { rank: 46,  email: 'school.prov5@gmail.com', teamName: 'ทีมคนละจังหวัด',    schoolName: 'โรงเรียนวิทยาศาสตร์จำลองราชวิทยาลัย เชียงราย', schoolTeamRank: 1, quotaExceeded: false, autoScore: 287, essayTotal: 0, totalScore: 287, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
     // ทีมที่ถูกตัดสิทธิ์ (Disqualified)
     { rank: 5,   email: 'school.dq1@gmail.com',    teamName: 'ทีมถูกตัดสิทธิ์เอ',   schoolName: 'โรงเรียนตัดสิทธิ์ศึกษา', schoolTeamRank: 1, quotaExceeded: false, autoScore: 310, essayTotal: 0, totalScore: 310, verifyStatus: 'Verified', qualifiedStatus: 'Disqualified',         colorKey: 'DISQUALIFIED',
       eligibilityNote: 'ตัดสิทธิ์ (ทุจริต/ลอกข้อสอบ) — พบคำตอบ Essay ซ้ำกับทีมนอกโควตา 92%',
