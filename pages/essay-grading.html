@@ -225,6 +225,10 @@
             class="view-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 bg-white hover:bg-slate-50">
             🕵️ รายงานความผิดปกติ <span class="opacity-60">(Integrity Triage)</span>
         </button>
+        <button id="btnAdminMode" onclick="switchView('admin')"
+            class="view-btn ml-auto px-4 py-2 rounded-xl text-sm font-bold border border-slate-300 bg-white hover:bg-slate-50">
+            ⚙️ ควบคุมระบบ <span class="opacity-60">(Admin Console)</span>
+        </button>
     </div>
 
     <main id="queueView" class="flex-1 max-w-[1500px] mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
@@ -266,7 +270,9 @@
                 </div>
                 <!-- Integrity Triage Alert Box — ว่างเมื่อทีมนี้ไม่มีธง -->
                 <div id="integrityBox"></div>
-                <div id="statusPill" class="mb-4"></div>
+                <div id="statusPill" class="mb-2"></div>
+                <!-- ปุ่มลัดเปลี่ยน Score_Verification_Status + คำเตือนการล็อกถาวร -->
+                <div id="verifyControls" class="mb-4"></div>
 
                 <div id="slots" class="space-y-4"></div>
 
@@ -423,6 +429,56 @@
             </p>
         </div>
     </section>
+
+    <!-- ⚙️ ควบคุมระบบ (Admin Console) — รันเมนู "🚀 ระบบ MedQuiz" จากหน้าเว็บ
+         เรียงเป็นไทม์ไลน์ 5 ขั้นตามวันจริง เพื่อให้เห็นว่า "ตอนนี้ควรกดอะไร"
+         ไม่ใช่รายการปุ่มลอยๆ. ทุกปุ่มยิง action=executeAdminAction ไปเรียก
+         ฟังก์ชันเดิมใน GAS ไม่มีตรรกะซ้ำฝั่งเว็บ -->
+    <section id="adminView" class="hidden flex-1 max-w-[1100px] mx-auto w-full p-4 space-y-3">
+
+        <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 text-xs leading-snug">
+            <p class="font-extrabold mb-1">⚠️ คำสั่งในหน้านี้เขียนข้อมูลจริงลงชีต — กดตามลำดับขั้นเท่านั้น</p>
+            <ul class="list-disc list-inside space-y-0.5">
+                <li>คำสั่งที่ติดป้าย <b>⏳ ใช้เวลานาน</b> อาจชนลิมิต 6 นาทีของ Web App — ถ้าเบราว์เซอร์ค้างหรือขึ้น error หมดเวลา <b>อย่ากดซ้ำทันที</b> ให้เปิดชีตดูผลก่อน แล้วรันจากเมนู <b>🚀 ระบบ MedQuiz</b> ในชีตแทน</li>
+                <li>คำสั่งจัดลำดับจะ<b>ไม่แตะแถวที่เป็น Verified</b> — ล็อกคะแนนทีมที่ตรวจเสร็จแล้วก่อนกดขั้นถัดไปได้</li>
+                <li>ทุกครั้งที่กด ระบบบันทึกผู้กด/เวลา/ผลลัพธ์ลงชีต <code>Admin_Action_Log</code></li>
+            </ul>
+        </div>
+
+        <div id="adminSteps" class="space-y-3"></div>
+    </section>
+
+    <!-- หน้าต่างผลลัพธ์คำสั่งผู้ดูแล — แสดงข้อความสรุปเดียวกับกล่อง alert ในชีต -->
+    <div id="modalAdminResult" class="hidden fixed inset-0 z-40 bg-black/50 p-3 md:p-6 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-[820px] mx-auto shadow-2xl flex flex-col">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-start gap-3">
+                <div class="flex-1 min-w-0">
+                    <h2 id="adminResultTitle" class="text-lg font-extrabold text-slate-800 leading-tight">ผลการทำงาน</h2>
+                    <p id="adminResultMeta" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="closeAdminResult()"
+                    class="shrink-0 w-9 h-9 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold">✕</button>
+            </div>
+            <div id="adminResultBody" class="p-5 space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- หน้าต่างชื่อโรงเรียนที่อาจเป็นโรงเรียนเดียวกัน (ตรวจโควตา 3 ทีม/รร.) -->
+    <div id="modalSchoolDup" class="hidden fixed inset-0 z-40 bg-black/50 p-3 md:p-6 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-[900px] mx-auto shadow-2xl flex flex-col">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-start gap-3">
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-lg font-extrabold text-slate-800 leading-tight">ชื่อโรงเรียนที่อาจเป็นโรงเรียนเดียวกัน</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                        ระบบเทียบชื่อแบบตัดคำนำหน้า (โรงเรียน / รร. / ร.ร.) เว้นวรรค และเครื่องหมาย แล้ววัดความคล้าย
+                    </p>
+                </div>
+                <button onclick="closeSchoolDup()"
+                    class="shrink-0 w-9 h-9 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold">✕</button>
+            </div>
+            <div id="schoolDupBody" class="p-5 space-y-4"></div>
+        </div>
+    </div>
 
     <!-- ── หน้าต่างหลักฐาน & การตัดสิน (Integrity Evidence) ───────────────────
          เปิดจากปุ่มในตารางรายงานความผิดปกติ. โครงสร้าง: สรุปธง → แถบเทียบเวลา/
@@ -1035,6 +1091,27 @@
                 : `<span class="inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-hourglass-half"></i> ยังไม่ได้ตรวจ</span>`;
             $('draftHint').textContent = (draft && !graded && !locked) ? 'กู้คืนฉบับร่างที่ค้างไว้' : '';
 
+            const cur = team.verifyStatus || 'Pending';
+            $('verifyControls').innerHTML = `
+                <div class="rounded-xl border ${locked ? 'border-slate-400 bg-slate-50' : 'border-slate-200'} p-3">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-bold text-slate-500 mr-1">สถานะตรวจ:</span>
+                        ${VERIFY_OPTIONS.map(o => `
+                            <button onclick="setPanelVerify('${o.v}')" ${o.v === cur ? 'disabled' : ''}
+                                class="px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors
+                                    ${o.v === cur
+                        ? 'bg-slate-800 text-white border-slate-800 cursor-default'
+                        : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'}">
+                                ${esc(o.label)}
+                            </button>`).join('')}
+                    </div>
+                    <p class="mt-2 text-[11px] leading-snug ${locked ? 'text-slate-700' : 'text-slate-500'}">
+                        ${VERIFY_FREEZE_WARNING}
+                    </p>
+                    ${locked ? `<p class="mt-1 text-[11px] font-bold text-slate-700">
+                        แถวนี้ถูกล็อกอยู่ — เลือก “Graded” เพื่อปลดล็อกและกลับมาแก้คะแนนได้</p>` : ''}
+                </div>`;
+
             document.querySelectorAll('.score-input').forEach(inp => {
                 inp.disabled = locked;
                 inp.addEventListener('input', () => { recalcTotal(); scheduleDraftSave(); });
@@ -1146,10 +1223,12 @@
             $('questionView').classList.toggle('hidden', mode !== 'question');
             $('sheetView').classList.toggle('hidden', mode !== 'sheet');
             $('integrityView').classList.toggle('hidden', mode !== 'integrity');
+            $('adminView').classList.toggle('hidden', mode !== 'admin');
             $('btnQueueMode').classList.toggle('queue-active', mode === 'queue');
             $('btnQuestionMode').classList.toggle('queue-active', mode === 'question');
             $('btnSheetMode').classList.toggle('queue-active', mode === 'sheet');
             $('btnIntegrityMode').classList.toggle('queue-active', mode === 'integrity');
+            $('btnAdminMode').classList.toggle('queue-active', mode === 'admin');
             // re-render ทุกครั้งที่เข้า (ไม่ใช่แค่ตอนโหลดครั้งแรก) เพื่อให้สลับ Blind แล้วชื่อในตารางอัปเดต
             if (mode === 'sheet') {
                 if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
@@ -1157,6 +1236,7 @@
             }
             if (mode === 'question') renderQuestionView();
             if (mode === 'integrity') { if (integrityData) renderIntegrityView(); else loadIntegrityView().catch(() => { }); }
+            if (mode === 'admin') renderAdminConsole();
         };
 
         // ── By-Question View (ตรวจเปรียบเทียบทีละข้อ) ──────────────────────
@@ -1369,6 +1449,314 @@
         // ก่อนแบ่งส่วน ถ้าคิดจาก index ของแต่ละส่วน/ผลกรอง ทีมเดียวกันจะได้คนละเลข
         // ในกล่องเตือน ตารางหลัก และตารางตัดสิทธิ์ ซึ่งเป็นการรั่วข้อมูลแบบที่
         // โหมด Blind มีไว้กันพอดี
+        // ── แก้สถานะตรวจ (Score_Verification_Status) โดยตรง ───────────────────
+        //
+        // เป็นทางเดียวที่ปลดล็อกแถวที่เป็น Verified ได้ — การบันทึกคะแนน
+        // (_handleSubmitEssayGrade) ปฏิเสธแถว Verified ทุกกรณี ถ้าไม่มีปุ่มนี้
+        // การกด Verified ผิดทีมจะกู้คืนไม่ได้เลยจากหน้าเว็บ
+
+        const VERIFY_FREEZE_WARNING =
+            '🔒 <b>Verified</b>: ล็อกคะแนนและอันดับถาวร — แถวนี้จะไม่ถูกคำนวณทับหรือปรับเปลี่ยนอันดับอีก' +
+            'เมื่อกด “ประมวลผลคะแนนสุทธิ (Ranking หลังตรวจ Essay)”';
+
+        const VERIFY_OPTIONS = [
+            { v: 'Pending', label: 'Pending — ยังไม่ตรวจ' },
+            { v: 'Graded', label: 'Graded — ตรวจแล้ว (ยังแก้ได้)' },
+            { v: 'Verified', label: '🔒 Verified — ล็อกถาวร' },
+        ];
+
+        const verifyValueOf = (r) => (r.verifyStatus || 'Pending');
+
+        /** dropdown สถานะตรวจในตารางอันดับ — อยู่ในแถวที่คลิกได้ จึงต้องกัน bubble */
+        function verifyStatusCell(r, data) {
+            const cur = verifyValueOf(r);
+            const opts = VERIFY_OPTIONS.map(o =>
+                `<option value="${o.v}" ${o.v === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
+            return `<select data-verify-select="${esc(r.email)}" data-verify-sheet="${esc(data.sheetName || '')}"
+                        title="${cur === 'Verified' ? 'แถวนี้ถูกล็อก — เลือก Graded เพื่อปลดล็อก' : 'เปลี่ยนสถานะตรวจของทีมนี้'}"
+                        class="text-[11px] font-bold border rounded-lg px-1.5 py-1 bg-white/90 text-slate-700 ${cur === 'Verified' ? 'border-slate-500' : 'border-slate-300'}">
+                        ${opts}
+                    </select>`;
+        }
+
+        /**
+         * ส่งสถานะใหม่ไป GAS แล้วอัปเดต cache ทั้ง 2 ที่ (sheetData ของโควตานั้น และ
+         * teams ถ้าทีมนี้ยังอยู่ในคิว) ให้ตรงกัน — ไม่งั้นสลับแท็บกลับมาจะเห็นค่าเก่า
+         * เพราะ loadSheetView() คืน cache ไม่ยิงเน็ตซ้ำ
+         */
+        async function applyVerifyStatus(email, sheetName, status, opts = {}) {
+            if (!sheetName) throw new Error('ไม่ทราบชีตปลายทางของทีมนี้ (sheetName ว่าง)');
+            if (demoMode) {
+                // fixture: ไม่ยิงเน็ต เขียนลง cache ตรงๆ เหมือน path จริง
+            } else {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'updateVerificationStatus',
+                        idToken: await window.idToken(),
+                        email, sheetName, status,
+                    })
+                });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+            }
+
+            const stored = status === 'Pending' ? '' : status;
+            Object.values(sheetData).forEach(d => {
+                (d?.rows || []).forEach(r => { if (r.email === email) r.verifyStatus = stored; });
+            });
+            const t = teams.find(tm => tm.email === email);
+            if (t) t.verifyStatus = stored;
+
+            if (!opts.silent) toast(`เปลี่ยนสถานะเป็น ${status} แล้ว`);
+        }
+
+        window.onVerifySelectChange = async (sel) => {
+            const email = sel.dataset.verifySelect;
+            const sheetName = sel.dataset.verifySheet;
+            const next = sel.value;
+            const prev = (sheetData[sheetTab]?.rows || []).find(r => r.email === email)?.verifyStatus || 'Pending';
+            if (next === prev) return;
+
+            // ยืนยันเฉพาะ 2 ทางที่ย้อนกลับยาก/มีผลต่อการจัดอันดับ ไม่ถามทุกครั้งจนคนกดผ่านมั่ว
+            if (next === 'Verified' &&
+                !confirm(`ล็อกคะแนนทีมนี้ถาวร (Verified)?\n\nแถวนี้จะไม่ถูกคำนวณทับหรือปรับเปลี่ยนอันดับอีกเมื่อกด "ประมวลผลคะแนนสุทธิ"\nปลดล็อกได้ภายหลังโดยเลือกกลับเป็น Graded`)) {
+                sel.value = prev; return;
+            }
+            if (prev === 'Verified' &&
+                !confirm(`ปลดล็อกทีมนี้ (${prev} → ${next})?\n\nคะแนนจะกลับมาแก้ไขได้ และจะถูกจัดอันดับใหม่ในรอบประมวลผลถัดไป`)) {
+                sel.value = prev; return;
+            }
+
+            sel.disabled = true;
+            try {
+                await applyVerifyStatus(email, sheetName, next);
+                if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+                if (current && current.email === email) openPanel(current);
+                renderQueue();
+            } catch (err) {
+                sel.value = prev;
+                alert('❌ ' + err.message);
+            } finally {
+                sel.disabled = false;
+            }
+        };
+
+        /** ปุ่มสถานะในแผงตรวจรายทีม — ปุ่มลัด 3 ปุ่ม อ่านง่ายกว่า dropdown ในแผงใหญ่ */
+        window.setPanelVerify = async (status) => {
+            if (!current) return;
+            const prev = current.verifyStatus || 'Pending';
+            if (prev === status) return;
+            if (status === 'Verified' &&
+                !confirm(`ล็อกคะแนนทีมนี้ถาวร (Verified)?\n\nแถวนี้จะไม่ถูกคำนวณทับหรือปรับเปลี่ยนอันดับอีกเมื่อกด "ประมวลผลคะแนนสุทธิ"\nปลดล็อกได้ภายหลังโดยเลือกกลับเป็น Graded`)) return;
+            if (prev === 'Verified' &&
+                !confirm(`ปลดล็อกทีมนี้ (${prev} → ${status})?\n\nคะแนนจะกลับมาแก้ไขได้ และจะถูกจัดอันดับใหม่ในรอบประมวลผลถัดไป`)) return;
+
+            try {
+                await applyVerifyStatus(current.email, current.sheetName, status);
+                await openPanel(current);
+                renderQueue();
+                if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+            } catch (err) {
+                alert('❌ ' + err.message);
+            }
+        };
+
+        // ── โควตา 3 ทีม/โรงเรียน: ลำดับในโรงเรียน + ชื่อโรงเรียนที่อาจซ้ำกัน ────
+        //
+        // School_Team_Rank / Quota_Exceeded_Flag ถูกเขียนเฉพาะชีต "เรียงทีมโรงเรียน"
+        // (isSchoolSheet guard ใน 1_DataSync.js) โควตาผสมไม่มีเพดานต่อโรงเรียนเลย
+        // ค่าที่หายไปจึงต้องอ่านว่า "ไม่เกี่ยวกับโควตานี้" ไม่ใช่ "ไม่เกินโควตา"
+
+        const DEFAULT_MAX_PER_SCHOOL = 3;
+        const maxPerSchoolOf = (data) => data.maxPerSchool || DEFAULT_MAX_PER_SCHOOL;
+
+        function schoolRankCell(r, max) {
+            const raw = r.schoolTeamRank;
+            if (raw === '' || raw === null || raw === undefined) {
+                return `<span class="opacity-40" title="ยังไม่มีค่า School_Team_Rank (รันเมนู GAS ข้อ 1 ก่อน)">—</span>`;
+            }
+            const n = Number(raw);
+            // ธงจากเซิร์ฟเวอร์มาก่อนเสมอ — เป็นค่าที่ _rankQuota() ใช้ตัดจริง
+            // การเทียบตัวเลขเองเป็นแค่ทางสำรองเมื่อคอลัมน์ Quota_Exceeded_Flag หาย
+            const over = r.quotaExceeded || (isFinite(n) && n > max);
+            const label = `${esc(raw)}/${max}`;
+            return over
+                ? `<b class="text-red-700">${label} ⚠️ เกินโควตา</b>`
+                : label;
+        }
+
+        /**
+         * ตัดคำนำหน้าโรงเรียน เว้นวรรค และเครื่องหมายวรรคตอนออก เหลือ "แก่น" ของชื่อ
+         * ไว้เทียบกัน — "รร.ขอนแก่นวิทยายน" กับ "โรงเรียนขอนแก่นวิทยายน " ต้องได้ค่าเท่ากัน
+         * เพราะฝั่งชีตนับโควตาจากสตริงดิบ (schoolCounts[r.schoolName] ใน _rankQuota)
+         * ชื่อที่พิมพ์ต่างกันจึงกลายเป็น "คนละโรงเรียน" และหลุดเพดาน 3 ทีมได้
+         */
+        function normSchoolName(s) {
+            let v = String(s ?? '').trim().toLowerCase();
+            // คำนำหน้าที่พบจริงในใบสมัคร — ตัดซ้ำได้หลายชั้น เช่น "รร. โรงเรียนx"
+            for (let i = 0; i < 3; i++) {
+                v = v.replace(/^(โรงเรียน|รร\.?|ร\.ร\.?|ร\s*\.\s*ร\s*\.?|school)\s*/u, '');
+            }
+            return v
+                .replace(/[\s ]+/gu, '')
+                .replace(/[.,()\-–—_/\\'"“”‘’]/gu, '');
+        }
+
+        /** ชุด bigram ของสตริง (สตริงยาว 1 ตัวคืนตัวมันเอง ไม่งั้นจะได้เซตว่าง) */
+        function bigramSet(s) {
+            if (s.length < 2) return new Set(s ? [s] : []);
+            const out = new Set();
+            for (let i = 0; i < s.length - 1; i++) out.add(s.slice(i, i + 2));
+            return out;
+        }
+
+        /** Sørensen–Dice บน bigram — 0..1 ทนการสลับ/เติมคำกลางชื่อดีกว่านับตัวอักษรตรงๆ */
+        function diceSimilarity(a, b) {
+            if (!a || !b) return 0;
+            if (a === b) return 1;
+            const A = bigramSet(a), B = bigramSet(b);
+            let shared = 0;
+            A.forEach(g => { if (B.has(g)) shared++; });
+            return (2 * shared) / (A.size + B.size);
+        }
+
+        const SCHOOL_SIM_THRESHOLD = 0.85;
+
+        /**
+         * เลขต่อท้ายชื่อโรงเรียน (แปลงเลขไทยเป็นอารบิก) — "ขอนแก่นวิทยายน" กับ
+         * "ขอนแก่นวิทยายน 2" คล้ายกัน 0.96 แต่เป็นคนละโรงเรียนจริงๆ ซึ่งเป็นรูปแบบ
+         * ที่พบบ่อยมากในชื่อโรงเรียนไทย จึงบังคับให้เลขต่อท้ายตรงกันก่อนจับเป็นกลุ่ม
+         */
+        function schoolNumberTag(norm) {
+            const arabic = norm.replace(/[๐-๙]/gu, c => String('๐๑๒๓๔๕๖๗๘๙'.indexOf(c)));
+            const m = arabic.match(/(\d+)$/u);
+            return m ? m[1] : '';
+        }
+
+        /**
+         * จับกลุ่มชื่อโรงเรียนที่ "เขียนต่างกันแต่น่าจะเป็นที่เดียวกัน"
+         * คิดจาก data.rows ทั้งชุด ไม่ใช่แถวที่ผ่านตัวกรอง — จำนวนทีมที่ลดลงเพราะ
+         * ตัวกรองจะถูกอ่านผิดว่า "ไม่เกินโควตาแล้ว" (เหตุผลเดียวกับตัวนับ flagged)
+         *
+         * คืนเฉพาะกลุ่มที่มีชื่อดิบ ≥ 2 แบบ — ชื่อที่พิมพ์เหมือนกันเป๊ะไม่ใช่ปัญหา
+         * เพราะฝั่งชีตนับรวมให้อยู่แล้ว
+         */
+        function findSchoolNameClusters(rows, max) {
+            const byRaw = new Map();
+            rows.forEach(r => {
+                const raw = String(r.schoolName || '').trim();
+                if (!raw) return;
+                if (!byRaw.has(raw)) {
+                    const norm = normSchoolName(raw);
+                    byRaw.set(raw, { raw, norm, tag: schoolNumberTag(norm), teams: [] });
+                }
+                byRaw.get(raw).teams.push(r);
+            });
+
+            const entries = [...byRaw.values()].filter(e => e.norm);
+            const used = new Set();
+            const clusters = [];
+
+            // union แบบง่าย: จำนวนชื่อโรงเรียนต่อโควตาอยู่หลักสิบ O(n²) จึงถูกกว่า
+            // การสร้าง index ใดๆ และอ่านง่ายกว่ามาก
+            entries.forEach((a, i) => {
+                if (used.has(i)) return;
+                const group = [a];
+                used.add(i);
+                entries.forEach((b, j) => {
+                    if (j <= i || used.has(j)) return;
+                    if (a.tag !== b.tag) return;   // "…วิทยายน" กับ "…วิทยายน 2" คนละโรงเรียน
+                    if (a.norm === b.norm || diceSimilarity(a.norm, b.norm) >= SCHOOL_SIM_THRESHOLD) {
+                        group.push(b);
+                        used.add(j);
+                    }
+                });
+                if (group.length < 2) return;
+                const totalTeams = group.reduce((s, g) => s + g.teams.length, 0);
+                clusters.push({
+                    names: group.sort((x, y) => y.teams.length - x.teams.length),
+                    totalTeams,
+                    exceeds: totalTeams > max
+                });
+            });
+
+            // กลุ่มที่รวมแล้วเกินเพดานขึ้นก่อน แล้วค่อยเรียงตามจำนวนทีม
+            return clusters.sort((x, y) => (y.exceeds - x.exceeds) || (y.totalTeams - x.totalTeams));
+        }
+
+        let schoolClusters = [];
+
+        function renderSchoolDupBanner(data, rows) {
+            if (data.quota !== 'โรงเรียน') { schoolClusters = []; return ''; }
+            const max = maxPerSchoolOf(data);
+            schoolClusters = findSchoolNameClusters(rows, max);
+            if (!schoolClusters.length) return '';
+
+            const over = schoolClusters.filter(c => c.exceeds);
+            const headline = over.length
+                ? `🚨 พบ ${over.length} กลุ่มชื่อโรงเรียนที่รวมกันแล้ว <b>เกินเพดาน ${max} ทีม/โรงเรียน</b>`
+                : `พบ ${schoolClusters.length} กลุ่มชื่อโรงเรียนที่เขียนต่างกันแต่อาจเป็นโรงเรียนเดียวกัน`;
+
+            // โหมด Blind ปิดชื่อโรงเรียนทั้งหน้า — ตัวอย่างในแบนเนอร์ก็ต้องปิดด้วย
+            // ไม่งั้นอ่านชื่อจากกล่องเตือนแล้วเดาได้ว่าเลขสุ่มตรวจไหนคือทีมใด
+            const sample = isBlindMode
+                ? `<span class="opacity-70">— ปลดล็อกชื่อจริง (โหมดฝ่ายจัดการ) เพื่อดูรายชื่อ —</span>`
+                : schoolClusters.slice(0, 2).map(c =>
+                    c.names.map(n => `“${esc(n.raw)}” (${n.teams.length} ทีม)`).join(' + ') +
+                    ` — รวมเป็น ${c.totalTeams} ทีม${c.exceeds ? ` อาจเกินโควตา ${max} ทีม` : ''}`
+                ).join('<br>');
+
+            return `
+            <div class="m-3 rounded-xl border-2 ${over.length ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'} px-4 py-3 text-xs leading-snug ${over.length ? 'text-red-900' : 'text-amber-900'}">
+                <div class="flex flex-wrap items-start gap-3">
+                    <div class="flex-1 min-w-[240px]">
+                        <p class="font-extrabold mb-1">${headline}</p>
+                        <p class="mb-1">${sample}</p>
+                        <p class="opacity-80">
+                            การนับโควตาฝั่งชีตใช้ชื่อโรงเรียน<u>ตามตัวอักษร</u> ชื่อที่พิมพ์ต่างกันจึงถูกนับเป็นคนละโรงเรียน
+                            ถ้ายืนยันว่าเป็นที่เดียวกัน ให้แก้ชื่อให้ตรงกันใน Master DB แล้วรัน
+                            <b>“1. Sync ข้อมูล &amp; จัดลำดับเบื้องต้น”</b> ใหม่
+                        </p>
+                    </div>
+                    <button onclick="openSchoolDup()"
+                        class="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border ${over.length ? 'border-red-300 text-red-800 hover:bg-red-100' : 'border-amber-300 text-amber-800 hover:bg-amber-100'}">
+                        ตรวจดูทั้งหมด (${schoolClusters.length} กลุ่ม)
+                    </button>
+                </div>
+            </div>`;
+        }
+
+        window.openSchoolDup = () => {
+            const max = sheetData[sheetTab] ? maxPerSchoolOf(sheetData[sheetTab]) : DEFAULT_MAX_PER_SCHOOL;
+            $('schoolDupBody').innerHTML = schoolClusters.length
+                ? schoolClusters.map(c => `
+                    <div class="rounded-xl border ${c.exceeds ? 'border-red-300' : 'border-slate-200'} overflow-hidden">
+                        <p class="px-4 py-2 text-xs font-extrabold ${c.exceeds ? 'bg-red-100 text-red-900' : 'bg-slate-100 text-slate-700'}">
+                            รวม ${c.totalTeams} ทีม ${c.exceeds ? `— เกินเพดาน ${max} ทีม/โรงเรียน` : `— ยังไม่เกินเพดาน ${max} ทีม`}
+                        </p>
+                        <table class="w-full text-xs border-collapse">
+                            <thead><tr>
+                                <th class="text-left">ชื่อโรงเรียนตามที่กรอก</th>
+                                <th class="text-right">จำนวนทีม</th>
+                                <th class="text-left">ทีมในกลุ่มนี้</th>
+                            </tr></thead>
+                            <tbody>${c.names.map(n => `
+                                <tr>
+                                    <td class="text-left font-bold">${esc(isBlindMode ? '— (ปกปิด)' : n.raw)}</td>
+                                    <td class="text-right">${n.teams.length}</td>
+                                    <td class="text-left">${n.teams.map(t =>
+                                        `<span class="inline-block bg-slate-100 rounded px-1.5 py-0.5 mr-1 mb-1">${esc(dispSheetTeam(t))} · อันดับ ${esc(t.rank)}${t.schoolTeamRank !== '' ? ` · ในรร. ${esc(t.schoolTeamRank)}` : ''}</span>`
+                                    ).join('')}</td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`).join('')
+                : `<p class="text-center text-slate-400 text-sm py-8">— ไม่พบชื่อโรงเรียนที่คล้ายกัน —</p>`;
+            $('modalSchoolDup').classList.remove('hidden');
+        };
+        window.closeSchoolDup = () => $('modalSchoolDup').classList.add('hidden');
+
         function renderSheetTable(data) {
             const rows = data.rows || [];
             // สะท้อนคะแนนที่เพิ่งตรวจ (By-Team/By-Question) ลงแถวโควตา — teams เป็นค่าล่าสุดเสมอ
@@ -1385,6 +1773,7 @@
                 $('sheetTableWrap').innerHTML = `<p class="p-6 text-center text-slate-400 text-sm">— ยังไม่มีข้อมูลอันดับ (รันเมนู GAS ข้อ 1 ก่อน) —</p>`;
                 $('sheetCount').textContent = '';
                 updateFlaggedToggle(null);
+                schoolClusters = [];   // กันหน้าต่าง "ชื่อโรงเรียนซ้ำ" ค้างข้อมูลของโควตาก่อนหน้า
                 return;
             }
 
@@ -1404,6 +1793,8 @@
 
             $('sheetTableWrap').innerHTML =
                 renderSheetTriageNotice(data) +
+                // นับจาก rows ทั้งชุด (ก่อนกรอง) — ดูเหตุผลใน findSchoolNameClusters
+                renderSchoolDupBanner(data, rows) +
                 renderSheetRankingTable(data, rankedShown) +
                 renderSheetDqTable(data, dqShown);
 
@@ -1416,6 +1807,12 @@
                 }));
             document.querySelectorAll('#sheetTableWrap [data-sheet-sort]').forEach(el =>
                 el.addEventListener('click', () => onSheetSortChange(el.dataset.sheetSort, true)));
+            // dropdown สถานะตรวจอยู่ในแถวที่คลิกแล้วเปิดหน้าต่างหลักฐาน — ต้องกัน
+            // ทั้ง click และ mousedown ไม่ให้ทะลุไปหาแถว ไม่งั้นแค่กดจะเปิด modal ทับ
+            document.querySelectorAll('#sheetTableWrap [data-verify-select]').forEach(el => {
+                ['click', 'mousedown'].forEach(ev => el.addEventListener(ev, e => e.stopPropagation()));
+                el.addEventListener('change', (e) => { e.stopPropagation(); onVerifySelectChange(el); });
+            });
         }
 
         // ── ค้นหา / กรอง / เรียง ───────────────────────────────────────────
@@ -1553,7 +1950,7 @@
         function renderSheetRankingTable(data, rows) {
             const isSchool = data.quota === 'โรงเรียน';
             const cutoff = QUOTA_CUTOFF[data.quota];
-            const colspan = isSchool ? 8 : 7;
+            const colspan = isSchool ? 9 : 7;
 
             if (!rows.length) {
                 return `<p class="p-6 text-center text-slate-400 text-sm">— ไม่มีทีมที่ตรงกับตัวกรอง —</p>`;
@@ -1568,6 +1965,7 @@
                     ${sortTh('RANK', 'อันดับ', 'text-right')}
                     <th class="text-left">ชื่อทีม</th>
                     ${isSchool ? '<th class="text-left">โรงเรียน</th>' : ''}
+                    ${isSchool ? `<th class="text-center" title="ลำดับของทีมนี้ภายในโรงเรียนเดียวกัน (School_Team_Rank) เทียบเพดาน ${maxPerSchoolOf(data)} ทีม/โรงเรียน">ลำดับใน รร.</th>` : ''}
                     ${sortTh('AUTO', 'Auto', 'text-right')}
                     ${sortTh('ESSAY', 'Essay', 'text-right')}
                     ${sortTh('TOTAL', 'รวม', 'text-right')}
@@ -1594,10 +1992,11 @@
                         </span>
                     </td>
                     ${isSchool ? `<td class="text-left">${esc(dispSheetSchool(r))}</td>` : ''}
+                    ${isSchool ? `<td class="text-center whitespace-nowrap">${schoolRankCell(r, maxPerSchoolOf(data))}</td>` : ''}
                     <td class="text-right">${esc(r.autoScore)}</td>
                     <td class="text-right">${esc(r.essayTotal)}</td>
                     <td class="text-right font-bold">${esc(r.totalScore)}</td>
-                    <td class="text-center">${esc(VERIFY_LABEL[r.verifyStatus] ?? r.verifyStatus)}</td>
+                    <td class="text-center">${verifyStatusCell(r, data)}</td>
                     <td class="text-left">${esc(r.qualifiedStatus)}</td>
                 </tr>`;
             }).join('');
@@ -1665,6 +2064,216 @@
             switchView('queue');
             selectTeam(email);
         }
+
+        // ── ⚙️ Admin Console (ควบคุมระบบ) ─────────────────────────────────
+        //
+        // ไทม์ไลน์ 5 ขั้นตามวันจริง แทนเมนู "🚀 ระบบ MedQuiz" ในชีต ทุกปุ่มส่ง
+        // action=executeAdminAction ไปเรียกฟังก์ชันเดิมฝั่ง GAS — ไม่มีตรรกะซ้ำที่นี่
+        // และผลลัพธ์ที่แสดงคือข้อความเดียวกับกล่อง alert ในชีต (จับผ่าน _uiMessageSink)
+        //
+        // "5. ส่งเมลยืนยันสิทธิ์" เป็นการ์ดคำแนะนำ ไม่ใช่ปุ่มสั่งงาน โดยตั้งใจ:
+        // กล่องยืนยันในชีตแสดงจำนวนผู้รับจริงหลังตัดซ้ำและโควตา Gmail คงเหลือ
+        // ซึ่งคำนวณฝั่งเซิร์ฟเวอร์ ให้ตรวจก่อนกด YES — เป็นด่านกันส่งพลาดของเมล
+        // ~100 ฉบับที่เรียกคืนไม่ได้ หน้าเว็บไม่มีตัวเลขนั้นตอนผู้ใช้ยืนยัน
+
+        const ADMIN_STEPS = [
+            {
+                n: '0', title: 'ตรวจสอบความพร้อมก่อนสอบ (Pre-flight Checks)', when: 'ก่อน 5 ก.ย.',
+                desc: 'อ่านอย่างเดียว ไม่เขียนอะไรทั้งสิ้น — เช็คว่าหัวคอลัมน์ของฟอร์มทั้ง 3 ชุดตรงกับที่ระบบ Sync ต้องการ',
+                actions: [{ id: 'dryRunPreSyncCheck', label: '0. Dry Run Headers & Pre-Sync', kind: 'safe' }]
+            },
+            {
+                n: '1', title: 'หลังปิดรับข้อสอบรอบ 0', when: '5 ก.ย. 17:00 น.',
+                desc: 'ดึงคำตอบทั้ง 3 ฟอร์ม จับคู่กับ Master DB แยกโควตาโรงเรียน/ผสม แล้วจัดลำดับเบื้องต้นจาก Auto_Score — ทีมที่คะแนนเท่ากันตรงเส้นแบ่งจะถูกตั้งธง “ต้องตรวจ Essay”',
+                actions: [{ id: 'syncExamData', label: '1. Sync ข้อมูล & จัดลำดับเบื้องต้น', kind: 'write' }]
+            },
+            {
+                n: '2', title: 'ตรวจ Essay & คัดกรองความผิดปกติ', when: '5–14 ก.ย.',
+                desc: 'ฝ่ายวิชาการตรวจ Essay ในแท็บตรวจ ส่วน Integrity Triage เป็นการคัดกรองเบื้องต้นเท่านั้น ห้ามใช้ตัดสิทธิ์อัตโนมัติ',
+                actions: [
+                    { id: '@queue', label: 'ไปที่คิวตรวจรายทีม', kind: 'link' },
+                    { id: '@question', label: 'ไปที่ตรวจทีละข้อ', kind: 'link' },
+                    { id: 'runIntegrityTriage', label: 'รัน Integrity Triage', kind: 'write' },
+                    { id: 'runScoreDiscordanceCheck', label: '📊 ตรวจความไม่สัมพันธ์ของคะแนน (หลังตรวจ Essay)', kind: 'safe' },
+                ]
+            },
+            {
+                n: '3', title: 'สรุปผลคะแนนสุทธิ', when: '14 ก.ย.',
+                desc: 'จัดลำดับใหม่จาก Total_Score (Auto + Essay) และตัดสิน Qualified / สำรอง / ไม่ผ่าน — รันหลังตรวจ Essay ครบทุกทีมที่ติดธงแล้วเท่านั้น แถวที่เป็น Verified จะไม่ถูกคำนวณทับ',
+                actions: [{ id: 'processFinalRanking', label: '2. ประมวลผลคะแนนสุทธิ (Final Ranking)', kind: 'write' }]
+            },
+            {
+                n: '4', title: 'ประกาศผลและยืนยันสิทธิ์', when: '15 ก.ย. 17:00 น.',
+                desc: 'รวมรายชื่อ Final 100 ทีม ตรวจรายชื่อผู้รับเมล แล้วจึงส่งเมลยืนยันสิทธิ์ — ทำตามลำดับ 3 → 4 → 5',
+                actions: [
+                    { id: 'updateFinal100Teams', label: '3. อัปเดต Final 100', kind: 'write' },
+                    { id: 'dryRunConfirmationRecipients', label: '4. Dry Run เมล', kind: 'safe' },
+                    { id: 'sendConfirmationEmailsToQualifiedTeams', label: '5. ส่งเมลยืนยันสิทธิ์', kind: 'manual' },
+                ]
+            },
+        ];
+
+        // ⏳ = อาจเข้าใกล้ลิมิต 6 นาทีของ Web App
+        const ADMIN_LONG = new Set(['syncExamData', 'processFinalRanking', 'updateFinal100Teams', 'runIntegrityTriage']);
+
+        const ADMIN_MANUAL_REASON =
+            'ต้องรันจากเมนูในชีตเท่านั้น: 🚀 ระบบ MedQuiz → “5. ส่งเมลยืนยันสิทธิ์ (ทีมที่ผ่านรอบ 0)” ' +
+            'เพราะกล่องยืนยันในชีตแสดงจำนวนผู้รับจริงหลังตัดซ้ำ และโควตา Gmail คงเหลือ ' +
+            'ให้ตรวจก่อนกด YES — เมล ~100 ฉบับส่งแล้วเรียกคืนไม่ได้ หน้าเว็บไม่มีตัวเลขนั้นตอนกดยืนยัน';
+
+        /**
+         * ตัวบอกสถานะข้างแต่ละขั้น อ่านจากข้อมูลที่หน้านี้โหลดมาแล้วเท่านั้น
+         * ไม่มีการเดา — ขั้นที่ยังไม่มีข้อมูลยืนยันจะขึ้น "ไม่ทราบ" ตรงๆ ดีกว่า
+         * ขึ้นเครื่องหมายถูกให้แล้วคนเข้าใจว่ารันไปแล้วทั้งที่ยังไม่ได้รัน
+         */
+        function adminStepState(step) {
+            const anyRows = Object.values(sheetData).reduce((n, d) => n + (d?.rows?.length || 0), 0);
+            const triageOn = Object.values(sheetData).some(d => d?.integrityAvailable) ||
+                !!(integrityData && integrityData.available);
+            const total = teams.length;
+            const done = teams.filter(t => t.verifyStatus === 'Graded' || t.verifyStatus === 'Verified').length;
+
+            if (step.n === '1') {
+                return anyRows
+                    ? { tone: 'ok', text: `มีข้อมูลอันดับแล้ว (${anyRows} แถว)` }
+                    : { tone: 'wait', text: 'ยังไม่มีข้อมูลอันดับในชีต' };
+            }
+            if (step.n === '2') {
+                const t = triageOn ? 'รัน Triage แล้ว' : 'ยังไม่ได้รัน Triage';
+                return total
+                    ? { tone: done === total ? 'ok' : 'wait', text: `ตรวจ Essay ${done}/${total} ทีม · ${t}` }
+                    : { tone: 'unknown', text: `ไม่มีทีมในคิวตรวจ · ${t}` };
+            }
+            if (step.n === '3') {
+                return (total && done < total)
+                    ? { tone: 'wait', text: `ยังตรวจ Essay ไม่ครบ (${done}/${total}) — ยังไม่ควรกด` }
+                    : { tone: 'unknown', text: 'ตรวจครบแล้วหรือไม่มีทีมค้าง — ตรวจตารางอันดับก่อนกด' };
+            }
+            return { tone: 'unknown', text: '' };
+        }
+
+        const ADMIN_TONE = {
+            ok: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+            wait: 'bg-amber-50 text-amber-800 border-amber-200',
+            unknown: 'bg-slate-50 text-slate-500 border-slate-200',
+        };
+
+        const ADMIN_BTN = {
+            safe: 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100',
+            write: 'bg-blue-700 border-blue-700 text-white hover:bg-blue-800',
+            link: 'bg-white border-blue-300 text-blue-700 hover:bg-blue-50',
+        };
+
+        function renderAdminConsole() {
+            $('adminSteps').innerHTML = ADMIN_STEPS.map(step => {
+                const st = adminStepState(step);
+                const buttons = step.actions.map(a => {
+                    if (a.kind === 'manual') {
+                        return `
+                        <div class="w-full rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-3 py-2">
+                            <p class="text-[11px] font-extrabold text-slate-700">${esc(a.label)} — รันจากหน้านี้ไม่ได้</p>
+                            <p class="text-[11px] text-slate-500 leading-snug mt-0.5">${esc(ADMIN_MANUAL_REASON)}</p>
+                        </div>`;
+                    }
+                    if (a.kind === 'link') {
+                        return `<button onclick="switchView('${a.id.slice(1)}')"
+                            class="px-3 py-1.5 rounded-lg text-[11px] font-bold border ${ADMIN_BTN.link}">
+                            ${esc(a.label)} <i class="fa-solid fa-arrow-right ml-0.5"></i></button>`;
+                    }
+                    const long = ADMIN_LONG.has(a.id);
+                    return `<button data-admin-action="${a.id}" onclick="runAdminAction('${a.id}')"
+                        class="px-3 py-1.5 rounded-lg text-[11px] font-bold border ${ADMIN_BTN[a.kind]} disabled:opacity-50 disabled:cursor-not-allowed">
+                        ${esc(a.label)}${long ? ' <span class="opacity-80">⏳ ใช้เวลานาน</span>' : ''}</button>`;
+                }).join('');
+
+                return `
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 flex gap-4">
+                    <div class="shrink-0 w-10 h-10 rounded-full bg-slate-800 text-white font-extrabold flex items-center justify-center">${step.n}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex flex-wrap items-baseline gap-2">
+                            <h3 class="text-sm font-extrabold text-slate-800">${esc(step.title)}</h3>
+                            <span class="text-[11px] font-bold text-blue-700">${esc(step.when)}</span>
+                            ${st.text ? `<span class="text-[10px] font-bold border rounded-full px-2 py-0.5 ${ADMIN_TONE[st.tone]}">${esc(st.text)}</span>` : ''}
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-snug mt-1">${esc(step.desc)}</p>
+                        <div class="flex flex-wrap items-center gap-2 mt-3">${buttons}</div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        window.runAdminAction = async (id) => {
+            const btn = document.querySelector(`[data-admin-action="${id}"]`);
+            const step = ADMIN_STEPS.find(s => s.actions.some(a => a.id === id));
+            const label = step.actions.find(a => a.id === id).label;
+
+            const longWarn = ADMIN_LONG.has(id)
+                ? '\n\n⏳ คำสั่งนี้ใช้เวลานาน อาจชนลิมิต 6 นาทีของ Web App\nถ้าหมดเวลา อย่ากดซ้ำทันที — เปิดชีตดูผลก่อน แล้วรันจากเมนูในชีตแทน'
+                : '';
+            if (!confirm(`รัน “${label}” ตอนนี้?${longWarn}`)) return;
+
+            if (demoMode) {
+                showAdminResult(label, ['(โหมดทดลอง) ไม่ได้เรียก GAS จริง — ปุ่มนี้จะรันฟังก์ชันเดิมในชีตเมื่อใช้งานจริง'], 0);
+                return;
+            }
+
+            const orig = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังทำงาน...'; }
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'executeAdminAction', idToken: await window.idToken(), adminAction: id })
+                });
+                const data = await res.json();
+                if (data.status === 'manualOnly') { showAdminResult(label, [data.message], 0); return; }
+                if (data.status !== 'success') throw new Error(data.message || 'คำสั่งล้มเหลว');
+                showAdminResult(data.label || label, data.messages || [], data.elapsedMs || 0, null, data.hadReportedError);
+
+                // ผลของคำสั่งเหล่านี้เปลี่ยนอันดับ/ธงในชีต — cache เดิมจะกลายเป็นข้อมูลเก่าทันที
+                //
+                // ต้อง await การโหลดตารางอันดับให้เสร็จจริง ไม่ใช่พึ่ง prefetchViews()
+                // ที่ reloadQueue() ยิงแบบ fire-and-forget: renderAdminConsole() ใน
+                // finally อ่าน sheetData เพื่อคิดป้ายสถานะ ถ้ายังโหลดไม่เสร็จ ป้ายของ
+                // ขั้นที่ 1 จะขึ้นว่า "ยังไม่มีข้อมูลอันดับ" ทันทีหลัง Sync สำเร็จ
+                if (['syncExamData', 'processFinalRanking', 'runIntegrityTriage'].includes(id)) {
+                    Object.keys(sheetData).forEach(k => delete sheetData[k]);
+                    integrityData = null;
+                    await reloadQueue();
+                    await Promise.all([
+                        loadSheetView('โรงเรียน').catch(() => { }),
+                        loadSheetView('ผสม').catch(() => { }),
+                        loadIntegrityView().catch(() => { }),
+                    ]);
+                }
+            } catch (err) {
+                showAdminResult(label, [], 0, err.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+                renderAdminConsole();
+            }
+        };
+
+        // hadReportedError: ฟังก์ชันทำงานจบโดยไม่ throw แต่รายงานความล้มเหลวของตัวเอง
+        // ผ่านข้อความที่ขึ้นต้นด้วย ❌ (หลายฟังก์ชันในเมนู catch เองแล้วแจ้งแบบนี้)
+        function showAdminResult(title, messages, elapsedMs, errorMsg, hadReportedError) {
+            $('adminResultTitle').textContent = title;
+            $('adminResultMeta').textContent = errorMsg
+                ? 'ไม่สำเร็จ'
+                : (hadReportedError ? `จบใน ${(elapsedMs / 1000).toFixed(1)} วินาที — แต่มีข้อความแจ้งข้อผิดพลาด ❌ อ่านรายละเอียดด้านล่าง`
+                    : `เสร็จใน ${(elapsedMs / 1000).toFixed(1)} วินาที`);
+            $('adminResultBody').innerHTML = errorMsg
+                ? `<div class="rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-xs leading-snug">
+                       <p class="font-extrabold mb-1">❌ คำสั่งล้มเหลว</p>
+                       <p class="whitespace-pre-wrap">${esc(errorMsg)}</p>
+                       <p class="mt-2 opacity-80">ถ้าเป็นข้อความหมดเวลา (timeout) คำสั่งอาจเขียนข้อมูลไปแล้วบางส่วน — เปิดชีตตรวจก่อนกดซ้ำ</p>
+                   </div>`
+                : (messages.length
+                    ? messages.map(m => `<pre class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs whitespace-pre-wrap font-sans leading-snug">${esc(m)}</pre>`).join('')
+                    : `<p class="text-slate-500 text-xs">ทำงานเสร็จแล้ว แต่ฟังก์ชันไม่ได้ส่งข้อความสรุปกลับมา — ตรวจผลในชีตได้โดยตรง</p>`);
+            $('modalAdminResult').classList.remove('hidden');
+        }
+
+        window.closeAdminResult = () => $('modalAdminResult').classList.add('hidden');
 
         // ── Integrity Triage View (รายงานความผิดปกติ) ─────────────────────
         // ข้อมูลมาจากชีต Integrity_Triage / Integrity_Similar_Pairs ที่เมนู GAS

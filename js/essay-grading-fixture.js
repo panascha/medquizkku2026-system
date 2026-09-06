@@ -181,47 +181,53 @@ export function essayFixturePayload() {
 // selectTeam() หาไม่เจอในคิวแล้ว return เงียบ ๆ
 // rank เว้นช่วง (1..3, 73..77, ...) เพื่อทดสอบเส้นแบ่งโควตากับข้อมูลห่าง ๆ
 const FIXTURE_SCHOOL_ROSTER = [
-    { rank: 1,   email: 'school.q1@gmail.com',    teamName: 'ทีมเรียนเก่งหนึ่ง',   schoolName: 'โรงเรียนตัวอย่างวิทยา', autoScore: 328, essayTotal: 0, totalScore: 328, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
-    { rank: 2,   email: 'school.q2@gmail.com',    teamName: 'ทีมเรียนเก่งสอง',    schoolName: 'โรงเรียนจำลองศึกษา',  autoScore: 322, essayTotal: 0, totalScore: 322, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
-    { rank: 3,   email: 'school.q3@gmail.com',    teamName: 'ทีมเรียนเก่งสาม',    schoolName: 'โรงเรียนสมมติพิทยา',  autoScore: 315, essayTotal: 0, totalScore: 315, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    { rank: 1,   email: 'school.q1@gmail.com',    teamName: 'ทีมเรียนเก่งหนึ่ง',   schoolName: 'โรงเรียนตัวอย่างวิทยา', schoolTeamRank: 1, quotaExceeded: false, autoScore: 328, essayTotal: 0, totalScore: 328, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    { rank: 2,   email: 'school.q2@gmail.com',    teamName: 'ทีมเรียนเก่งสอง',    schoolName: 'โรงเรียนจำลองศึกษา',  schoolTeamRank: 1, quotaExceeded: false, autoScore: 322, essayTotal: 0, totalScore: 322, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    { rank: 3,   email: 'school.q3@gmail.com',    teamName: 'ทีมเรียนเก่งสาม',    schoolName: 'โรงเรียนสมมติพิทยา',  schoolTeamRank: 1, quotaExceeded: false, autoScore: 315, essayTotal: 0, totalScore: 315, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
     // แถบคะแนนเท่ากันตรงเส้นแบ่ง (rank 73–77) — ต้องตรวจ Essay
-    { rank: 73,  email: 'school.essayA@gmail.com', teamName: 'ทีมคะแนนเท่าเอ',     schoolName: 'โรงเรียนทดสอบศึกษา',  autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY',
+    { rank: 73,  email: 'school.essayA@gmail.com', teamName: 'ทีมคะแนนเท่าเอ',     schoolName: 'โรงเรียนทดสอบศึกษา',  schoolTeamRank: 1, quotaExceeded: false, autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY',
       integrity: { severity: 'SEVERE', flags: ['ส่งเร็วผิดปกติ (35 นาที)', 'อัตราพิมพ์สูงผิดปกติ (180 ตัว/นาที)'], flagTypes: ['speedrun', 'typing'], submitMinutes: 35, speedRank: 3, cpm: 180, charsTotal: 6300, maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, speedFlagged: true, typingFlagged: true, markdownHits: 0, llmHits: 0, echoHits: 0, similarPairs: [] } },
-    { rank: 74,  email: 'demo.school1@gmail.com',  teamName: 'ทีมสมมติหนึ่ง',      schoolName: 'โรงเรียนตัวอย่างวิทยา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY',
+    { rank: 74,  email: 'demo.school1@gmail.com',  teamName: 'ทีมสมมติหนึ่ง',      schoolName: 'โรงเรียนตัวอย่างวิทยา', schoolTeamRank: 2, quotaExceeded: false, autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY',
       // ไม่มี markdownSlots โดยตั้งใจ — payload essaySheetView ไม่ได้ส่งคำตอบมาด้วย
       // เช็กลิสต์ต้องขึ้นว่า "ยังไม่ทราบว่าอยู่ข้อใด" ไม่ใช่ "ไม่พบ Markdown"
       integrity: { severity: 'WARN', flags: ['ร่องรอย Markdown ในคำตอบ (3 จุด)'], flagTypes: ['markdown'], submitMinutes: 120, cpm: 45, charsTotal: 5400, maxSimilarity: 0.72, crossSchool: true, sharedRareAnswers: 2, speedFlagged: false, typingFlagged: false, markdownHits: 3, llmHits: 0, echoHits: 0, similarPairs: [] } },
-    { rank: 75,  email: 'demo.school3@gmail.com',  teamName: 'ทีมตัวอย่างสาม',      schoolName: 'โรงเรียนจำลองศึกษา',  autoScore: 280, essayTotal: 27, totalScore: 307, verifyStatus: 'Graded', qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
-    { rank: 76,  email: 'school.essayD@gmail.com', teamName: 'ทีมคะแนนเท่าดี',     schoolName: 'โรงเรียนสอบผ่านวิทยา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
-    { rank: 77,  email: 'school.essayE@gmail.com', teamName: 'ทีมคะแนนเท่าอี',     schoolName: 'โรงเรียนใกล้เส้นศึกษา', autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
+    { rank: 75,  email: 'demo.school3@gmail.com',  teamName: 'ทีมตัวอย่างสาม',      schoolName: 'โรงเรียนจำลองศึกษา',  schoolTeamRank: 2, quotaExceeded: false, autoScore: 280, essayTotal: 27, totalScore: 307, verifyStatus: 'Graded', qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
+    { rank: 76,  email: 'school.essayD@gmail.com', teamName: 'ทีมคะแนนเท่าดี',     schoolName: 'โรงเรียนสอบผ่านวิทยา', schoolTeamRank: 1, quotaExceeded: false, autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
+    { rank: 77,  email: 'school.essayE@gmail.com', teamName: 'ทีมคะแนนเท่าอี',     schoolName: 'โรงเรียนใกล้เส้นศึกษา', schoolTeamRank: 1, quotaExceeded: false, autoScore: 280, essayTotal: 0, totalScore: 280, verifyStatus: '',       qualifiedStatus: 'Need Essay Grading',     colorKey: 'NEED_ESSAY' },
     // สำรอง (rank 78–85)
-    { rank: 78,  email: 'school.res1@gmail.com',   teamName: 'ทีมสำรองหนึ่ง',      schoolName: 'โรงเรียนสำรองวิทยา',  autoScore: 275, essayTotal: 0, totalScore: 275, verifyStatus: '',       qualifiedStatus: 'Reserved',               colorKey: 'RESERVED' },
-    { rank: 85,  email: 'school.res8@gmail.com',   teamName: 'ทีมสำรองแปด',        schoolName: 'โรงเรียนสำรองพิทยา',  autoScore: 268, essayTotal: 0, totalScore: 268, verifyStatus: '',       qualifiedStatus: 'Reserved',               colorKey: 'RESERVED' },
+    { rank: 78,  email: 'school.res1@gmail.com',   teamName: 'ทีมสำรองหนึ่ง',      schoolName: 'โรงเรียนสำรองวิทยา',  schoolTeamRank: 1, quotaExceeded: false, autoScore: 275, essayTotal: 0, totalScore: 275, verifyStatus: '',       qualifiedStatus: 'Reserved',               colorKey: 'RESERVED' },
+    { rank: 85,  email: 'school.res8@gmail.com',   teamName: 'ทีมสำรองแปด',        schoolName: 'โรงเรียนสำรองพิทยา',  schoolTeamRank: 1, quotaExceeded: false, autoScore: 268, essayTotal: 0, totalScore: 268, verifyStatus: '',       qualifiedStatus: 'Reserved',               colorKey: 'RESERVED' },
     // ไม่ผ่าน (rank 86+)
-    { rank: 86,  email: 'school.nq1@gmail.com',    teamName: 'ทีมไม่ผ่านหนึ่ง',     schoolName: 'โรงเรียนไม่ผ่านศึกษา', autoScore: 260, essayTotal: 0, totalScore: 260, verifyStatus: '',       qualifiedStatus: 'Not Qualified',          colorKey: 'NOT_QUALIFIED' },
+    { rank: 86,  email: 'school.nq1@gmail.com',    teamName: 'ทีมไม่ผ่านหนึ่ง',     schoolName: 'โรงเรียนไม่ผ่านศึกษา', schoolTeamRank: 1, quotaExceeded: false, autoScore: 260, essayTotal: 0, totalScore: 260, verifyStatus: '',       qualifiedStatus: 'Not Qualified',          colorKey: 'NOT_QUALIFIED' },
     // เกินโควตาโรงเรียน (Final Rank '-', สีแดงเข้ม)
-    { rank: '-', email: 'school.oq1@gmail.com',    teamName: 'ทีมติดกฎโควตาโรงเรียน', schoolName: 'โรงเรียนตัวอย่างวิทยา', autoScore: 300, essayTotal: 0, totalScore: 300, verifyStatus: '',       qualifiedStatus: 'Reserved (Over Quota)',  colorKey: 'OVER_QUOTA' },
+    { rank: '-', email: 'school.oq1@gmail.com',    teamName: 'ทีมติดกฎโควตาโรงเรียน', schoolName: 'โรงเรียนตัวอย่างวิทยา', schoolTeamRank: 4, quotaExceeded: true, autoScore: 300, essayTotal: 0, totalScore: 300, verifyStatus: '',       qualifiedStatus: 'Reserved (Over Quota)',  colorKey: 'OVER_QUOTA' },
+    // ทีมที่ 3 ของ "โรงเรียนตัวอย่างวิทยา" — ทำให้คอลัมน์ "ลำดับใน รร." เดินครบ 1→2→3→4
+    { rank: 4,   email: 'school.q4@gmail.com',    teamName: 'ทีมเรียนเก่งสี่',    schoolName: 'โรงเรียนตัวอย่างวิทยา', schoolTeamRank: 3, quotaExceeded: false, autoScore: 312, essayTotal: 0, totalScore: 312, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    // ชื่อโรงเรียนเดียวกันแต่พิมพ์คนละแบบ — ฝั่งชีตนับเป็นคนละโรงเรียน จึงหลุดเพดาน
+    // 3 ทีม/รร. รวมกับ "โรงเรียนจำลองศึกษา" อีก 2 ทีมเป็น 4 ทีม (เคสของแบนเนอร์เตือน)
+    { rank: 40,  email: 'school.dup1@gmail.com',  teamName: 'ทีมชื่อรรซ้ำหนึ่ง',  schoolName: 'รร.จำลองศึกษา',      schoolTeamRank: 1, quotaExceeded: false, autoScore: 295, essayTotal: 0, totalScore: 295, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
+    { rank: 41,  email: 'school.dup2@gmail.com',  teamName: 'ทีมชื่อรรซ้ำสอง',    schoolName: 'รร.จำลองศึกษา',      schoolTeamRank: 2, quotaExceeded: false, autoScore: 293, essayTotal: 0, totalScore: 293, verifyStatus: '',       qualifiedStatus: 'Qualified (Auto)',       colorKey: 'QUALIFIED' },
     // ทีมที่ถูกตัดสิทธิ์ (Disqualified)
-    { rank: 5,   email: 'school.dq1@gmail.com',    teamName: 'ทีมถูกตัดสิทธิ์เอ',   schoolName: 'โรงเรียนตัดสิทธิ์ศึกษา', autoScore: 310, essayTotal: 0, totalScore: 310, verifyStatus: 'Verified', qualifiedStatus: 'Disqualified',         colorKey: 'DISQUALIFIED',
+    { rank: 5,   email: 'school.dq1@gmail.com',    teamName: 'ทีมถูกตัดสิทธิ์เอ',   schoolName: 'โรงเรียนตัดสิทธิ์ศึกษา', schoolTeamRank: 1, quotaExceeded: false, autoScore: 310, essayTotal: 0, totalScore: 310, verifyStatus: 'Verified', qualifiedStatus: 'Disqualified',         colorKey: 'DISQUALIFIED',
       eligibilityNote: 'ตัดสิทธิ์ (ทุจริต/ลอกข้อสอบ) — พบคำตอบ Essay ซ้ำกับทีมนอกโควตา 92%',
       decisionReviewer: 'admin@kkumail.com' },
 ];
 
 const FIXTURE_MIXED_ROSTER = [
-    { rank: 1,  email: 'mixed.q1@gmail.com',    teamName: 'ทีมผสมเก่งหนึ่ง',  schoolName: '', autoScore: 324, essayTotal: 0, totalScore: 324, verifyStatus: '', qualifiedStatus: 'Qualified (Auto)',   colorKey: 'QUALIFIED' },
-    { rank: 2,  email: 'mixed.q2@gmail.com',    teamName: 'ทีมผสมเก่งสอง',   schoolName: '', autoScore: 318, essayTotal: 0, totalScore: 318, verifyStatus: '', qualifiedStatus: 'Qualified (Auto)',   colorKey: 'QUALIFIED' },
+    { rank: 1,  email: 'mixed.q1@gmail.com',    teamName: 'ทีมผสมเก่งหนึ่ง',  schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 324, essayTotal: 0, totalScore: 324, verifyStatus: '', qualifiedStatus: 'Qualified (Auto)',   colorKey: 'QUALIFIED' },
+    { rank: 2,  email: 'mixed.q2@gmail.com',    teamName: 'ทีมผสมเก่งสอง',   schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 318, essayTotal: 0, totalScore: 318, verifyStatus: '', qualifiedStatus: 'Qualified (Auto)',   colorKey: 'QUALIFIED' },
     // แถบคะแนนเท่ากันตรงเส้นแบ่ง (rank 23–27) — ต้องตรวจ Essay
-    { rank: 23, email: 'mixed.essayA@gmail.com', teamName: 'ทีมผสมคะแนนเท่าเอ', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY',
+    { rank: 23, email: 'mixed.essayA@gmail.com', teamName: 'ทีมผสมคะแนนเท่าเอ', schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY',
       integrity: { severity: 'SEVERE', flags: ['ส่งเร็วผิดปกติ (28 นาที)', 'โครงสร้างคำตอบสมมาตรเกินไป'], flagTypes: ['speedrun', 'structural'], submitMinutes: 28, speedRank: 1, cpm: 195, charsTotal: 5460, maxSimilarity: 0, crossSchool: null, sharedRareAnswers: 0, speedFlagged: true, typingFlagged: false, markdownHits: 0, llmHits: 0, echoHits: 0, similarPairs: [] } },
-    { rank: 24, email: 'mixed.essayB@gmail.com', teamName: 'ทีมผสมคะแนนเท่าบี', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
-    { rank: 25, email: 'demo.mixed2@gmail.com',  teamName: 'ทีมผสมสอง',       schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
-    { rank: 26, email: 'mixed.essayD@gmail.com', teamName: 'ทีมผสมคะแนนเท่าดี', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
-    { rank: 27, email: 'mixed.essayE@gmail.com', teamName: 'ทีมผสมคะแนนเท่าอี', schoolName: '', autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
+    { rank: 24, email: 'mixed.essayB@gmail.com', teamName: 'ทีมผสมคะแนนเท่าบี', schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
+    { rank: 25, email: 'demo.mixed2@gmail.com',  teamName: 'ทีมผสมสอง',       schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
+    { rank: 26, email: 'mixed.essayD@gmail.com', teamName: 'ทีมผสมคะแนนเท่าดี', schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
+    { rank: 27, email: 'mixed.essayE@gmail.com', teamName: 'ทีมผสมคะแนนเท่าอี', schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 276, essayTotal: 0, totalScore: 276, verifyStatus: '', qualifiedStatus: 'Need Essay Grading', colorKey: 'NEED_ESSAY' },
     // สำรอง (rank 28–35)
-    { rank: 28, email: 'mixed.res1@gmail.com',   teamName: 'ทีมผสมสำรองหนึ่ง', schoolName: '', autoScore: 270, essayTotal: 0, totalScore: 270, verifyStatus: '', qualifiedStatus: 'Reserved',           colorKey: 'RESERVED' },
-    { rank: 35, email: 'mixed.res8@gmail.com',   teamName: 'ทีมผสมสำรองแปด',   schoolName: '', autoScore: 262, essayTotal: 0, totalScore: 262, verifyStatus: '', qualifiedStatus: 'Reserved',           colorKey: 'RESERVED' },
+    { rank: 28, email: 'mixed.res1@gmail.com',   teamName: 'ทีมผสมสำรองหนึ่ง', schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 270, essayTotal: 0, totalScore: 270, verifyStatus: '', qualifiedStatus: 'Reserved',           colorKey: 'RESERVED' },
+    { rank: 35, email: 'mixed.res8@gmail.com',   teamName: 'ทีมผสมสำรองแปด',   schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 262, essayTotal: 0, totalScore: 262, verifyStatus: '', qualifiedStatus: 'Reserved',           colorKey: 'RESERVED' },
     // ไม่ผ่าน (rank 36+)
-    { rank: 36, email: 'mixed.nq1@gmail.com',    teamName: 'ทีมผสมไม่ผ่านหนึ่ง', schoolName: '', autoScore: 255, essayTotal: 0, totalScore: 255, verifyStatus: '', qualifiedStatus: 'Not Qualified',      colorKey: 'NOT_QUALIFIED' },
+    { rank: 36, email: 'mixed.nq1@gmail.com',    teamName: 'ทีมผสมไม่ผ่านหนึ่ง', schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 255, essayTotal: 0, totalScore: 255, verifyStatus: '', qualifiedStatus: 'Not Qualified',      colorKey: 'NOT_QUALIFIED' },
 ];
 
 /** คืน payload หน้าตาเดียวกับ _handleEssaySheetView ใน 7_EssayGradingApi.js */
@@ -231,6 +237,8 @@ export function essaySheetViewFixture(quota) {
         status: 'success',
         quota: quota,
         sheetName: quota === 'โรงเรียน' ? 'เรียงทีมโรงเรียน' : 'เรียงทีมผสม',
+        // เพดานต่อโรงเรียนมีเฉพาะโควตาโรงเรียน — โควตาผสมเป็น null เหมือน payload จริง
+        maxPerSchool: quota === 'โรงเรียน' ? 3 : null,
         rows: rows.map(r => ({ ...r })),
         generatedAt: new Date().toLocaleString('th-TH'),
         isFixture: true,
