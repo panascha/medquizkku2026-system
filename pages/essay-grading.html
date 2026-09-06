@@ -473,6 +473,16 @@
                         ระบบเทียบชื่อแบบตัดคำนำหน้า (โรงเรียน / รร. / ร.ร.) เว้นวรรค และเครื่องหมาย แล้ววัดความคล้าย
                     </p>
                 </div>
+                <div class="flex gap-1">
+                    <button id="mergeTabBtn" class="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 text-white border border-indigo-600"
+                        onclick="activeSchoolTab = 'merge'; renderSchoolDupBody();">
+                        🔍 รวมชื่อโรงเรียน
+                    </button>
+                    <button id="historyTabBtn" class="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        onclick="activeSchoolTab = 'history'; loadSchoolRenameHistory();">
+                        📜 ประวัติและกู้คืน
+                    </button>
+                </div>
                 <button onclick="closeSchoolDup()"
                     class="shrink-0 w-9 h-9 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold">✕</button>
             </div>
@@ -513,7 +523,7 @@
         // ที่เด้งไป login.html ทันที) ถ้าเปิดหน้านี้ด้วย ?fixture=1 ไม่ต้อง login เลย
         // dynamic-import เฉพาะโหมดจริง
         import { DASHBOARD_API_URL, escapeEmail, db, auth, ref, set, get, update, remove, onValue, onDisconnect } from '../js/firebase-config.js';
-        import { essayFixturePayload, fixtureOccupancy, essaySheetViewFixture, essayIntegrityReportFixture, essayEvidenceFixture } from '../js/essay-grading-fixture.js';
+        import { essayFixturePayload, fixtureOccupancy, essaySheetViewFixture, essayIntegrityReportFixture, essayEvidenceFixture, fixtureSchoolStandardizationHistory, fixtureAppendRenameHistory, fixtureRevertSchoolStandardization } from '../js/essay-grading-fixture.js';
 
         const useFixture = new URLSearchParams(location.search).get('fixture') === '1';
         const demoMode = useFixture || !DASHBOARD_API_URL;
@@ -752,6 +762,7 @@
         const SLOT_SIM_BADGE = 0.8;      // เกณฑ์ขึ้นธงระดับข้อบนหัวข้อ Essay
         const fmt1 = (n) => Number(n || 0).toFixed(1);
         const pct1 = (x) => (Number(x || 0) * 100).toFixed(1);
+        const fmtTs = (s) => { try { return new Date(s).toLocaleString('th-TH'); } catch (_) { return String(s || '—'); } };
 
         // ธงมิติที่ไม่มีรายการตรวจของตัวเอง — รวมเป็นข้อสุดท้ายของเช็กลิสต์
         const IT_OTHER_FLAG_LABEL = {
@@ -1740,6 +1751,9 @@
         // แสดงตัวเลขที่คำนวณสดไม่ได้ดีเท่า
         let schoolMergeStatus = '';   // แถบผลลัพธ์บนสุดของหน้าต่าง (คงไว้จนปิดหน้าต่าง)
         let mergeArmed = -1;          // index ของกลุ่มที่กด "รวมชื่อ" ค้างรอยืนยันอยู่
+        let activeSchoolTab = 'merge'; // 'merge' | 'history'
+        let renameHistory = [];       // cache จาก GET history
+        let historyLoading = false;
 
         /** ชื่อที่ถูกติ๊กเลือกอยู่ในกลุ่มนี้ */
         function pickedVariants(ci) {
@@ -1822,11 +1836,22 @@
                         const cur = String(r.schoolName || '').trim();
                         if (originals.includes(cur) && cur !== name) { r.schoolName = name; n++; }
                     });
+                    const fauxBatchId = 'RENAME_20260906_' + String(Math.random()).slice(2, 8) + '_SIM';
                     data = {
-                        status: 'success', targetSchoolName: name, updatedTeamsCount: n,
+                        status: 'success', batchId: fauxBatchId, targetSchoolName: name, updatedTeamsCount: n,
                         masterUpdated: n, rankingUpdated: n, verifiedFrozenCount: 0,
                         rankingStale: n > 0, demo: true
                     };
+                    // Push local history entry so the undo tab can demo-revert it.
+                    fixtureAppendRenameHistory({
+                        batchId: fauxBatchId, timestamp: new Date().toISOString(),
+                        reviewer: 'demo@simumail.com', targetSchoolName: name,
+                        affectedCount: n, reverted: false,
+                        changesSummary: picked.filter(nn => nn.raw !== name).map(nn =>
+                            nn.teams.map(t => ({ teamName: t.teamName || '', email: t.email, prevSchoolName: nn.raw, newSchoolName: name }))
+                        ).flat(),
+                    });
+                    renameHistory = fixtureSchoolStandardizationHistory();
                 } else {
                     const res = await fetch(API_URL, {
                         method: 'POST',
@@ -1854,7 +1879,10 @@
                     ${data.verifiedFrozenCount ? `
                     <p class="mt-1">แถวที่ Verified จะไม่ถูกคิดอันดับใหม่ (ขั้นที่ 2 ข้ามแถวเหล่านั้นเสมอ)
                         ถ้าต้องให้คิดใหม่ ต้องปลดล็อกเป็น Graded ก่อน</p>` : ''}
-                    <p class="mt-1 opacity-80">ชื่อเดิมรายทีมถูกบันทึกไว้ในชีต Admin_Action_Log แล้ว (ใช้ย้อนกลับได้)</p>
+                    <p class="mt-1 opacity-80">
+                        ชื่อเดิมรายทีมถูกบันทึกไว้ในชีต School_Rename_History แล้ว (Batch ID: <code class="bg-white/60 px-1 rounded">${esc(data.batchId || '—')}</code>)
+                        — กู้คืนได้จากแท็บ “📜 ประวัติและกู้คืน” ด้านบน
+                    </p>
                 </div>`;
 
                 if (!demoMode) {
@@ -1926,8 +1954,9 @@
 
         /** วาดเนื้อในหน้าต่างใหม่ทั้งหมด — เรียกซ้ำได้หลังรวมชื่อสำเร็จ */
         function renderSchoolDupBody() {
-            const max = sheetData[sheetTab] ? maxPerSchoolOf(sheetData[sheetTab]) : DEFAULT_MAX_PER_SCHOOL;
             mergeArmed = -1;
+            revertArmedId = null;
+            activeSchoolTabBtn(activeSchoolTab);
 
             // โหมด Blind ปิดชื่อโรงเรียนทั้งหน้า — เลือกรวมชื่อที่มองไม่เห็นไม่ได้
             // และเป็นการแก้ที่ย้อนกลับไม่ได้ จึงปิดเครื่องมือทั้งก้อนแทนการปิดแค่ชื่อ
@@ -1939,6 +1968,13 @@
                 return;
             }
 
+            if (activeSchoolTab === 'history') {
+                loadSchoolRenameHistory();
+                return;
+            }
+
+            // ── แท็บรวมชื่อ ────────────────────────────────────────────────
+            const max = sheetData[sheetTab] ? maxPerSchoolOf(sheetData[sheetTab]) : DEFAULT_MAX_PER_SCHOOL;
             $('schoolDupBody').innerHTML = schoolMergeStatus + (schoolClusters.length
                 ? schoolClusters.map((c, ci) => schoolClusterCard(c, ci, max)).join('')
                 : `<p class="text-center text-slate-400 text-sm py-8">— ไม่พบชื่อโรงเรียนที่คล้ายกัน —</p>`);
@@ -1946,8 +1982,192 @@
             schoolClusters.forEach((c, ci) => window.updateMergePreview(ci));
         }
 
+        /** โหลดประวัติการรวมชื่อจาก API (หรือ fixture ใน demo mode) */
+        async function loadSchoolRenameHistory() {
+            if (isBlindMode) {
+                renderRenameHistoryBody();
+                return;
+            }
+            if (historyLoading) return;
+            historyLoading = true;
+            activeSchoolTabBtn('history', 'กำลังโหลด...');
+            try {
+                if (demoMode) {
+                    renameHistory = fixtureSchoolStandardizationHistory();
+                } else {
+                    const res = await fetch(API_URL + '?action=getSchoolStandardizationHistory&idToken=' +
+                        encodeURIComponent(await window.idToken()));
+                    const data = await res.json();
+                    if (data.status !== 'success') throw new Error(data.message || 'โหลดประวัติไม่สำเร็จ');
+                    renameHistory = data.history || [];
+                }
+            } catch (err) {
+                renameHistory = [];
+                schoolMergeStatus = `<div class="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-xs text-red-900">
+                    <p class="font-extrabold">❌ โหลดประวัติไม่สำเร็จ</p><p>${esc(err.message)}</p></div>`;
+            } finally {
+                historyLoading = false;
+                activeSchoolTabBtn('history', '📜 ประวัติและกู้คืน');
+                renderRenameHistoryBody();
+            }
+        }
+
+        /** อัปเดตปุ่ม tab ให้ active/inactive */
+        function activeSchoolTabBtn(tab, text) {
+            const mergeBtn = $('mergeTabBtn');
+            const historyBtn = $('historyTabBtn');
+            if (!mergeBtn || !historyBtn) return;
+            if (tab === 'merge') {
+                mergeBtn.className = 'shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 text-white border border-indigo-600';
+                mergeBtn.textContent = '🔍 รวมชื่อโรงเรียน';
+                historyBtn.className = 'shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50';
+                historyBtn.textContent = text || '📜 ประวัติและกู้คืน';
+            } else {
+                historyBtn.className = 'shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 text-white border border-indigo-600';
+                historyBtn.textContent = text || '📜 ประวัติและกู้คืน';
+                mergeBtn.className = 'shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50';
+                mergeBtn.textContent = '🔍 รวมชื่อโรงเรียน';
+            }
+        }
+
+        /** วาดเนื้อหาแท็บประวัติ (หรือข้อความ Blind Mode) */
+        function renderRenameHistoryBody() {
+            // Blind Mode — ซ่อนประวัติทั้งหมด
+            if (isBlindMode) {
+                $('schoolDupBody').innerHTML = schoolMergeStatus + `
+                <p class="text-center text-slate-400 text-sm py-8">
+                    — ปลดล็อกชื่อจริง (โหมดฝ่ายจัดการ) เพื่อดูประวัติการรวมชื่อ —
+                </p>`;
+                return;
+            }
+
+            if (!renameHistory.length) {
+                $('schoolDupBody').innerHTML = schoolMergeStatus + `
+                <p class="text-center text-slate-400 text-sm py-8">— ยังไม่มีประวัติการรวมชื่อโรงเรียน —</p>`;
+                return;
+            }
+
+            const rows = renameHistory.map(h => {
+                const ch = h.changesSummary || [];
+                const revertedClass = h.reverted
+                    ? 'border-slate-200 bg-slate-50 opacity-60'
+                    : 'border-slate-200 bg-white';
+                const revertBtn = h.reverted
+                    ? `<span class="text-[10px] text-slate-400 italic">↩️ ย้อนกลับแล้ว</span>`
+                    : `<button class="revertRenameBtn shrink-0 px-3 py-1 rounded-lg text-[10px] font-bold border bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
+                            data-batch-id="${esc(h.batchId)}" data-target="${esc(h.targetSchoolName)}" data-count="${esc(h.affectedCount)}"
+                            onclick="armOrRevertBatch(this)">↩️ ย้อนกลับเป็นชื่อเดิม</button>`;
+
+                const changesList = ch.slice(0, 20).map(c =>
+                    `<li><span class="font-bold">${esc(c.teamName || '—')}</span> · ${esc(c.prevSchoolName)} → ${esc(c.newSchoolName)}</li>`
+                ).join('');
+                const more = ch.length > 20 ? `<li class="text-slate-400">...อีก ${ch.length - 20} รายการ</li>` : '';
+
+                return `
+                <div class="rounded-xl border ${revertedClass} p-4 space-y-2">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-extrabold text-slate-800">
+                                    ${h.reverted ? '<span class="text-slate-400 line-through">' : ''}
+                                    “${esc(h.targetSchoolName)}”
+                                    ${h.reverted ? '</span>' : ''}
+                                </span>
+                                ${h.reverted ? '<span class="text-[10px] bg-slate-200 text-slate-600 rounded-full px-2 py-0.5 font-bold">ย้อนกลับแล้ว</span>' : ''}
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">
+                                ${fmtTs(h.timestamp)} · ${esc(h.reviewer)} · ${h.affectedCount} ทีม
+                                · Batch ID: <code class="bg-slate-100 text-slate-600 px-1 rounded text-[10px]">${esc(h.batchId)}</code>
+                            </p>
+                        </div>
+                        ${revertBtn}
+                    </div>
+                    <ul class="text-[11px] text-slate-600 space-y-0.5 ml-3">${changesList}${more}</ul>
+                </div>`;
+            }).join('');
+
+            $('schoolDupBody').innerHTML = schoolMergeStatus + `
+            <p class="text-xs text-slate-500">${renameHistory.length} รายการ · กู้คืนชื่อเดิมของทุกทีมใน Batch ได้ ไม่ว่าจะผ่านการคำนวณอันดับอีกกี่รอบ</p>
+            ${rows}`;
+        }
+
+        /** ปุ่มย้อนกลับ — กดครั้งแรกขอให้ยืนยัน กดอีกครั้งทำจริง */
+        let revertArmedId = null;
+        window.armOrRevertBatch = (btn) => {
+            const batchId = btn.dataset.batchId;
+            if (revertArmedId !== batchId) {
+                // Reset previous armed button
+                if (revertArmedId) {
+                    const prev = document.querySelector(`.revertRenameBtn[data-batch-id="${revertArmedId}"]`);
+                    if (prev) { prev.textContent = '↩️ ย้อนกลับเป็นชื่อเดิม'; prev.className = prev.className.replace('bg-red-600 border-red-600 text-white hover:bg-red-700', 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'); }
+                }
+                revertArmedId = batchId;
+                btn.textContent = 'กดอีกครั้งเพื่อยืนยัน (ย้อนกลับไม่ได้)';
+                btn.className = btn.className.replace('bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100', 'bg-red-600 border-red-600 text-white hover:bg-red-700');
+                return;
+            }
+            revertArmedId = null;
+            executeRevert(batchId, btn);
+        };
+
+        async function executeRevert(batchId, btn) {
+            const origText = btn.textContent;
+            const origClass = btn.className;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> กำลังกู้คืน...';
+            try {
+                let data;
+                if (demoMode) {
+                    data = fixtureRevertSchoolStandardization(batchId);
+                    if (data.status !== 'success') throw new Error(data.message || 'กู้คืนไม่สำเร็จ');
+                    // Refresh local history cache
+                    renameHistory = fixtureSchoolStandardizationHistory();
+                } else {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'revertSchoolStandardization',
+                            idToken: await window.idToken(),
+                            batchId
+                        })
+                    });
+                    data = await res.json();
+                    if (data.status !== 'success') throw new Error(data.message || 'กู้คืนไม่สำเร็จ');
+                }
+
+                schoolMergeStatus = `<div class="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-xs text-emerald-900 leading-snug">
+                    <p class="font-extrabold mb-1">✅ กู้คืนชื่อเดิมแล้ว ${data.revertedTeamsCount} ทีม${data.demo ? ' (โหมดทดลอง)' : ''}</p>
+                    <p>Batch ID: <code class="bg-white/60 px-1 rounded">${esc(data.batchId || batchId)}</code>${
+                        data.rankingStale ? ' · ⚠️ ต้องรัน "2. ประมวลผลคะแนนสุทธิ" ใหม่' : ''
+                    }</p>
+                </div>`;
+
+                if (!demoMode) {
+                    renameHistory = [];
+                    await loadSchoolRenameHistory();
+                    // Also reload sheet data
+                    delete sheetData[sheetTab];
+                    await loadSheetView(sheetTab).catch(() => { });
+                } else {
+                    // Reload from fixture — revert writes through to FIXTURE_SCHOOL_ROSTER
+                    delete sheetData[sheetTab];
+                    await loadSheetView(sheetTab).catch(() => { });
+                }
+                if (view === 'sheet' && sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
+                renderRenameHistoryBody();
+            } catch (err) {
+                schoolMergeStatus = `<div class="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-xs text-red-900">
+                    <p class="font-extrabold">❌ กู้คืนไม่สำเร็จ</p><p>${esc(err.message)}</p></div>`;
+                btn.disabled = false;
+                btn.innerHTML = origText;
+                btn.className = origClass;
+                renderRenameHistoryBody();
+            }
+        }
+
         window.openSchoolDup = () => {
             schoolMergeStatus = '';
+            activeSchoolTab = 'merge';
             renderSchoolDupBody();
             $('modalSchoolDup').classList.remove('hidden');
         };

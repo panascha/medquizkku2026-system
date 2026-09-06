@@ -240,6 +240,50 @@ const FIXTURE_MIXED_ROSTER = [
     { rank: 36, email: 'mixed.nq1@gmail.com',    teamName: 'ทีมผสมไม่ผ่านหนึ่ง', schoolName: '', schoolTeamRank: '', quotaExceeded: false, autoScore: 255, essayTotal: 0, totalScore: 255, verifyStatus: '', qualifiedStatus: 'Not Qualified',      colorKey: 'NOT_QUALIFIED' },
 ];
 
+// ── ประวัติการรวมชื่อโรงเรียน (fixture, in-memory) ─────────────────────────
+let FIXTURE_RENAME_HISTORY = [
+    {
+        batchId: 'RENAME_20260905_101500_DEMO',
+        timestamp: '2026-09-05T10:15:00+07:00',
+        reviewer: 'fixture.reviewer@kkumail.com',
+        targetSchoolName: 'โรงเรียนจำลองศึกษา',
+        affectedCount: 2,
+        reverted: false,
+        changesSummary: [
+            { teamName: 'ทีมชื่อรรซ้ำหนึ่ง', email: 'school.dup1@gmail.com', prevSchoolName: 'รร.จำลองศึกษา', newSchoolName: 'โรงเรียนจำลองศึกษา' },
+            { teamName: 'ทีมชื่อรรซ้ำสอง', email: 'school.dup2@gmail.com', prevSchoolName: 'รร.จำลองศึกษา', newSchoolName: 'โรงเรียนจำลองศึกษา' },
+        ],
+    },
+];
+
+export function fixtureSchoolStandardizationHistory() {
+    return FIXTURE_RENAME_HISTORY.map(h => ({ ...h, changesSummary: h.changesSummary.map(c => ({ ...c })) }));
+}
+
+/** เพิ่มรายการประวัติใหม่ในโหมด demo — ใช้โดย submitSchoolMerge
+  * เขียนผ่านถึง roster ด้วย เพื่อให้ fixtureRevertSchoolStandardization กู้คืนได้ */
+export function fixtureAppendRenameHistory(entry) {
+    FIXTURE_RENAME_HISTORY.unshift(entry);
+    if (FIXTURE_RENAME_HISTORY.length > 50) FIXTURE_RENAME_HISTORY.pop();
+    // Apply school name changes to roster so revert can restore them
+    (entry.changesSummary || []).forEach(c => {
+        const row = FIXTURE_SCHOOL_ROSTER.find(r => r.email === c.email);
+        if (row) row.schoolName = c.newSchoolName;
+    });
+}
+
+export function fixtureRevertSchoolStandardization(batchId) {
+    const h = FIXTURE_RENAME_HISTORY.find(x => x.batchId === batchId);
+    if (!h) return { status: 'error', message: 'ไม่พบ Batch ID: ' + batchId };
+    if (h.reverted) return { status: 'error', message: 'Batch นี้ถูกย้อนกลับไปแล้ว' };
+    h.changesSummary.forEach(c => {
+        const row = FIXTURE_SCHOOL_ROSTER.find(r => r.email === c.email);
+        if (row) row.schoolName = c.prevSchoolName;
+    });
+    h.reverted = true;
+    return { status: 'success', revertedTeamsCount: h.affectedCount, batchId, rankingStale: true, demo: true };
+}
+
 /** คืน payload หน้าตาเดียวกับ _handleEssaySheetView ใน 7_EssayGradingApi.js */
 export function essaySheetViewFixture(quota) {
     const rows = quota === 'โรงเรียน' ? FIXTURE_SCHOOL_ROSTER : FIXTURE_MIXED_ROSTER;
