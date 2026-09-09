@@ -1495,6 +1495,30 @@
          * teams ถ้าทีมนี้ยังอยู่ในคิว) ให้ตรงกัน — ไม่งั้นสลับแท็บกลับมาจะเห็นค่าเก่า
          * เพราะ loadSheetView() คืน cache ไม่ยิงเน็ตซ้ำ
          */
+        /**
+         * ปลดล็อกแถวที่ Verified — ต้องพิมพ์คำว่า UNLOCK เอง ไม่ใช่แค่กด OK
+         * เพราะ confirm() ปุ่มเดียวเป็นสิ่งที่คนกดผ่านโดยไม่อ่าน และการปลดล็อกคือ
+         * ทางเดียวที่คะแนนซึ่งประกาศไปแล้วจะเปลี่ยนได้
+         *
+         * ไม่ใช้ "รหัสผ่านหัวหน้า" ฝั่งหน้าเว็บ: ไฟล์นี้อยู่ใน repo สาธารณะ รหัสที่ฝังไว้
+         * จึงกันอะไรไม่ได้จริง (หมายเหตุเดียวกับ DEV_UNMASK_PW ด้านบน) ด่านจริงคือ
+         * unlockToken ที่ฝั่ง GAS บังคับ + แถว log ที่บันทึกว่าใครเป็นคนปลด
+         */
+        const UNLOCK_WORD = 'UNLOCK';
+        function askUnlock(what, prev, next) {
+            const typed = prompt(
+                `ปลดล็อก${what} (${prev} → ${next})\n\n` +
+                `คะแนนจะกลับมาแก้ไขได้ และจะถูกจัดอันดับใหม่ในรอบประมวลผลถัดไป\n` +
+                `การปลดล็อกจะถูกบันทึกชื่อผู้ทำลงในตาราง log\n\n` +
+                `พิมพ์คำว่า ${UNLOCK_WORD} เพื่อยืนยัน:`, '');
+            if (typed === null) return false;
+            if (typed.trim().toUpperCase() !== UNLOCK_WORD) {
+                alert(`ยกเลิกการปลดล็อก — ต้องพิมพ์คำว่า ${UNLOCK_WORD} ให้ตรง`);
+                return false;
+            }
+            return true;
+        }
+
         async function applyVerifyStatus(email, sheetName, status, opts = {}) {
             if (!sheetName) throw new Error('ไม่ทราบชีตปลายทางของทีมนี้ (sheetName ว่าง)');
             if (demoMode) {
@@ -1506,6 +1530,8 @@
                         action: 'updateVerificationStatus',
                         idToken: await window.idToken(),
                         email, sheetName, status,
+                        // GAS ปฏิเสธการย้ายออกจาก Verified ถ้าไม่มีคำนี้
+                        ...(opts.unlock ? { unlockToken: UNLOCK_WORD } : {}),
                     })
                 });
                 const data = await res.json();
@@ -1534,14 +1560,13 @@
                 !confirm(`ล็อกคะแนนทีมนี้ถาวร (Verified)?\n\nแถวนี้จะไม่ถูกคำนวณทับหรือปรับเปลี่ยนอันดับอีกเมื่อกด "ประมวลผลคะแนนสุทธิ"\nปลดล็อกได้ภายหลังโดยเลือกกลับเป็น Graded`)) {
                 sel.value = prev; return;
             }
-            if (prev === 'Verified' &&
-                !confirm(`ปลดล็อกทีมนี้ (${prev} → ${next})?\n\nคะแนนจะกลับมาแก้ไขได้ และจะถูกจัดอันดับใหม่ในรอบประมวลผลถัดไป`)) {
+            if (prev === 'Verified' && !askUnlock('คะแนนทีมนี้', prev, next)) {
                 sel.value = prev; return;
             }
 
             sel.disabled = true;
             try {
-                await applyVerifyStatus(email, sheetName, next);
+                await applyVerifyStatus(email, sheetName, next, { unlock: prev === 'Verified' });
                 if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
                 if (current && current.email === email) openPanel(current);
                 renderQueue();
@@ -1560,11 +1585,10 @@
             if (prev === status) return;
             if (status === 'Verified' &&
                 !confirm(`ล็อกคะแนนทีมนี้ถาวร (Verified)?\n\nแถวนี้จะไม่ถูกคำนวณทับหรือปรับเปลี่ยนอันดับอีกเมื่อกด "ประมวลผลคะแนนสุทธิ"\nปลดล็อกได้ภายหลังโดยเลือกกลับเป็น Graded`)) return;
-            if (prev === 'Verified' &&
-                !confirm(`ปลดล็อกทีมนี้ (${prev} → ${status})?\n\nคะแนนจะกลับมาแก้ไขได้ และจะถูกจัดอันดับใหม่ในรอบประมวลผลถัดไป`)) return;
+            if (prev === 'Verified' && !askUnlock('คะแนนทีมนี้', prev, status)) return;
 
             try {
-                await applyVerifyStatus(current.email, current.sheetName, status);
+                await applyVerifyStatus(current.email, current.sheetName, status, { unlock: prev === 'Verified' });
                 await openPanel(current);
                 renderQueue();
                 if (sheetData[sheetTab]) renderSheetTable(sheetData[sheetTab]);
