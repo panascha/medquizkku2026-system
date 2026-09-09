@@ -27,6 +27,11 @@
             word-break: break-word;
         }
 
+        /* ค่าถูกตั้งจาก JS ตามความสูงจริงของ header ที่ปักไว้ (scrollToCursor) */
+        .saq-card {
+            scroll-margin-top: var(--sticky-header-h, 280px);
+        }
+
         #itemTabs::-webkit-scrollbar {
             height: 6px;
         }

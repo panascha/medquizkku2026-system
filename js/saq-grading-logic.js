@@ -872,8 +872,18 @@ function afterDecision(decidedClusterId) {
 function scrollToCursor() {
     const list = visible();
     const c = list[cursor];
+    if (!c) return;
     // id ของการ์ดมีจุด (เช่น card-4.1-C001) — getElementById รับได้ตรง ๆ
-    if (c) $('card-' + c.clusterId)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const target = $('card-' + c.clusterId);
+    if (!target) return;
+
+    const header = document.querySelector('.sticky');
+    const headerHeight = header ? header.offsetHeight : 0;
+    // sync ให้ scroll-margin-top ของ .saq-card ตรงกับความสูง header จริง (เผื่อ scrollIntoView ที่อื่นเรียกใช้)
+    document.documentElement.style.setProperty('--sticky-header-h', (headerHeight + 12) + 'px');
+
+    const top = target.getBoundingClientRect().top + window.pageYOffset - headerHeight - 12;
+    window.scrollTo({ top, behavior: 'smooth' });
 }
 
 async function commit() {
