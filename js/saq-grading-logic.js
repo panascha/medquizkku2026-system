@@ -9,7 +9,7 @@
 //
 // หน้านี้ไม่แตะ syncExamData() และไม่เขียนชีตจัดอันดับเลย — การซิงก์คะแนน (ขั้นที่ 5)
 // ยังต้องสั่งจากเมนูในชีตเท่านั้น และต้องรันครั้งเดียวหลังยืนยันครบทั้ง 7 ข้อ
-import { DASHBOARD_API_URL } from './firebase-config.js';
+import { DASHBOARD_API_URL, db, ref, set, remove, onValue } from './firebase-config.js';
 
 const API_URL = DASHBOARD_API_URL;
 
@@ -19,11 +19,19 @@ const DEFAULT_ITEMS = ['4.1', '5.1', '6.1', '7.1', '8.1', '9.1', '10.1'];
 
 const FILTERS = {
     ALL: 'ทั้งหมด',
+    UNCONFIRMED: 'ยังไม่ถูกยืนยัน',
     PENDING: 'ต้องตัดสิน',
     UNSURE: 'AI ไม่แน่ใจ',
     AI_CORRECT: 'AI ว่าถูก',
     AI_INCORRECT: 'AI ว่าผิด',
 };
+
+// ลำดับตัวเลือกที่ ← → วนถึง — ตรงกับลำดับปุ่มในการ์ดและคีย์ลัด 1/2/3
+const DECISIONS = ['CORRECT', 'INCORRECT', 'UNSURE'];
+
+// โหนด RTDB สำหรับให้กรรมการหลายคนเห็นคำตัดสินของกันและกันทันที
+// เป็นชั้นเสริมเท่านั้น — ชีต (ผ่าน GAS) ยังเป็นแหล่งข้อมูลจริงเสมอ
+const LIVE_ROOT = 'saqGrading';
 
 const JUDGMENT_PILL = {
     CORRECT: { text: 'ถูก', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
@@ -40,12 +48,19 @@ const STATE_BADGE = {
 
 // ── state ───────────────────────────────────────────────────────────────────
 let getIdToken = async () => '';
+let me = { email: '', name: '' };
 let items = DEFAULT_ITEMS.slice();
 let itemId = DEFAULT_ITEMS[0];
 let payload = null;          // ผลลัพธ์ getSaqClusters ล่าสุด
 let filter = 'ALL';
 let cursor = 0;              // ตำแหน่งการ์ดที่โฟกัส (index ใน visible())
+let selection = 0;           // ตัวเลือกที่ ← → ชี้อยู่ในการ์ดที่โฟกัส (index ใน DECISIONS)
+let view = 'CARD';           // CARD = การ์ดเต็ม · TABLE = ตารางแบบแน่น
 const inFlight = new Set();  // clusterId ที่กำลังส่งคำตัดสิน — กันกดรัว
+const syncState = new Map(); // clusterId → 'pending' | 'synced' | 'error' (สถานะซิงก์ลงชีต)
+
+let liveOn = true;           // ปิดตัวเองถ้ากติกา RTDB ไม่ให้เขียนโหนดนี้
+let liveOff = null;          // ตัวยกเลิก onValue ของข้อก่อนหน้า
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -127,15 +142,31 @@ function highlightCluster(c) {
 }
 
 // ── ตัวกรอง ────────────────────────────────────────────────────────────────
+/**
+ * UNCONFIRMED กว้างกว่า PENDING — ไม่ใช่ตัวเดียวกัน
+ *   PENDING     = ยังต้องให้กรรมการตัดสิน (AI ไม่แน่ใจ หรือกรรมการพักไว้)
+ *   UNCONFIRMED = ทุกใบที่ยังไม่ถูกประทับ Confirmed รวม HUMAN_READY และ AI_READY
+ *                 ที่ตัดสินแล้วแต่ยังไม่ได้กดยืนยันทั้งข้อ
+ */
 function visible() {
     const all = payload?.clusters || [];
     switch (filter) {
+        case 'UNCONFIRMED': return all.filter((c) => c.humanStatus !== 'Confirmed');
         case 'PENDING': return all.filter((c) => c.state === 'PENDING');
         case 'UNSURE': return all.filter((c) => c.aiJudgment === 'UNSURE');
         case 'AI_CORRECT': return all.filter((c) => c.aiJudgment === 'CORRECT');
         case 'AI_INCORRECT': return all.filter((c) => c.aiJudgment === 'INCORRECT');
         default: return all;
     }
+}
+
+/** เหมือน _saqClusterState() ฝั่ง GAS — ใช้ตอนคาดผลล่วงหน้าและตอนรับผลจากกรรมการคนอื่น */
+function stateOf(c) {
+    if (c.humanStatus === 'Confirmed') return 'CONFIRMED';
+    if (c.humanJudgment === 'UNSURE') return 'PENDING';
+    if (c.humanJudgment === 'CORRECT' || c.humanJudgment === 'INCORRECT') return 'HUMAN_READY';
+    if (c.aiJudgment === 'CORRECT' || c.aiJudgment === 'INCORRECT') return 'AI_READY';
+    return 'PENDING';
 }
 
 function counts() {
@@ -211,8 +242,11 @@ function renderReference() {
 
 function renderFilters() {
     const c = counts();
+    const all = payload?.clusters || [];
     const n = {
-        ALL: payload?.clusters?.length || 0,
+        ALL: all.length,
+        // นับตรงจากเงื่อนไขเดียวกับ visible() เพื่อไม่ให้ตัวเลขกับรายการหลุดจากกัน
+        UNCONFIRMED: all.filter((x) => x.humanStatus !== 'Confirmed').length,
         PENDING: c ? c.pending : 0,
         UNSURE: c ? c.aiUnsure : 0,
         AI_CORRECT: c ? c.aiCorrect : 0,
@@ -227,8 +261,68 @@ function renderFilters() {
         </button>`).join('');
 
     [...document.querySelectorAll('.saq-filter')].forEach((b) => {
-        b.onclick = () => { filter = b.dataset.filter; cursor = 0; renderFilters(); renderCards(); };
+        b.onclick = () => { filter = b.dataset.filter; cursor = 0; selection = 0; renderFilters(); renderRows(); };
     });
+}
+
+function renderViewSwitch() {
+    const opt = { CARD: ['fa-list', 'การ์ด'], TABLE: ['fa-table-list', 'ตาราง'] };
+    $('viewSwitch').innerHTML = Object.keys(opt).map((k) => `
+        <button data-view="${k}"
+            class="saq-view px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${view === k
+            ? 'bg-slate-800 text-white border-slate-800'
+            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-800'}">
+            <i class="fa-solid ${opt[k][0]}"></i> ${opt[k][1]}
+        </button>`).join('');
+
+    [...document.querySelectorAll('.saq-view')].forEach((b) => {
+        b.onclick = () => { view = b.dataset.view; renderViewSwitch(); renderRows(); scrollToCursor(); };
+    });
+}
+
+const BTN_STYLE = {
+    CORRECT: {
+        label: 'ถูก', hotkey: '1',
+        on: 'bg-emerald-600 text-white border-emerald-600',
+        off: 'bg-white text-emerald-700 border-emerald-200 hover:border-emerald-500',
+    },
+    INCORRECT: {
+        label: 'ผิด', hotkey: '2',
+        on: 'bg-rose-600 text-white border-rose-600',
+        off: 'bg-white text-rose-700 border-rose-200 hover:border-rose-500',
+    },
+    UNSURE: {
+        label: 'ไม่แน่ใจ', hotkey: '3',
+        on: 'bg-amber-500 text-white border-amber-500',
+        off: 'bg-white text-amber-700 border-amber-200 hover:border-amber-500',
+    },
+};
+
+/** ปุ่มตัดสินชุดเดียวกันทั้งมุมมองการ์ดและตาราง — ต่างแค่ขนาด */
+function decideBtns(c, compact) {
+    const size = compact
+        ? 'px-2 py-1 text-[11px] rounded-lg'
+        : 'grow px-4 py-3 text-sm rounded-xl';
+    return DECISIONS.map((d) => {
+        const s = BTN_STYLE[d];
+        const on = c.humanJudgment === d;
+        return `<button data-cluster="${esc(c.clusterId)}" data-decision="${d}"
+            class="saq-decide ${size} border-2 font-extrabold transition-all ${on ? s.on : s.off}">
+            <span class="inline-block w-4 h-4 leading-4 rounded bg-black/10 text-[10px] mr-1">${s.hotkey}</span>${s.label}
+        </button>`;
+    }).join('');
+}
+
+/** ป้ายบอกว่าคำตัดสินนี้ลงชีตแล้วหรือยัง — ชั้น RTDB ทาสีทันที ชีตตามมาทีหลัง */
+function syncPill(clusterId) {
+    const s = syncState.get(clusterId);
+    if (!s) return '';
+    const p = {
+        pending: ['fa-circle-notch fa-spin', 'text-slate-400', 'กำลังบันทึกลงชีต'],
+        synced: ['fa-cloud-arrow-up', 'text-emerald-600', 'บันทึกลงชีตแล้ว'],
+        error: ['fa-triangle-exclamation', 'text-rose-600', 'บันทึกลงชีตไม่สำเร็จ'],
+    }[s];
+    return `<span class="text-[11px] ${p[1]}" title="${p[2]}"><i class="fa-solid ${p[0]}"></i></span>`;
 }
 
 function cardHtml(c, i) {
@@ -236,14 +330,6 @@ function cardHtml(c, i) {
     const ai = JUDGMENT_PILL[c.aiJudgment];
     const human = JUDGMENT_PILL[c.humanJudgment];
     const focused = i === cursor;
-
-    const btn = (decision, label, hotkey, cls) => {
-        const on = c.humanJudgment === decision;
-        return `<button data-cluster="${esc(c.clusterId)}" data-decision="${decision}"
-            class="saq-decide grow px-4 py-3 rounded-xl border-2 font-extrabold text-sm transition-all ${on ? cls.on : cls.off}">
-            <span class="inline-block w-5 h-5 leading-5 rounded bg-black/10 text-[11px] mr-1">${hotkey}</span>${label}
-        </button>`;
-    };
 
     return `
     <article id="card-${esc(c.clusterId)}" data-index="${i}"
@@ -254,7 +340,8 @@ function cardHtml(c, i) {
             <span class="text-[11px] bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">${c.wordCount} คำ</span>
             ${c.isOverlong ? `<span class="text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 rounded-full px-2 py-0.5">⚠️ ยาวผิดปกติ — สงสัยคัดลอกจาก AI</span>` : ''}
             ${c.isEmptyCluster ? `<span class="text-[11px] font-bold bg-slate-200 text-slate-700 rounded-full px-2 py-0.5">ไม่ได้ตอบ — 0 อัตโนมัติ</span>` : ''}
-            <span class="ml-auto text-[11px] font-bold rounded-full px-2 py-0.5 ${badge.cls}">${badge.text}</span>
+            <span class="ml-auto">${syncPill(c.clusterId)}</span>
+            <span class="text-[11px] font-bold rounded-full px-2 py-0.5 ${badge.cls}">${badge.text}</span>
         </header>
 
         <div class="answer-box text-[15px] leading-7 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
@@ -268,42 +355,138 @@ function cardHtml(c, i) {
             ${human ? `<span class="ml-auto text-slate-500">กรรมการ: <b class="text-slate-800">${human.text}</b>${c.reviewerEmail ? ` · ${esc(c.reviewerEmail)}` : ''}</span>` : ''}
         </div>
 
-        <div class="flex gap-2 mt-3">
-            ${btn('CORRECT', 'ถูก', '1', {
-        on: 'bg-emerald-600 text-white border-emerald-600',
-        off: 'bg-white text-emerald-700 border-emerald-200 hover:border-emerald-500',
-    })}
-            ${btn('INCORRECT', 'ผิด', '2', {
-        on: 'bg-rose-600 text-white border-rose-600',
-        off: 'bg-white text-rose-700 border-rose-200 hover:border-rose-500',
-    })}
-            ${btn('UNSURE', 'ไม่แน่ใจ', '3', {
-        on: 'bg-amber-500 text-white border-amber-500',
-        off: 'bg-white text-amber-700 border-amber-200 hover:border-amber-500',
-    })}
-        </div>
+        <div class="flex gap-2 mt-3">${decideBtns(c, false)}</div>
     </article>`;
 }
 
-function renderCards() {
+/** แถวตาราง — ข้อมูลและตรรกะชุดเดียวกับการ์ด ต่างแค่ความหนาแน่น */
+function rowHtml(c, i) {
+    const badge = STATE_BADGE[c.state] || STATE_BADGE.PENDING;
+    const ai = JUDGMENT_PILL[c.aiJudgment];
+    const focused = i === cursor;
+
+    return `
+    <div id="card-${esc(c.clusterId)}" data-index="${i}"
+        class="saq-card grid grid-cols-[minmax(140px,auto)_1fr_auto] gap-3 items-center border-b border-slate-100 px-3 py-2 ${focused ? 'bg-sky-50 ring-2 ring-[#1e3a8a]/40' : ''}">
+        <div class="min-w-0">
+            <div class="flex items-center gap-1">
+                <span class="font-mono text-[11px] font-bold text-slate-500 truncate">${esc(c.clusterId)}</span>
+                ${syncPill(c.clusterId)}
+            </div>
+            <div class="flex items-center gap-1 mt-0.5">
+                <span class="text-[10px] font-bold rounded-full px-1.5 py-0.5 ${badge.cls}">${badge.text}</span>
+                <span class="text-[10px] text-slate-500">${c.teamCount} ทีม</span>
+                ${c.isOverlong ? '<span class="text-[10px] text-amber-600" title="ยาวผิดปกติ — สงสัยคัดลอกจาก AI">⚠️</span>' : ''}
+            </div>
+        </div>
+        <div class="answer-box min-w-0 text-[13px] leading-6 line-clamp-2">
+            ${c.text ? highlightCluster(c) : '<span class="text-slate-400">— ไม่ได้ตอบ —</span>'}
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+            ${ai ? `<span class="text-[10px] font-bold border rounded-full px-1.5 py-0.5 mr-1 ${ai.cls}" title="ผล AI">${ai.text}</span>` : ''}
+            ${decideBtns(c, true)}
+        </div>
+    </div>`;
+}
+
+/**
+ * วาดรายการใหม่ทั้งหมด — เรียกเฉพาะตอน "สมาชิกในรายการเปลี่ยน" เท่านั้น
+ * (เปลี่ยนข้อ/ตัวกรอง/มุมมอง หรือมีการ์ดหลุดเข้าออกจากตัวกรอง)
+ *
+ * ข้อควรระวัง: cardHtml/rowHtml ฝัง data-index ตามลำดับใน visible() ลงใน DOM
+ * refreshRow() จึงใช้ได้เฉพาะตอนที่สมาชิกไม่เปลี่ยน ถ้าเรียกตอนสมาชิกเปลี่ยน
+ * ดัชนีของการ์ดใบอื่นจะเพี้ยนเงียบ ๆ และ cursor จะชี้ผิดใบ
+ */
+function renderRows() {
     const list = visible();
     if (cursor >= list.length) cursor = Math.max(0, list.length - 1);
 
-    $('cardList').innerHTML = list.length
-        ? list.map(cardHtml).join('')
-        : `<p class="text-center text-slate-400 text-sm py-10">ไม่มีคลัสเตอร์ในตัวกรองนี้</p>`;
+    if (!list.length) {
+        $('cardList').innerHTML = `<p class="text-center text-slate-400 text-sm py-10">ไม่มีคลัสเตอร์ในตัวกรองนี้</p>`;
+        renderStatusBar();
+        return;
+    }
 
-    [...document.querySelectorAll('.saq-decide')].forEach((b) => {
-        b.onclick = () => decide(b.dataset.cluster, b.dataset.decision);
-    });
-    [...document.querySelectorAll('.saq-card')].forEach((el) => {
-        el.onclick = (ev) => {
-            if (ev.target.closest('.saq-decide')) return;
-            cursor = Number(el.dataset.index) || 0;
-            renderCards();
-        };
-    });
+    $('cardList').innerHTML = view === 'TABLE'
+        ? `<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">${list.map(rowHtml).join('')}</div>`
+        : list.map(cardHtml).join('');
+
+    [...$('cardList').querySelectorAll('.saq-card')].forEach(bindRow);
+    paintSelection();
     renderStatusBar();
+}
+
+const rowEl = (i) => $('cardList').querySelector(`.saq-card[data-index="${i}"]`);
+
+function bindRow(el) {
+    if (!el) return;
+    [...el.querySelectorAll('.saq-decide')].forEach((b) => {
+        b.onclick = (ev) => { ev.stopPropagation(); decide(b.dataset.cluster, b.dataset.decision); };
+    });
+    el.onclick = () => {
+        // การลากเลือกข้อความในกล่องคำตอบจบด้วย mouseup บนการ์ด ถ้าถือว่าเป็นการ
+        // คลิกเลือกการ์ดแล้ววาดใหม่ selection ของเบราว์เซอร์จะถูกล้างกลางคัน
+        // — คัดลอกคำตอบไปค้นต่อไม่ได้เลย
+        if (String(window.getSelection ? window.getSelection() : '')) return;
+        setCursor(Number(el.dataset.index) || 0, { scroll: false });
+    };
+}
+
+/** วาดใหม่เฉพาะแถวเดียว — ใช้ได้เมื่อสมาชิกในรายการไม่เปลี่ยนเท่านั้น */
+function refreshRow(clusterId) {
+    const list = visible();
+    const i = list.findIndex((x) => x.clusterId === clusterId);
+    if (i === -1) return false;
+    const el = rowEl(i);
+    if (!el) return false;
+    el.outerHTML = view === 'TABLE' ? rowHtml(list[i], i) : cardHtml(list[i], i);
+    bindRow(rowEl(i));
+    if (i === cursor) paintSelection();
+    return true;
+}
+
+// ── โฟกัสและตัวเลือกในการ์ด ─────────────────────────────────────────────────
+const FOCUS_CLS = {
+    CARD: ['border-[#1e3a8a]', 'ring-2', 'ring-[#1e3a8a]/30'],
+    TABLE: ['bg-sky-50', 'ring-2', 'ring-[#1e3a8a]/40'],
+};
+const SEL_RING = ['ring-4', 'ring-offset-1', 'ring-[#1e3a8a]/60'];
+
+/** ย้ายโฟกัสด้วยการสลับคลาส ไม่วาด #cardList ใหม่ (535 คลัสเตอร์ต่อการกดลูกศรหนึ่งครั้ง) */
+function paintFocus(i, on) {
+    const el = rowEl(i);
+    if (!el) return;
+    FOCUS_CLS[view].forEach((cls) => el.classList.toggle(cls, on));
+    if (view === 'CARD') el.classList.toggle('border-slate-200', !on);
+    if (!on) [...el.querySelectorAll('.saq-decide')].forEach((b) => b.classList.remove(...SEL_RING));
+}
+
+/**
+ * วงแหวนตัวเลือกที่ ← → ชี้อยู่ — ตั้งใจให้ต่างจากสีปุ่มที่ "ตัดสินไปแล้ว" (cls.on)
+ * เพราะสองอย่างนี้คนละความหมาย: อันหนึ่งคือผลที่บันทึกแล้ว อีกอันคือกำลังจะกด
+ */
+function paintSelection() {
+    const el = rowEl(cursor);
+    if (!el) return;
+    [...el.querySelectorAll('.saq-decide')].forEach((b) => {
+        const on = b.dataset.decision === DECISIONS[selection];
+        SEL_RING.forEach((cls) => b.classList.toggle(cls, on));
+    });
+}
+
+/** ตัวเลือกเริ่มต้นของการ์ด — ถ้าตัดสินไว้แล้วให้ชี้ที่ผลเดิม ไม่งั้นเริ่มที่ "ถูก" */
+const defaultSelection = (c) => Math.max(0, DECISIONS.indexOf(c?.humanJudgment));
+
+function setCursor(next, opts = {}) {
+    const list = visible();
+    if (!list.length) { cursor = 0; return; }
+    const clamped = Math.min(Math.max(next, 0), list.length - 1);
+    if (clamped !== cursor) paintFocus(cursor, false);
+    cursor = clamped;
+    selection = defaultSelection(list[cursor]);
+    paintFocus(cursor, true);
+    paintSelection();
+    if (opts.scroll !== false) scrollToCursor();
 }
 
 function renderStatusBar() {
@@ -328,6 +511,73 @@ function renderStatusBar() {
         </div>`;
     const btn = $('commitBtn');
     if (btn && ready) btn.onclick = commit;
+}
+
+/**
+ * ภาพรวมความคืบหน้าทั้ง 7 ข้อ — ใช้ payload.progress ที่เซิร์ฟเวอร์ส่งมาอยู่แล้ว
+ * (_saqItemProgress() ฝั่ง GAS) ไม่คำนวณซ้ำจาก payload.clusters ซึ่งมีแค่ข้อปัจจุบัน
+ */
+const SEG = [
+    ['confirmed', 'bg-emerald-500', 'ยืนยันแล้ว'],
+    ['humanReady', 'bg-sky-500', 'กรรมการตัดสินแล้ว'],
+    ['aiReady', 'bg-slate-400', 'รับผล AI ได้'],
+    ['pending', 'bg-amber-400', 'ต้องตัดสิน'],
+];
+
+function renderProgress() {
+    const rows = payload?.progress || [];
+    if (!rows.length) { $('progressPanel').innerHTML = ''; return; }
+
+    const agg = rows.reduce((a, p) => {
+        SEG.forEach(([k]) => { a[k] += p[k] || 0; });
+        a.clusters += p.clusters || 0;
+        a.teams += p.teams || 0;
+        if (p.readyToCommit) a.ready++;
+        return a;
+    }, { clusters: 0, teams: 0, ready: 0, confirmed: 0, humanReady: 0, aiReady: 0, pending: 0 });
+
+    const bar = (p) => {
+        if (!p.clusters) return '<div class="h-2 rounded-full bg-slate-100"></div>';
+        return `<div class="h-2 rounded-full bg-slate-100 overflow-hidden flex">
+            ${SEG.map(([k, cls, label]) => (p[k] ? `<span class="${cls}" style="width:${(p[k] / p.clusters) * 100}%" title="${label} ${p[k]}"></span>` : '')).join('')}
+        </div>`;
+    };
+
+    $('progressPanel').innerHTML = `
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3">
+            <span class="text-sm font-extrabold text-[#0f1f4b]">ความคืบหน้าการตรวจ SAQ</span>
+            <span class="text-xs text-slate-500">คลัสเตอร์ ${agg.clusters} · ทีม ${agg.teams}</span>
+            <span class="text-xs font-bold ${agg.pending ? 'text-amber-600' : 'text-emerald-600'}">
+                เหลือต้องตัดสิน ${agg.pending}
+            </span>
+            <span class="ml-auto text-xs font-bold ${agg.ready === rows.length ? 'text-emerald-600' : 'text-slate-500'}">
+                พร้อมยืนยัน ${agg.ready}/${rows.length} ข้อ
+            </span>
+        </div>
+        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            ${rows.map((p) => `
+            <button data-item="${esc(p.itemId)}" class="saq-prog text-left rounded-xl border px-3 py-2 transition-all ${p.itemId === itemId
+        ? 'border-[#1e3a8a] bg-slate-50' : 'border-slate-200 hover:border-[#1e3a8a]'}">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-extrabold text-slate-700">ข้อ ${esc(p.itemId)}</span>
+                    ${p.readyToCommit
+            ? '<span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-full px-1.5">พร้อมยืนยัน</span>'
+            : `<span class="text-[10px] text-amber-600 font-bold">เหลือ ${p.pending}</span>`}
+                    <span class="ml-auto text-[10px] text-slate-400">${p.clusters}</span>
+                </div>
+                ${bar(p)}
+            </button>`).join('')}
+        </div>
+        <div class="flex flex-wrap gap-3 mt-2">
+            ${SEG.map(([, cls, label]) => `<span class="flex items-center gap-1 text-[10px] text-slate-500">
+                <span class="w-2 h-2 rounded-full ${cls}"></span>${label}</span>`).join('')}
+        </div>
+    </div>`;
+
+    [...document.querySelectorAll('.saq-prog')].forEach((b) => {
+        b.onclick = () => { if (b.dataset.item !== itemId) load(b.dataset.item); };
+    });
 }
 
 /**
@@ -380,20 +630,99 @@ async function load(nextItem) {
         rebuildBaseMatcher();
         items = data.items && data.items.length ? data.items : items;
         cursor = 0;
+        selection = 0;
+        syncState.clear();
         renderTabs();
+        renderProgress();
         renderReference();
         renderFilters();
-        renderCards();
+        renderRows();
+        watchLive();
     } catch (err) {
         $('cardList').innerHTML = `<p class="text-center text-rose-600 text-sm py-10">${esc(err.message)}</p>`;
     }
+}
+
+// ── ชั้นเรียลไทม์ (RTDB) ────────────────────────────────────────────────────
+// เป็นชั้นเสริมล้วน ๆ: ทาสีคำตัดสินให้เห็นทันทีและให้กรรมการหลายคนเห็นของกันและกัน
+// แหล่งข้อมูลจริงคือชีตผ่าน GAS เสมอ ถ้ากติกา RTDB ยังไม่เปิดโหนดนี้ให้เขียน
+// เราปิดชั้นนี้ทิ้งเงียบ ๆ (liveOn = false) แล้วหน้าเว็บทำงานต่อได้ครบทุกอย่าง
+
+/** RTDB ห้ามมี . # $ [ ] ในชื่อ path — ทั้ง itemId ("4.1") และ clusterId ("4.1-C001") มีจุด */
+const escPath = (s) => String(s ?? '').replace(/[.#$[\]]/g, '_');
+
+function watchLive() {
+    if (liveOff) { liveOff(); liveOff = null; }
+    if (!liveOn) return;
+    liveOff = onValue(
+        ref(db, `${LIVE_ROOT}/${escPath(itemId)}`),
+        (snap) => applyLive(snap.val() || {}),
+        () => { liveOn = false; });      // อ่านไม่ได้ = ไม่มีกติกาให้ → เลิกใช้ชั้นนี้
+}
+
+function pushLive(c, drop) {
+    if (!liveOn) return;
+    const node = ref(db, `${LIVE_ROOT}/${escPath(itemId)}/${escPath(c.clusterId)}`);
+    const done = drop ? remove(node) : set(node, {
+        clusterId: c.clusterId,
+        judgment: c.humanJudgment || '',
+        humanStatus: c.humanStatus || '',
+        graderEmail: me.email,
+        graderName: me.name,
+        at: Date.now(),
+    });
+    done.catch(() => { liveOn = false; });
+}
+
+/**
+ * รับคำตัดสินของกรรมการคนอื่นเข้ามาระหว่างทาง
+ *
+ * ข้ามรายการที่เราเป็นคนเขียนเอง: ค่าที่เราเขียนแบบมองโลกในแง่ดีจะเด้งกลับมาทาง
+ * listener นี้ด้วย ถ้าปล่อยให้เขียนทับ มันจะไปลบ humanStatus/humanScore ตัวจริง
+ * ที่ GAS เพิ่งตอบกลับมา (แข่งกันเองจนคะแนนเพี้ยนโดยไม่มีใครเห็น)
+ */
+function applyLive(map) {
+    if (!payload) return;
+    const anchor = visible()[cursor]?.clusterId;
+
+    const byId = {};
+    Object.keys(map).forEach((k) => {
+        const v = map[k];
+        if (v && v.clusterId) byId[v.clusterId] = v;
+    });
+
+    let changed = 0;
+    (payload.clusters || []).forEach((c) => {
+        const v = byId[c.clusterId];
+        if (!v || v.graderEmail === me.email) return;
+        if (c.humanJudgment === (v.judgment || '') && c.humanStatus === (v.humanStatus || '')) return;
+        c.humanJudgment = v.judgment || '';
+        c.humanStatus = v.humanStatus || '';
+        c.reviewerEmail = v.graderEmail || c.reviewerEmail;
+        c.state = stateOf(c);
+        changed++;
+    });
+    if (!changed) return;
+
+    recount();
+    renderTabs();
+    renderProgress();
+    renderFilters();
+    // ยึดการ์ดเดิมไว้ด้วย clusterId — ถ้าใช้ index เดิม กรรมการจะถูกกระชากไปคนละใบ
+    const list = visible();
+    const back = list.findIndex((x) => x.clusterId === anchor);
+    cursor = back === -1 ? Math.min(cursor, Math.max(0, list.length - 1)) : back;
+    selection = defaultSelection(list[cursor]);
+    renderRows();
 }
 
 /**
  * ส่งคำตัดสินของกรรมการ 1 คลัสเตอร์.
  * CORRECT/INCORRECT = ยืนยันทันที (Human_Status = Confirmed)
  * UNSURE = พักไว้ ไม่ยืนยัน — ยังบล็อกการยืนยันทั้งข้อไว้เหมือนเดิม
- * ไม่อัปเดตหน้าจอแบบมองโลกในแง่ดี: รอผลจากเซิร์ฟเวอร์แล้วค่อยเขียนสถานะจริง
+ *
+ * ทาสีทันทีแล้วค่อยยืนยันกับเซิร์ฟเวอร์ (optimistic) เพื่อให้ไล่ตรวจรัว ๆ ได้ลื่น
+ * ถ้า GAS ปฏิเสธ ทั้งหน้าจอและ RTDB จะถูกย้อนกลับเป็นค่าเดิม
  */
 async function decide(clusterId, decision) {
     if (inFlight.has(clusterId)) return;
@@ -402,6 +731,7 @@ async function decide(clusterId, decision) {
 
     // คลัสเตอร์ที่ยืนยันแล้วคือของที่ล็อกไว้ — หนึ่งคลัสเตอร์ถือคะแนนของหลายสิบทีม
     // การกดซ้ำโดยไม่ตั้งใจจึงเปลี่ยนคะแนนจริง ต้องพิมพ์คำยืนยันเองก่อน
+    // ด่านนี้ต้องอยู่ก่อนการเขียน RTDB เสมอ ไม่งั้นการกดยกเลิกก็ยังไปโผล่จอคนอื่น
     let unlock = false;
     if (c.humanStatus === 'Confirmed') {
         if (c.humanJudgment === decision) {
@@ -412,7 +742,25 @@ async function decide(clusterId, decision) {
         unlock = true;
     }
 
+    const prev = {
+        humanJudgment: c.humanJudgment, humanStatus: c.humanStatus,
+        humanScore: c.humanScore, reviewerEmail: c.reviewerEmail, state: c.state,
+    };
+    const hadLive = Boolean(prev.humanJudgment || prev.humanStatus);
+
     inFlight.add(clusterId);
+    c.humanJudgment = decision;
+    c.humanStatus = decision === 'UNSURE' ? '' : 'Confirmed';
+    c.reviewerEmail = me.email || c.reviewerEmail;
+    c.state = stateOf(c);
+    syncState.set(clusterId, 'pending');
+    recount();
+    renderTabs();
+    renderProgress();
+    renderFilters();
+    afterDecision(clusterId);
+    pushLive(c);
+
     try {
         const res = await fetch(API_URL, {
             method: 'POST',
@@ -429,19 +777,23 @@ async function decide(clusterId, decision) {
         const data = await res.json();
         if (data.status !== 'success') throw new Error(data.message || 'บันทึกไม่สำเร็จ');
 
-        c.humanJudgment = decision;
+        // ผลจากเซิร์ฟเวอร์คือของจริง — เขียนทับค่าที่เดาไว้ล่วงหน้า
         c.humanStatus = data.humanStatus || '';
         c.humanScore = data.score === '' ? null : data.score;
-        c.state = decision === 'UNSURE' ? 'PENDING'
-            : 'CONFIRMED';
-        recount();
-        advance(clusterId);
-        renderTabs();
-        renderFilters();
-        renderCards();
-        scrollToCursor();
+        c.state = stateOf(c);
+        syncState.set(clusterId, 'synced');
+        pushLive(c);
+        refreshRow(clusterId);
     } catch (err) {
+        Object.assign(c, prev);
+        syncState.set(clusterId, 'error');
+        pushLive(c, !hadLive);
         toast(err.message, 'red');
+        recount();
+        renderTabs();
+        renderProgress();
+        renderFilters();
+        renderRows();
     } finally {
         inFlight.delete(clusterId);
     }
@@ -463,18 +815,25 @@ function recount() {
 }
 
 /**
- * เลื่อนไปการ์ดถัดไปที่ยังไม่ตัดสิน — ถ้าไม่มีก็เลื่อนไปการ์ดถัดไปเฉย ๆ
+ * หลังตัดสินสำเร็จ: เลื่อนไป "ใบถัดไปตามลำดับ" เสมอ ไม่กระโดดข้ามไปหาใบที่ยัง
+ * ต้องตัดสิน (กรรมการต้องได้ไล่อ่านเรียงใบ ไม่ใช่ถูกพาไปที่ใบ UNSURE ไกล ๆ)
  *
- * ต้องรู้ว่าการ์ดที่เพิ่งตัดสิน "ยังอยู่ในตัวกรองหรือไม่": ถ้าตัวกรองเป็น
- * "ต้องตัดสิน" การ์ดนั้นจะหลุดออกจากรายการทันที ทุกใบหลังจากนั้นเลื่อนขึ้นมา
- * หนึ่งช่อง — ถ้ายังข้ามไปเริ่มที่ cursor+1 จะกลายเป็นตรวจเว้นใบ
+ * ถ้าการ์ดหลุดออกจากตัวกรอง (เช่นกรองอยู่ที่ "ต้องตัดสิน") สมาชิกในรายการเปลี่ยน
+ * ต้องวาดใหม่ทั้งหมด และทุกใบหลังจากนั้นเลื่อนขึ้นหนึ่งช่องแล้ว — cursor เดิมจึง
+ * ชี้ใบถัดไปอยู่พอดี ห้ามบวกหนึ่งซ้ำ ไม่งั้นจะกลายเป็นตรวจเว้นใบ
  */
-function advance(decidedClusterId) {
+function afterDecision(decidedClusterId) {
     const list = visible();
-    const stillThere = list.findIndex((x) => x.clusterId === decidedClusterId);
-    const start = stillThere === -1 ? cursor : stillThere + 1;
-    const next = list.findIndex((x, i) => i >= start && x.state === 'PENDING');
-    cursor = Math.min(next !== -1 ? next : start, Math.max(0, list.length - 1));
+    const at = list.findIndex((x) => x.clusterId === decidedClusterId);
+    if (at !== -1) {
+        refreshRow(decidedClusterId);
+        setCursor(at + 1);
+        return;
+    }
+    cursor = Math.min(cursor, Math.max(0, list.length - 1));
+    selection = defaultSelection(list[cursor]);
+    renderRows();
+    scrollToCursor();
 }
 
 /** เลื่อนจอไปที่การ์ดที่โฟกัสอยู่ — ใช้ทั้งตอนกดลูกศรและหลังกดตัดสิน */
@@ -521,6 +880,13 @@ async function commit() {
 }
 
 // ── คีย์ลัด ────────────────────────────────────────────────────────────────
+/**
+ * สองจังหวะ: ↑ ↓ เลือกการ์ด · ← → เลือกตัวเลือกในการ์ดนั้น · Space/Enter ยืนยัน
+ * แล้วเลื่อนไปใบถัดไป ส่วน 1/2/3 ยังกดตัดสินได้ทันทีเหมือนเดิม
+ *
+ * ต้อง preventDefault ทั้ง ↑ ↓ และ Space ไม่งั้นเบราว์เซอร์เลื่อนจอเองซ้อนกับ
+ * การเลื่อนของเรา จนหลุดจากการ์ดที่โฟกัสอยู่
+ */
 function onKey(ev) {
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const tag = (ev.target.tagName || '').toLowerCase();
@@ -530,18 +896,23 @@ function onKey(ev) {
     if (!list.length) return;
     const card = list[Math.min(cursor, list.length - 1)];
 
-    const move = (delta) => {
-        cursor = Math.min(Math.max(cursor + delta, 0), list.length - 1);
-        renderCards();
-        scrollToCursor();
+    const cycle = (d) => {
+        selection = (selection + d + DECISIONS.length) % DECISIONS.length;
+        paintSelection();
     };
 
     switch (ev.key) {
         case '1': ev.preventDefault(); decide(card.clusterId, 'CORRECT'); break;
         case '2': ev.preventDefault(); decide(card.clusterId, 'INCORRECT'); break;
         case '3': ev.preventDefault(); decide(card.clusterId, 'UNSURE'); break;
-        case 'ArrowRight': case 'ArrowDown': case 'j': ev.preventDefault(); move(1); break;
-        case 'ArrowLeft': case 'ArrowUp': case 'k': ev.preventDefault(); move(-1); break;
+        case 'ArrowDown': case 'j': ev.preventDefault(); setCursor(cursor + 1); break;
+        case 'ArrowUp': case 'k': ev.preventDefault(); setCursor(cursor - 1); break;
+        case 'ArrowRight': ev.preventDefault(); cycle(1); break;
+        case 'ArrowLeft': ev.preventDefault(); cycle(-1); break;
+        case ' ': case 'Spacebar': case 'Enter':
+            ev.preventDefault();
+            decide(card.clusterId, DECISIONS[selection]);
+            break;
         default: break;
     }
 }
@@ -549,8 +920,10 @@ function onKey(ev) {
 // ── entry ──────────────────────────────────────────────────────────────────
 export function initSaqGrading(opts) {
     getIdToken = opts.getIdToken;
+    me = opts.me || me;
     itemId = DEFAULT_ITEMS[0];
     renderTabs();
+    renderViewSwitch();
     document.addEventListener('keydown', onKey);
     return load(itemId);
 }

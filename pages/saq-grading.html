@@ -77,16 +77,23 @@
 
     <main class="grow max-w-[1200px] w-full mx-auto px-4 pb-28">
 
+        <!-- ภาพรวมความคืบหน้าทั้ง 7 ข้อ -->
+        <div id="progressPanel" class="pt-4"></div>
+
         <!-- แท็บเลือกข้อ + ตัวนับความคืบหน้า -->
         <div id="itemTabs" class="flex gap-2 overflow-x-auto py-3"></div>
 
         <!-- แถบอ้างอิงเฉลย (ปักไว้บนสุด) + ตัวกรอง -->
         <div class="sticky-head pt-1 pb-3">
             <div id="refBox" class="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 shadow-sm"></div>
-            <div id="filterBar" class="flex flex-wrap gap-2 mt-3"></div>
+            <div class="flex flex-wrap items-center gap-2 mt-3">
+                <div id="filterBar" class="flex flex-wrap gap-2"></div>
+                <div id="viewSwitch" class="ml-auto flex gap-1"></div>
+            </div>
             <p class="text-[11px] text-slate-400 mt-2">
-                คีย์ลัด: <b>1</b> ถูก · <b>2</b> ผิด · <b>3</b> ไม่แน่ใจ · <b>↑ ↓ ← →</b> เลื่อนการ์ด ·
-                คลิกการ์ดเพื่อเลือกก่อนกดคีย์ลัด
+                คีย์ลัด: <b>↑ ↓</b> เลื่อนการ์ด · <b>← →</b> เลือกตัวเลือกในการ์ด ·
+                <b>Space / Enter</b> ยืนยันตัวเลือกแล้วไปใบถัดไป ·
+                <b>1</b> ถูก · <b>2</b> ผิด · <b>3</b> ไม่แน่ใจ (กดตัดสินทันที)
             </p>
         </div>
 
@@ -120,6 +127,8 @@
             started = true;
             initSaqGrading({
                 getIdToken: async () => auth.currentUser ? await auth.currentUser.getIdToken() : '',
+                // ใช้ระบุว่าคำตัดสินใน RTDB เป็นของใคร และให้ listener ข้ามของตัวเอง
+                me: { email: user.email || '', name: user.displayName || user.email || '' },
             });
         });
     </script>
