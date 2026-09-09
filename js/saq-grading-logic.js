@@ -704,10 +704,7 @@ function applyLive(map) {
     });
     if (!changed) return;
 
-    recount();
-    renderTabs();
-    renderProgress();
-    renderFilters();
+    renderChrome();
     // ยึดการ์ดเดิมไว้ด้วย clusterId — ถ้าใช้ index เดิม กรรมการจะถูกกระชากไปคนละใบ
     const list = visible();
     const back = list.findIndex((x) => x.clusterId === anchor);
@@ -754,10 +751,7 @@ async function decide(clusterId, decision) {
     c.reviewerEmail = me.email || c.reviewerEmail;
     c.state = stateOf(c);
     syncState.set(clusterId, 'pending');
-    recount();
-    renderTabs();
-    renderProgress();
-    renderFilters();
+    renderChrome();
     afterDecision(clusterId);
     pushLive(c);
 
@@ -783,20 +777,34 @@ async function decide(clusterId, decision) {
         c.state = stateOf(c);
         syncState.set(clusterId, 'synced');
         pushLive(c);
+        // เซิร์ฟเวอร์อาจให้สถานะไม่ตรงกับที่เดาไว้ ต้องนับใหม่ ไม่ใช่แค่ทาสีแถวเดียว
+        renderChrome();
         refreshRow(clusterId);
     } catch (err) {
         Object.assign(c, prev);
         syncState.set(clusterId, 'error');
         pushLive(c, !hadLive);
         toast(err.message, 'red');
-        recount();
-        renderTabs();
-        renderProgress();
-        renderFilters();
+        renderChrome();
         renderRows();
     } finally {
         inFlight.delete(clusterId);
     }
+}
+
+/**
+ * นับใหม่แล้ววาดทุกส่วนที่โชว์ตัวเลข — แท็บ ภาพรวม ตัวกรอง และแถบล่าง
+ *
+ * แถบล่างสำคัญเป็นพิเศษ: มันถือปุ่ม "ยืนยันผลตรวจทั้งข้อ" ที่จะกดได้ก็ต่อเมื่อ
+ * pending เป็นศูนย์ ถ้าลืมวาดมันตอนตัดสินใบสุดท้าย ปุ่มจะยังเป็นสีเทาทั้งที่
+ * ตรวจครบแล้ว (renderRows() วาดให้อยู่แล้ว แต่ทางลัด refreshRow() ไม่ได้วาด)
+ */
+function renderChrome() {
+    recount();
+    renderTabs();
+    renderProgress();
+    renderFilters();
+    renderStatusBar();
 }
 
 /** นับใหม่ฝั่งหน้าเว็บ ใช้กติกาเดียวกับ _saqItemProgress() ในฝั่ง GAS */
