@@ -382,9 +382,12 @@ function rowHtml(c, i) {
         <div class="answer-box min-w-0 text-[13px] leading-6 whitespace-pre-wrap">
             ${c.text ? highlightCluster(c) : '<span class="text-slate-400">— ไม่ได้ตอบ —</span>'}
         </div>
-        <div class="flex items-center gap-1 shrink-0">
-            ${ai ? `<span class="text-[10px] font-bold border rounded-full px-1.5 py-0.5 mr-1 ${ai.cls}" title="ผล AI">${ai.text}</span>` : ''}
-            ${decideBtns(c, true)}
+        <div class="flex items-start gap-2 shrink-0">
+            ${ai ? `<div class="max-w-[170px]">
+                <span class="text-[10px] font-bold border rounded-full px-1.5 py-0.5 ${ai.cls}" title="ผล AI">${ai.text}</span>
+                <p class="text-[11px] text-slate-500 mt-0.5 leading-tight">${esc(c.aiReason || '')}</p>
+            </div>` : ''}
+            <div class="flex items-center gap-1">${decideBtns(c, true)}</div>
         </div>
     </div>`;
 }
