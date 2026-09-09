@@ -22,7 +22,7 @@ export const loginWithKKU = async () => {
 
             if (snapshot.exists()) {
                 console.log("Welcome Staff:", user.displayName);
-                window.location.href = "checking.html";
+                window.location.href = "../index.html";
                 return user;
             } else {
                 alert("คุณไม่มีสิทธิ์เข้าถึงระบบ Staff กรุณาติดต่อฝ่าย IT");
@@ -39,7 +39,9 @@ export const loginWithKKU = async () => {
     }
 };
 
-export const logout = () => signOut(auth).then(() => window.location.href = "login.html");
+const loginUrl = new URL("../pages/login.html", import.meta.url).href;
+
+export const logout = () => signOut(auth).then(() => window.location.href = loginUrl);
 
 // ตรวจสอบสถานะ Login อัตโนมัติ
 onAuthStateChanged(auth, (user) => {
@@ -50,11 +52,11 @@ onAuthStateChanged(auth, (user) => {
         if (!isValidEmail) {
             signOut(auth);
         } else if (isLoginPage) {
-            window.location.href = "checking.html";
+            window.location.href = "../index.html";
         }
     } else {
         if (!isLoginPage) {
-            window.location.href = "login.html";
+            window.location.href = loginUrl;
         }
     }
 });
