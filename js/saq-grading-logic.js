@@ -55,7 +55,7 @@ let payload = null;          // ผลลัพธ์ getSaqClusters ล่า�
 let filter = 'ALL';
 let cursor = 0;              // ตำแหน่งการ์ดที่โฟกัส (index ใน visible())
 let selection = 0;           // ตัวเลือกที่ ← → ชี้อยู่ในการ์ดที่โฟกัส (index ใน DECISIONS)
-let view = 'CARD';           // CARD = การ์ดเต็ม · TABLE = ตารางแบบแน่น
+let view = 'TABLE';          // CARD = การ์ดเต็ม · TABLE = ตารางแบบแน่น (ค่าเริ่มต้น)
 const inFlight = new Set();  // clusterId ที่กำลังส่งคำตัดสิน — กันกดรัว
 const syncState = new Map(); // clusterId → 'pending' | 'synced' | 'error' (สถานะซิงก์ลงชีต)
 
@@ -261,7 +261,7 @@ function renderFilters() {
         </button>`).join('');
 
     [...document.querySelectorAll('.saq-filter')].forEach((b) => {
-        b.onclick = () => { filter = b.dataset.filter; cursor = 0; selection = 0; renderFilters(); renderRows(); };
+        b.onclick = () => { filter = b.dataset.filter; cursor = 0; selection = defaultSelection(visible()[0]); renderFilters(); renderRows(); };
     });
 }
 
@@ -367,7 +367,7 @@ function rowHtml(c, i) {
 
     return `
     <div id="card-${esc(c.clusterId)}" data-index="${i}"
-        class="saq-card grid grid-cols-[minmax(140px,auto)_1fr_auto] gap-3 items-center border-b border-slate-100 px-3 py-2 ${focused ? 'bg-sky-50 ring-2 ring-[#1e3a8a]/40' : ''}">
+        class="saq-card grid grid-cols-[minmax(140px,auto)_1fr_auto] gap-3 items-start border-b border-slate-100 px-3 py-2 ${focused ? 'bg-sky-50 ring-2 ring-[#1e3a8a]/40' : ''}">
         <div class="min-w-0">
             <div class="flex items-center gap-1">
                 <span class="font-mono text-[11px] font-bold text-slate-500 truncate">${esc(c.clusterId)}</span>
@@ -379,7 +379,7 @@ function rowHtml(c, i) {
                 ${c.isOverlong ? '<span class="text-[10px] text-amber-600" title="ยาวผิดปกติ — สงสัยคัดลอกจาก AI">⚠️</span>' : ''}
             </div>
         </div>
-        <div class="answer-box min-w-0 text-[13px] leading-6 line-clamp-2">
+        <div class="answer-box min-w-0 text-[13px] leading-6 whitespace-pre-wrap">
             ${c.text ? highlightCluster(c) : '<span class="text-slate-400">— ไม่ได้ตอบ —</span>'}
         </div>
         <div class="flex items-center gap-1 shrink-0">
@@ -474,8 +474,16 @@ function paintSelection() {
     });
 }
 
-/** ตัวเลือกเริ่มต้นของการ์ด — ถ้าตัดสินไว้แล้วให้ชี้ที่ผลเดิม ไม่งั้นเริ่มที่ "ถูก" */
-const defaultSelection = (c) => Math.max(0, DECISIONS.indexOf(c?.humanJudgment));
+/**
+ * ตัวเลือกเริ่มต้นของการ์ด — ชี้ที่ผลกรรมการเดิมถ้ามี ไม่งั้นชี้ตามคำแนะนำของ AI
+ * เพื่อให้กด Space/Enter ยืนยันตามคำแนะนำ AI แล้วไปใบถัดไปได้ทันที ไม่งั้นเริ่มที่ "ถูก"
+ */
+const defaultSelection = (c) => {
+    const human = DECISIONS.indexOf(c?.humanJudgment);
+    if (human >= 0) return human;
+    const ai = DECISIONS.indexOf(c?.aiJudgment);
+    return ai >= 0 ? ai : 0;
+};
 
 function setCursor(next, opts = {}) {
     const list = visible();
@@ -533,8 +541,12 @@ function renderProgress() {
         a.clusters += p.clusters || 0;
         a.teams += p.teams || 0;
         if (p.readyToCommit) a.ready++;
+        // ข้อที่ "ยืนยันแล้ว" จริง ๆ (กรรมการกดยืนยันทั้งข้อ) ต่างจาก "พร้อมยืนยัน"
+        // (readyToCommit — pending=0 แต่ยังไม่กดยืนยัน) ตรงที่ทุกคลัสเตอร์ต้องอยู่ในสถานะ
+        // Confirmed แล้วเท่านั้น ไม่ใช่แค่ pending=0
+        if (p.clusters > 0 && p.pending === 0 && p.confirmed === p.clusters) a.committed++;
         return a;
-    }, { clusters: 0, teams: 0, ready: 0, confirmed: 0, humanReady: 0, aiReady: 0, pending: 0 });
+    }, { clusters: 0, teams: 0, ready: 0, committed: 0, confirmed: 0, humanReady: 0, aiReady: 0, pending: 0 });
 
     const bar = (p) => {
         if (!p.clusters) return '<div class="h-2 rounded-full bg-slate-100"></div>';
@@ -545,6 +557,15 @@ function renderProgress() {
 
     $('progressPanel').innerHTML = `
     <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4">
+        <div class="mb-3">
+            <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-full border px-3 py-1.5 text-xs font-extrabold ${agg.committed === rows.length
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+            : 'bg-indigo-50 border-indigo-300 text-indigo-800'}">
+                <i class="fa-solid fa-clipboard-check"></i>
+                ยืนยันแล้ว ${agg.committed} / ${rows.length} ข้อ
+                <span class="font-normal opacity-80">(${agg.committed} of ${rows.length} items confirmed by academic committee)</span>
+            </span>
+        </div>
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3">
             <span class="text-sm font-extrabold text-[#0f1f4b]">ความคืบหน้าการตรวจ SAQ</span>
             <span class="text-xs text-slate-500">คลัสเตอร์ ${agg.clusters} · ทีม ${agg.teams}</span>
@@ -630,7 +651,7 @@ async function load(nextItem) {
         rebuildBaseMatcher();
         items = data.items && data.items.length ? data.items : items;
         cursor = 0;
-        selection = 0;
+        selection = defaultSelection(visible()[0]);
         syncState.clear();
         renderTabs();
         renderProgress();
