@@ -376,6 +376,7 @@
     <section id="questionView" class="hidden flex-1 max-w-[1500px] mx-auto w-full p-4">
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col max-h-[80vh]">
             <div id="qSlotTabs" class="px-3 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2"></div>
+            <div id="qLegend" class="px-3 pt-2 flex flex-wrap items-center gap-3 empty:hidden"></div>
             <div id="qCards" class="flex-1 overflow-y-auto p-3 space-y-2">
                 <p class="p-6 text-center text-slate-400 text-sm">กำลังโหลด...</p>
             </div>
@@ -1283,7 +1284,15 @@
                 const locked = t.verifyStatus === 'Verified';
                 const graded = t.verifyStatus === 'Graded';
                 const val = (t.currentScores || [])[qSlot] ?? 0;
-                const ans = esc(t.essayAnswers?.[qSlot]) || '<span class="text-slate-300">(ไม่มีคำตอบ)</span>';
+                // renderMarked() หนี HTML ให้เองอยู่แล้ว จึงต้องส่ง "ข้อความดิบ"
+                // เข้าไป ไม่ใช่ข้อความที่ esc() มาแล้ว (จะกลายเป็น &amp;lt;)
+                // ช่วงไฮไลต์มาจาก server (integrity.slotHits) เท่านั้น
+                const rawAns = t.essayAnswers?.[qSlot] ?? '';
+                const hits = (t.integrity?.slotHits || [])[qSlot] || [];
+                const ans = renderMarked(rawAns, hits.map(h => ({
+                    start: h.start, end: h.end, cls: HIT_CLASS[h.kind]
+                })));
+                const flagged = severityOf(t) !== 'NONE';
                 const pill = locked
                     ? '<span class="shrink-0 text-[10px] bg-slate-100 text-slate-600 border border-slate-300 px-1.5 py-0.5 rounded-full"><i class="fa-solid fa-lock"></i> Verified</span>'
                     : graded
@@ -1296,8 +1305,13 @@
                             <p class="font-bold text-sm text-slate-800 truncate">${esc(dispNameRaw(t))}</p>
                             <p class="text-[11px] text-slate-400 truncate">${esc(t.quota)}${dispSchoolRaw(t) ? ' · ' + esc(dispSchoolRaw(t)) : ''}</p>
                         </div>
-                        <div class="flex items-center gap-1.5 shrink-0">
+                        <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                             ${claimedByOther ? `<span class="text-[10px] text-orange-500"><i class="fa-solid fa-lock"></i> ${esc(claim.graderName)}</span>` : ''}
+                            ${integrityBadge(t)}
+                            ${slotWarnBadges(t, sl.label)}
+                            ${flagged ? `<button data-qevidence="${esc(t.email)}"
+                                class="text-[10px] border border-slate-300 text-slate-600 hover:bg-slate-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                                <i class="fa-solid fa-magnifying-glass"></i> หลักฐาน</button>` : ''}
                             ${pill}
                         </div>
                     </div>
@@ -1313,7 +1327,27 @@
             }).join('');
             document.querySelectorAll('.qscore-input').forEach(inp =>
                 inp.addEventListener('input', () => onQScoreInput(inp)));
+            // openEvidence อยู่ใน module scope — ผูก listener เอา ใช้ inline onclick ไม่ได้
+            document.querySelectorAll('#qCards [data-qevidence]').forEach(b =>
+                b.addEventListener('click', () => openEvidence(b.dataset.qevidence)));
+            renderQLegend();
             updateQProgress();
+        }
+
+        /** คำอธิบายสีไฮไลต์ในมุมมองรายข้อ — ขึ้นเฉพาะเมื่อมีไฮไลต์จริงในข้อนี้ */
+        function renderQLegend() {
+            const el = $('qLegend');
+            if (!el) return;
+            const kinds = new Set();
+            teams.forEach(t => ((t.integrity?.slotHits || [])[qSlot] || [])
+                .forEach(h => kinds.add(h.kind)));
+            if (!kinds.size) { el.innerHTML = ''; return; }
+            const chip = (cls, text) => `<span class="text-[10px]"><span class="${cls} px-1">${text}</span></span>`;
+            el.innerHTML = [
+                kinds.has('markdown') ? chip('hl-md', 'Markdown') : '',
+                kinds.has('llm') ? chip('hl-llm', 'สำนวน LLM') : '',
+                kinds.has('echo') ? chip('hl-echo', 'ทวนโจทย์') : '',
+            ].filter(Boolean).join(' ');
         }
 
         function onQScoreInput(inp) {
@@ -1356,6 +1390,39 @@
             $('qSaveAllBtn').disabled = qDirty.size === 0;
         }
 
+        /** doPost คืน "ไม่รู้จัก action: ..." เมื่อ deployment ยังไม่มี handler นั้น */
+        const isUnknownActionError = (data) =>
+            typeof data?.message === 'string' && data.message.indexOf('ไม่รู้จัก action') !== -1;
+
+        /** เส้นทางสำรอง: ยิงทีละทีมแบบเดิม ใช้เมื่อ /exec ยังไม่มี batch handler */
+        async function saveQuestionTeamsSequentially(targets) {
+            for (const t of targets) {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'submitEssayGrade',
+                        idToken: await window.idToken(),
+                        email: t.email,
+                        sheetName: t.sheetName,
+                        scores: t.currentScores,
+                    })
+                });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(`${t.teamName}: ${data.message || 'บันทึกไม่สำเร็จ'}`);
+                t.verifyStatus = 'Graded';
+                remove(ref(db, `${OCC_ROOT}/${escapeEmail(t.email)}/draft`)).catch(() => { });
+            }
+        }
+
+        let batchFallbackNoticeShown = false;
+        function showBatchFallbackNotice() {
+            if (batchFallbackNoticeShown) return;
+            batchFallbackNoticeShown = true;
+            const el = $('qPending');
+            if (el) el.insertAdjacentHTML('afterend',
+                `<span class="text-[11px] text-amber-600 ml-2">· บันทึกทีละทีม (แบ็กเอนด์ยังไม่ได้ clasp deploy)</span>`);
+        }
+
         window.handleSaveAllQuestion = async () => {
             const targets = teams.filter(t => qDirty.has(t.email) && t.verifyStatus !== 'Verified');
             if (!targets.length) { qDirty.clear(); updateQProgress(); return; }
@@ -1367,21 +1434,35 @@
                 if (demoMode) {
                     targets.forEach(t => { t.verifyStatus = 'Graded'; });
                 } else {
-                    for (const t of targets) {
-                        const res = await fetch(API_URL, {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                action: 'submitEssayGrade',
-                                idToken: await window.idToken(),
+                    // คำขอเดียวสำหรับทุกทีมที่แก้ไว้ — ฝั่ง GAS ตรวจครบทุกรายการก่อน
+                    // แล้วค่อยเขียน (all-or-nothing) จึงล้าง qDirty ได้ทั้งชุดเมื่อสำเร็จ
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'submitBatchEssayGrades',
+                            idToken: await window.idToken(),
+                            items: targets.map(t => ({
                                 email: t.email,
                                 sheetName: t.sheetName,
                                 scores: t.currentScores,
-                            })
+                            })),
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        targets.forEach(t => {
+                            t.verifyStatus = 'Graded';
+                            remove(ref(db, `${OCC_ROOT}/${escapeEmail(t.email)}/draft`)).catch(() => { });
                         });
-                        const data = await res.json();
-                        if (data.status !== 'success') throw new Error(`${t.teamName}: ${data.message || 'บันทึกไม่สำเร็จ'}`);
-                        t.verifyStatus = 'Graded';
-                        remove(ref(db, `${OCC_ROOT}/${escapeEmail(t.email)}/draft`)).catch(() => { });
+                    } else if (isUnknownActionError(data)) {
+                        // Deployment ที่ /exec ยังเป็นเวอร์ชันเก่าที่ไม่มี action นี้
+                        // (clasp push อัปเดตแค่ HEAD) — ถอยไปใช้เส้นทางเดิมทีละทีม
+                        // เพื่อให้บันทึกได้ตามปกติ ไม่ใช่ล้มทั้งชุด
+                        console.warn('submitBatchEssayGrades ยังไม่พร้อมใช้งาน — ใช้การบันทึกทีละทีมแทน');
+                        await saveQuestionTeamsSequentially(targets);
+                        showBatchFallbackNotice();
+                    } else {
+                        throw new Error(data.message || 'บันทึกไม่สำเร็จ');
                     }
                 }
                 qDirty.clear();
