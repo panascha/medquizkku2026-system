@@ -48,9 +48,29 @@ export async function loadDept(dept, { useFixture = false, idToken = '' } = {}) 
 
     const res = await fetch(`${DASHBOARD_API_URL}?dept=${encodeURIComponent(dept)}`
         + `&idToken=${encodeURIComponent(idToken)}`);
-    const data = await res.json();
+    const data = await parseJsonResponse(res);
     if (data.status !== 'success') throw new Error(data.message || 'โหลดข้อมูลไม่สำเร็จ');
     return data;
+}
+
+/**
+ * อ่านคำตอบจาก GAS เป็น JSON โดยไม่ปล่อยให้ res.json() โยน "Unexpected token <"
+ *
+ * GAS ตอบเป็นหน้า HTML ได้หลายกรณี (สิทธิ์ deployment ไม่ใช่ "ทุกคน" จึงเด้งหน้า
+ * ล็อกอิน / สคริปต์ error / URL ผิด) ซึ่งข้อความ SyntaxError ที่ได้ไม่บอกอะไรเลย
+ * ฟังก์ชันนี้จึงแปลงให้เป็นข้อความที่บอกสาเหตุจริง และไม่ยัด HTML ทั้งก้อนลง UI
+ */
+async function parseJsonResponse(res) {
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch {
+        const looksHtml = /^\s*</.test(text);
+        throw new Error(looksHtml
+            ? `เซิร์ฟเวอร์ตอบกลับเป็นหน้าเว็บ ไม่ใช่ข้อมูล (HTTP ${res.status}) `
+              + '— มักเกิดจากสิทธิ์ Web App ยังไม่ได้ตั้งเป็น "ทุกคน" หรือ URL ไม่ถูกต้อง'
+            : `อ่านคำตอบจากเซิร์ฟเวอร์ไม่ได้ (HTTP ${res.status}): ${text.slice(0, 120)}`);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -61,8 +81,8 @@ export async function loadDept(dept, { useFixture = false, idToken = '' } = {}) 
  * กรองบน "แถวดิบ" เสมอ (payload.rows ตามลำดับคอลัมน์ที่ API ส่งมา)
  *
  * สำคัญ: ตัวกรองด่วน (filters.quick) ต้องอ่านจาก payload.headers ไม่ใช่คอลัมน์
- * ที่ตารางแสดง — ฝ่ายที่ตารางตัดคอลัมน์ Line ออกไปแล้วก็ยังต้องกรอง
- * "ยังไม่เข้า Line" ได้ และการค้นหาก็ยังค้นอีเมลได้แม้ตารางจะซ่อนอีเมลไว้
+ * ที่ตารางแสดง — ฝ่ายที่ตารางตัดคอลัมน์นั้นออกไปแล้วก็ยังต้องกรองได้
+ * และการค้นหาก็ยังค้นอีเมลได้แม้ตารางจะซ่อนอีเมลไว้
  *
  * @param {{headers:string[], rows:string[][]}} payload
  * @param {{search:string, category:string, onlyWithData:boolean, quick:string}} filters
@@ -72,8 +92,6 @@ export async function loadDept(dept, { useFixture = false, idToken = '' } = {}) 
 export function filterRows(payload, filters, dept = '') {
     const q = (filters.search || '').trim().toLowerCase();
     const catIdx = payload.headers.indexOf('Team Category');
-    const lineIdx = payload.headers.indexOf('Line_Joined_Status');
-    const advIdx = payload.headers.indexOf('Advisor Joining? (Yes/No)');
     const deptIdxs = payload.headers
         .map((h, i) => (IDENTITY_COLS.includes(h) ? -1 : i))
         .filter(i => i !== -1);
@@ -86,12 +104,6 @@ export function filterRows(payload, filters, dept = '') {
         switch (filters.quick) {
             case 'attention':
                 if (!attentionReasons(dept, payload, row).length) return false;
-                break;
-            case 'noline':
-                if (lineIdx !== -1 && isYes(row[lineIdx])) return false;
-                break;
-            case 'noadvisor':
-                if (advIdx !== -1 && isYes(row[advIdx])) return false;
                 break;
         }
         return true;
@@ -132,6 +144,63 @@ export const specialDiet = (v) => hasVal(v) && !String(v).trim().startsWith('ท
 export const isHardcopy = (v) => /hard/i.test(String(v ?? ''));
 
 // ---------------------------------------------------------------------------
+// สลิปโอนเงิน — รูปพรีวิว + การบันทึกผลตรวจ
+// ---------------------------------------------------------------------------
+
+// รูปแบบลิงก์ Drive ชุดเดียวกับ getDrivePreviewUrl() ใน utils.js — คัดลอกมา
+// เพราะ utils.js เป็นสคริปต์ธรรมดา (ไม่ใช่ module) และ dashboard.html โหลด
+// เฉพาะ module ถ้าแก้ที่นั่นต้องมาแก้ที่นี่ด้วย
+const DRIVE_ID_PATTERNS = [/\/file\/d\/([-\w]{25,})/, /[?&]id=([-\w]{25,})/];
+
+/** id ของไฟล์ใน Google Drive จากลิงก์ — null ถ้าไม่ใช่ลิงก์ Drive */
+export function driveFileId(url) {
+    const s = String(url ?? '').trim();
+    if (!s) return null;
+    for (const p of DRIVE_ID_PATTERNS) {
+        const m = s.match(p);
+        if (m) return m[1];
+    }
+    return null;
+}
+
+/**
+ * ลิงก์รูปย่อสำหรับใส่ใน <img> — ใช้ thumbnail ไม่ใช่ /preview เพราะวางสลิป
+ * สองใบเทียบกันด้วย <img> ง่ายกว่า <iframe> และ thumbnail เรนเดอร์ PDF
+ * (สลิปที่อัปโหลดเป็น PDF) ออกมาเป็นรูปให้ด้วย
+ *
+ * คืน null ถ้าไม่ใช่ลิงก์ Drive — ผู้เรียกต้องมีทางถอยเป็นลิงก์เปิดแท็บใหม่เสมอ
+ * เพราะรูปจะโหลดได้ก็ต่อเมื่อ "คนที่เปิดหน้า" มีสิทธิ์เข้าถึงไฟล์นั้น
+ */
+export function driveThumbUrl(url, size = 800) {
+    const id = driveFileId(url);
+    return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w${size}` : null;
+}
+
+/**
+ * บันทึกผลตรวจสลิปลงชีต "Final 100 ทีม"
+ * → doPost ?action=updatePaymentVerification (7_EssayGradingApi.js)
+ *
+ * ห้ามใส่ header Content-Type: GAS ไม่ตอบ CORS preflight ถ้าใส่แล้ว request
+ * จะไม่ถึง doPost เลย (แบบเดียวกับ essay-grading.html)
+ *
+ * @param {'ตรวจสอบแล้ว'|'สลิปไม่ถูกต้อง'} status
+ */
+export async function savePaymentVerification({ email, status, note = '', idToken = '' }) {
+    if (!DASHBOARD_API_URL) throw new Error('ยังไม่ได้ตั้งค่า DASHBOARD_API_URL');
+
+    const res = await fetch(DASHBOARD_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+            action: 'updatePaymentVerification',
+            idToken, email, status, note,
+        }),
+    });
+    const data = await parseJsonResponse(res);
+    if (data.status !== 'success') throw new Error(data.message || 'บันทึกผลตรวจสลิปไม่สำเร็จ');
+    return data;
+}
+
+// ---------------------------------------------------------------------------
 // งานที่ต้องทำ (workflow) — การ์ดสถานะ / กล่องด่วน / ตัวกรองด่วน
 // ---------------------------------------------------------------------------
 //
@@ -143,6 +212,23 @@ export const isHardcopy = (v) => /hard/i.test(String(v ?? ''));
 
 /** ค่าที่ "ตอบมาแล้ว" — ต่างจาก hasVal() ตรงที่ "ไม่มี" ถือว่าตอบแล้ว */
 const answered = (v) => String(v ?? '').trim() !== '';
+
+/** สถานะตรวจสลิปที่แปลว่า "ไม่ผ่าน" — updatePaymentVerification เขียนได้สองค่า
+ *  ทั้งคู่ไม่ว่าง ป้ายสีในตารางกับกฎ "ต้องแก้ไขด่วน" จึงต้องใช้นิยามเดียวกัน */
+export const isRejectedPayment = (v) => /ไม่ถูกต้อง|ไม่ผ่าน|ไม่ครบ/.test(String(v ?? ''));
+
+/** เหตุผลเรื่องสลิปที่ฝ่ายการเงินและฝ่ายลงทะเบียนใช้ร่วมกัน
+ *  (ฝ่ายที่ไม่ได้รับคอลัมน์นั้นมาจะไม่ยิงกฎข้อนั้นเลย) */
+function slipReasons(g) {
+    const out = [];
+    if (g('Payment_Slip_Link') !== undefined && !hasVal(g('Payment_Slip_Link')))
+        out.push('ยังไม่ได้ส่งสลิปค่าเข้าร่วม');
+    if (isYes(g('Advisor_Welfare_Opted_In (+200)')) && !hasVal(g('Advisor_Welfare_Slip_Link')))
+        out.push('แจ้งรับชุดสวัสดิการอาจารย์ (+200) แต่ยังไม่มีสลิป');
+    if (isRejectedPayment(g('Payment_Verification_Status')))
+        out.push('สลิปไม่ถูกต้อง — ต้องให้ทีมแนบใหม่');
+    return out;
+}
 
 /**
  * สมาชิกที่มีชื่ออยู่ในทีม แต่ยังไม่ได้กรอกข้อมูลชุดที่ระบุเลยสักช่อง
@@ -184,15 +270,16 @@ export function attentionReasons(dept, payload, row) {
 
     switch (dept) {
         case 'finance':
-            if (g('Payment_Slip_Link') !== undefined && !hasVal(g('Payment_Slip_Link')))
-                out.push('ยังไม่ได้ส่งสลิปค่าเข้าร่วม');
-            if (isYes(g('Advisor_Welfare_Opted_In (+200)')) && !hasVal(g('Advisor_Welfare_Slip_Link')))
-                out.push('แจ้งรับชุดสวัสดิการอาจารย์ (+200) แต่ยังไม่มีสลิป');
+            out.push(...slipReasons(g));
             break;
 
+        // ตั้งแต่ 12 ก.ย. 2569 ฝ่ายลงทะเบียนตรวจสลิปด้วย จึงใช้กฎสลิปชุดเดียวกับ
+        // ฝ่ายการเงิน ไม่งั้นการ์ด "สมบูรณ์แล้ว" จะวัดจากการตรวจสลิป แต่กล่อง
+        // "ต้องแก้ไขด่วน" ไม่เคยบอกว่าสลิปคือสิ่งที่ค้าง
         case 'registration':
             if (g('Team Photo Link') !== undefined && !hasVal(g('Team Photo Link')))
                 out.push('ยังไม่ส่งรูปทีม');
+            out.push(...slipReasons(g));
             break;
 
         case 'coordination':
@@ -232,28 +319,30 @@ function completedRule(dept, payload) {
                 hint: 'ตรวจสอบการชำระเงินแล้ว และไม่มีรายการต้องแก้ไข',
                 test: (r) => hasVal(g(r, 'Payment_Verification_Status')) && noIssue(r),
             };
+        // ทั้งสามฝ่ายนี้เคยนับ "สมบูรณ์แล้ว" จาก Line_Joined_Status ซึ่งถูกตัดออก
+        // ตามมติกรรมการ 12 ก.ย. 2569 — ถ้าปล่อยไว้เฉย ๆ เงื่อนไขจะคืน null และ
+        // การ์ดเขียวจะหายไปจากสามฝ่ายรวด จึงย้ายไปวัดจากงานที่ฝ่ายนั้นทำจริง
         case 'registration':
-            if (!has('Line_Joined_Status')) return null;
+            if (!has('Payment_Verification_Status')) return null;
             return {
-                hint: 'เข้า Line แล้ว ส่งรูปทีมแล้ว และไม่มีหมายเหตุเตือน',
-                test: (r) => isYes(g(r, 'Line_Joined_Status')) && noIssue(r),
+                hint: 'ตรวจสลิปแล้ว ส่งรูปทีมแล้ว และไม่มีหมายเหตุเตือน',
+                test: (r) => hasVal(g(r, 'Payment_Verification_Status')) && noIssue(r),
             };
         case 'coordination':
-            if (!has('Line_Joined_Status')) return null;
+            if (!has('Certificate_Type (Hardcopy/Digital)')) return null;
             return {
-                hint: 'เข้า Line แล้ว ระบุการรับเกียรติบัตรแล้ว และไม่มีหมายเหตุเตือน',
-                test: (r) => isYes(g(r, 'Line_Joined_Status')) && noIssue(r),
+                hint: 'ระบุการรับเกียรติบัตรแล้ว และไม่มีหมายเหตุเตือน',
+                test: (r) => hasVal(g(r, 'Certificate_Type (Hardcopy/Digital)')) && noIssue(r),
             };
         case 'firstaid':
         case 'food':
             if (!has('Member 1 Name')) return null;
             return { hint: 'สมาชิกทุกคนที่มีชื่อในทีมกรอกข้อมูลครบแล้ว', test: noIssue };
         default: // overview
-            if (!has('Line_Joined_Status') || !has('Payment_Verification_Status')) return null;
+            if (!has('Payment_Verification_Status')) return null;
             return {
-                hint: 'เข้า Line แล้ว ตรวจสอบการชำระเงินแล้ว และไม่มีหมายเหตุเตือน',
-                test: (r) => isYes(g(r, 'Line_Joined_Status'))
-                    && hasVal(g(r, 'Payment_Verification_Status')) && noIssue(r),
+                hint: 'ตรวจสอบการชำระเงินแล้ว และไม่มีหมายเหตุเตือน',
+                test: (r) => hasVal(g(r, 'Payment_Verification_Status')) && noIssue(r),
             };
     }
 }
@@ -261,7 +350,7 @@ function completedRule(dept, payload) {
 // คอลัมน์ที่กฎเฉพาะฝ่ายของ attentionReasons() ต้องมี ไม่งั้นกฎนั้นยิงไม่ได้เลย
 const ATTENTION_RULE_COLS = {
     finance: 'Payment_Slip_Link',
-    registration: 'Team Photo Link',
+    registration: 'Payment_Slip_Link',
     coordination: 'Certificate_Type (Hardcopy/Digital)',
     firstaid: 'Member 1 Name',
     food: 'Member 1 Name',
@@ -282,8 +371,8 @@ function hasAttentionRule(dept, payload) {
 /** คำอธิบายใต้การ์ด "ต้องแก้ไขด่วน" ของแต่ละฝ่าย */
 const ATTENTION_HINTS = {
     overview: 'หมายเหตุที่ติด ⚠️ ไว้ในชีต',
-    registration: '⚠️ ในหมายเหตุ หรือยังไม่ส่งรูปทีม',
-    finance: '⚠️ ในหมายเหตุ สลิปหาย หรือรับสวัสดิการแต่ไม่มีสลิป +200',
+    registration: '⚠️ ในหมายเหตุ ยังไม่ส่งรูปทีม สลิปหาย หรือสลิปไม่ถูกต้อง',
+    finance: '⚠️ ในหมายเหตุ สลิปหาย รับสวัสดิการแต่ไม่มีสลิป +200 หรือสลิปไม่ถูกต้อง',
     coordination: '⚠️ ในหมายเหตุ หรือยังไม่ระบุการรับเกียรติบัตร',
     firstaid: 'มีสมาชิกที่มีชื่อในทีมแต่ยังไม่กรอกข้อมูลสุขภาพ',
     food: 'มีสมาชิกที่มีชื่อในทีมแต่ยังไม่กรอกข้อมูลอาหาร',
@@ -295,7 +384,6 @@ const ATTENTION_HINTS = {
  * @return {Array<{key:string, tone:string, icon:string, label:string, value:number, hint:string}>}
  */
 export function computeWorkflow(dept, payload, rows) {
-    const lineIdx = payload.headers.indexOf('Line_Joined_Status');
     const cards = [];
 
     if (hasAttentionRule(dept, payload)) {
@@ -304,15 +392,6 @@ export function computeWorkflow(dept, payload, rows) {
             label: 'ต้องแก้ไขด่วน',
             value: rows.filter(r => attentionReasons(dept, payload, r).length).length,
             hint: ATTENTION_HINTS[dept] ?? ATTENTION_HINTS.overview,
-        });
-    }
-
-    if (lineIdx !== -1) {
-        cards.push({
-            key: 'noline', tone: 'amber', icon: 'fa-comment-dots',
-            label: 'รอติดตามเข้า Line',
-            value: rows.filter(r => !isYes(r[lineIdx])).length,
-            hint: 'ยังไม่ตอบว่าเข้า Line OpenChat แล้ว',
         });
     }
 
@@ -352,11 +431,8 @@ export function findUrgent(dept, payload, rows) {
 
 /** ปุ่มกรองด่วน — เฉพาะปุ่มที่ฝ่ายนี้มีคอลัมน์รองรับ */
 export function quickFilters(payload, dept = '') {
-    const has = (h) => payload.headers.includes(h);
     const list = [{ key: '', label: 'ทั้งหมด', icon: 'fa-layer-group' }];
     if (hasAttentionRule(dept, payload)) list.push({ key: 'attention', label: 'มีหมายเหตุเตือน', icon: 'fa-triangle-exclamation' });
-    if (has('Line_Joined_Status')) list.push({ key: 'noline', label: 'ยังไม่เข้า Line', icon: 'fa-comment-slash' });
-    if (has('Advisor Joining? (Yes/No)')) list.push({ key: 'noadvisor', label: 'อาจารย์ไม่เข้าร่วม', icon: 'fa-user-slash' });
     return list;
 }
 
@@ -393,11 +469,9 @@ export const COLUMN_LABELS = {
     'Member 2 Name': 'สมาชิกคนที่ 2',
     'Member 3 Name': 'สมาชิกคนที่ 3',
     'Advisor Name': 'อาจารย์ที่ปรึกษา',
-    'Advisor Joining? (Yes/No)': 'อาจารย์เข้าร่วม',
     'Team Photo Link': 'รูปทีม',
     'หมายเหตุ (Remark)': 'หมายเหตุ',
     // ประสานงาน
-    'Line_Joined_Status': 'สถานะ Line',
     'Certificate_Type (Hardcopy/Digital)': 'การรับเกียรติบัตร',
     'On-site_Check-in_Status': 'เช็คอินหน้างาน',
     'Prayer_Room_Request (ช/ญ)': 'ห้องละหมาด (ช/ญ)',
@@ -456,13 +530,24 @@ const MEMBER_NAME_COLS = ['Member 1 Name', 'Member 2 Name', 'Member 3 Name'];
 // (DASH_DEPT_COLS ใน 6_DashboardApi.js) ของที่ตัดออกตรงนี้ยังเปิดดูได้ในลิ้นชัก
 // รายทีม ยังค้นหาเจอ และยังติดไปในไฟล์ .xlsx ครบทุกคอลัมน์
 //
-// ฝ่ายที่ไม่มีชื่ออยู่ใน map นี้ (overview, registration) แสดงทุกคอลัมน์ที่ได้รับ:
-// ภาพรวมมีแค่ 6 คอลัมน์อยู่แล้ว ส่วนฝ่ายลงทะเบียนทุกคอลัมน์ที่ได้รับคือรายชื่อ
-// สมาชิก/รูปทีม/Line ซึ่งเป็นงานของฝ่ายนั้นทั้งหมด ไม่มีอะไรให้ตัด
+// ฝ่ายที่ไม่มีชื่ออยู่ใน map นี้ (overview) แสดงทุกคอลัมน์ที่ได้รับ — ภาพรวม
+// มีไม่กี่คอลัมน์อยู่แล้ว ไม่มีอะไรให้ตัด
 //
 // สองคอลัมน์แรกต้องเป็น Team ID กับ Team Name เสมอ — dashboard.html freeze
 // สองคอลัมน์ซ้ายสุดไว้ (sticky) ซึ่งใช้ได้เฉพาะคอลัมน์ที่ติดกันจากขอบซ้าย
 const DEPT_TABLE_COLS = {
+    // เพิ่มเข้ามา 12 ก.ย. 2569 พร้อมกับคอลัมน์สลิป: ก่อนหน้านี้ฝ่ายลงทะเบียน
+    // แสดงทุกคอลัมน์ที่ได้รับเพราะมีไม่กี่คอลัมน์ พอได้บล็อกการเงินมาอีก 8
+    // คอลัมน์ ตารางจะกว้างจนอ่านไม่ออก — ตัดยอดเงิน/วันเวลาที่โอนออกจากตาราง
+    // (เป็นงานฝ่ายการเงิน) แต่ยังเปิดดูได้ในลิ้นชักและยังติดไปใน .xlsx ครบ
+    registration: [
+        'Team ID', 'Team Name', 'School Name',
+        'Member 1 Name', 'Member 2 Name', 'Member 3 Name', 'Team Photo Link',
+        'Payment_Slip_Link',
+        'Advisor_Welfare_Opted_In (+200)', 'Advisor_Welfare_Slip_Link',
+        'Payment_Verification_Status', 'Verified_By', 'หมายเหตุ (Remark)',
+    ],
+
     // ตัดข้อมูลออกใบเสร็จ (เลขผู้เสียภาษี/ที่อยู่/ธนาคาร/ชื่อบัญชี) ออกจากตาราง
     // เพราะเป็นข้อความยาวที่ทำให้ตารางอ่านไม่ออก — ยังอยู่ครบในลิ้นชักและ .xlsx
     // เก็บ Advisor_Welfare_* ไว้: เป็นรายการเงิน (+200) ไม่ใช่ข้อมูลอาจารย์
@@ -475,13 +560,13 @@ const DEPT_TABLE_COLS = {
     ],
 
     // เก็บ Advisor Name ไว้ทั้งที่ไม่ได้อยู่ในรายการที่ขอ: ฝ่ายประสานงานเป็นคน
-    // โทรหาอาจารย์ คอลัมน์ "อาจารย์เข้าร่วม" ที่ไม่มีชื่อกำกับใช้ทำงานไม่ได้
+    // โทรหาอาจารย์ และยังต้องรู้ว่าอาจารย์คนไหนรับชุดสวัสดิการ (+200)
     // ตัดออก: อีเมล, โควตา, รูปทีม, และคอลัมน์ห้องละหมาดรายคน (ยุบเป็นช่องเดียว)
     coordination: [
         'Team ID', 'Team Name', 'School Name',
-        'Advisor Name', 'Advisor Joining? (Yes/No)', 'Advisor_Welfare_Opted_In (+200)',
+        'Advisor Name', 'Advisor_Welfare_Opted_In (+200)',
         PRAYER_SUMMARY_COL, 'Certificate_Type (Hardcopy/Digital)',
-        'Line_Joined_Status', 'On-site_Check-in_Status', 'หมายเหตุ (Remark)',
+        'On-site_Check-in_Status', 'หมายเหตุ (Remark)',
     ],
 
     // ตัด M*_Disease_Medication (ข้อความรวมโรค+ยาในช่องเดียว) ออกจากตาราง
@@ -597,7 +682,9 @@ export function computeMetrics(dept, payload, rows) {
                 { label: 'สมาชิกครบ 3 คน', value: rows.filter(r => [1, 2, 3].every(n => hasVal(r[i(`Member ${n} Name`)]))).length },
                 { label: 'ทีมไม่ครบ 3 คน', value: rows.filter(r => ![1, 2, 3].every(n => hasVal(r[i(`Member ${n} Name`)]))).length, hint: 'แข่ง 2 คนได้ / 1 คนลงได้เฉพาะรอบ 1' },
                 { label: 'ยังไม่ส่งรูปทีม', value: countRows(rows, i('Team Photo Link'), v => !hasVal(v)) },
-                { label: 'เข้า Line OpenChat แล้ว', value: countRows(rows, i('Line_Joined_Status'), isYes) },
+                // ฝ่ายลงทะเบียนตรวจสลิปเองตั้งแต่ 12 ก.ย. 2569 (ดูลิ้นชักรายทีม)
+                { label: 'ยังไม่ส่งสลิป', value: countRows(rows, i('Payment_Slip_Link'), v => !hasVal(v)) },
+                { label: 'ตรวจสลิปแล้ว', value: countRows(rows, i('Payment_Verification_Status'), hasVal) },
                 { label: 'มีหมายเหตุต้องตรวจ', value: countRows(rows, i('หมายเหตุ (Remark)'), hasVal) },
             ];
 
@@ -609,7 +696,7 @@ export function computeMetrics(dept, payload, rows) {
                 { label: 'ยังไม่ส่งสลิป', value: countRows(rows, i('Payment_Slip_Link'), v => !hasVal(v)) },
                 { label: 'อาจารย์รับชุดสวัสดิการ (+200)', value: welfare },
                 { label: 'ยอดที่ควรได้รับ (ประมาณการ)', value: (total * 1200 + welfare * 200).toLocaleString('th-TH') + ' ฿', hint: 'ค่าเข้าร่วม 1,200 × ทีม + สวัสดิการอาจารย์ 200 × คน' },
-                { label: 'ตรวจสอบการชำระเงินแล้ว', value: countRows(rows, i('Payment_Verification_Status'), hasVal), manual: true },
+                { label: 'ตรวจสอบการชำระเงินแล้ว', value: countRows(rows, i('Payment_Verification_Status'), hasVal) },
                 { label: 'ขอรวมใบเสร็จ', value: countRows(rows, i('Combined_Receipt? (รวมใบเสร็จไหม)'), isYes), key: 'combinedReceipt' },
             ];
         }
@@ -642,7 +729,6 @@ export function computeMetrics(dept, payload, rows) {
             return [
                 { label: 'ทีมทั้งหมด', value: total },
                 { label: 'คนขอใช้ห้องละหมาด', value: countPeople(rows, prayer, wantsPrayerRoom) },
-                { label: 'อาจารย์เข้าร่วมงาน', value: countRows(rows, i('Advisor Joining? (Yes/No)'), isYes) },
                 { label: 'อาจารย์รับชุดสวัสดิการ (+200)', value: countRows(rows, i('Advisor_Welfare_Opted_In (+200)'), isYes) },
                 { label: 'ขอเอกสารแบบ Hardcopy', value: countRows(rows, i('Certificate_Type (Hardcopy/Digital)'), isHardcopy), key: 'hardcopy' },
                 { label: 'เช็คอินหน้างานแล้ว', value: countRows(rows, i('On-site_Check-in_Status'), hasVal), manual: true },
@@ -654,9 +740,7 @@ export function computeMetrics(dept, payload, rows) {
                 { label: 'ทีมทั้งหมด', value: total },
                 { label: 'โควตาทีมโรงเรียน', value: countRows(rows, i('Team Category'), v => v.includes('โรงเรียน')) },
                 { label: 'โควตาทีมผสม', value: countRows(rows, i('Team Category'), v => v.includes('ผสม')) },
-                { label: 'เข้า Line OpenChat แล้ว', value: countRows(rows, i('Line_Joined_Status'), isYes) },
-                { label: 'อาจารย์เข้าร่วมงาน', value: countRows(rows, i('Advisor Joining? (Yes/No)'), isYes) },
-                { label: 'ตรวจสอบการชำระเงินแล้ว', value: countRows(rows, i('Payment_Verification_Status'), hasVal), manual: true },
+                { label: 'ตรวจสอบการชำระเงินแล้ว', value: countRows(rows, i('Payment_Verification_Status'), hasVal) },
                 { label: 'มีหมายเหตุต้องตรวจ', value: countRows(rows, i('หมายเหตุ (Remark)'), hasVal) },
             ];
     }

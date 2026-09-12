@@ -299,6 +299,11 @@
         </div>
     </div>
 
+    <!-- ข้อความยืนยันสั้น ๆ หลังบันทึกผลตรวจสลิป (ดู toast() ในสคริปต์) -->
+    <div id="toast" role="status" aria-live="polite"
+        class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] no-print
+               bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg"></div>
+
     <footer class="p-6 text-center text-slate-400 text-[10px] uppercase tracking-widest no-print">
         &copy; 2026 IT Team | MedQuiz KKU 52 Project
     </footer>
@@ -312,8 +317,10 @@
         import {
             DEPARTMENTS, loadDept, filterRows, computeMetrics, exportXlsx, exportPdf,
             projectRows, columnLabel, isYes, hasVal, PRAYER_SUMMARY_COL, MEMBER_COUNT_COL,
-            STICKY_COL_COUNT, computeWorkflow, findUrgent, quickFilters, drilldown
+            STICKY_COL_COUNT, computeWorkflow, findUrgent, quickFilters, drilldown,
+            driveThumbUrl, savePaymentVerification, isRejectedPayment
         } from '../js/dashboard-logic.js';
+        import { fixturePayload, applyFixtureEdit } from '../js/dashboard-fixture.js';
 
         const useFixture = new URLSearchParams(location.search).get('fixture') === '1';
         // ต้องเป็นเงื่อนไขเดียวกับที่ตัดสินใจว่าจะเรียก start() หรือ initAuth() ท้ายไฟล์
@@ -382,18 +389,45 @@
         }
 
         // ---- โหลดข้อมูล ----
-        async function load() {
+        //
+        // ตกไปใช้ข้อมูลตัวอย่างเองเมื่อโหลดข้อมูลจริงไม่ได้ หรือชีตยังไม่มีแถวเลย
+        // (สถานะปกติจนกว่าทีมจะเริ่มยืนยันสิทธิ์) — หน้าจะได้ไม่ว่างเปล่าจนตรวจ
+        // อะไรไม่ได้ ส่วนสาเหตุจริงเก็บไว้ขึ้นแบนเนอร์
+        //
+        // demoMode ยังเป็นคนตัดสินเรื่อง auth เหมือนเดิม (ห้ามแตะ) ส่วน "ตอนนี้จอ
+        // แสดงข้อมูลอะไรอยู่" ให้ดูที่ payload.isFixture อย่างเดียว
+        let fellBack = false;       // จอกำลังแสดงข้อมูลตัวอย่างแทนข้อมูลจริงอยู่ไหม
+        let fallbackError = '';     // ว่าง = ชีตไม่มีแถว (ไม่ใช่ error) / มีค่า = โหลดจริงพัง
+
+        async function load({ forceLive = false } = {}) {
             $('tableBody').innerHTML = `<tr><td class="p-6 text-center text-slate-400">กำลังโหลด...</td></tr>`;
+            fellBack = false;
+            fallbackError = '';
             try {
                 // ส่ง demoMode ไม่ใช่ useFixture — ชุด demo ไม่มี ?fixture=1 บน URL
                 // ไม่งั้นจะเหลือแค่ loadDept() ที่เดาเอาเองจาก DASHBOARD_API_URL ว่าง
                 payload = await loadDept(dept, { useFixture: demoMode, idToken: await currentIdToken() });
+                if (!payload.isFixture && payload.totalRows === 0) {
+                    fellBack = true;
+                    payload = fixturePayload(dept);
+                }
             } catch (err) {
-                payload = null;
-                $('banners').innerHTML = banner('red', 'fa-triangle-exclamation', `โหลดข้อมูลไม่สำเร็จ: ${esc(err.message)}`);
-                $('tableBody').innerHTML = `<tr><td class="p-6 text-center text-slate-400">—</td></tr>`;
-                $('metrics').innerHTML = '';
-                return;
+                // กด "ลองโหลดข้อมูลจริง" แล้วยังพัง = ต้องเห็นสาเหตุ ไม่ใช่เด้งกลับ
+                // เข้าโหมดตัวอย่างเงียบ ๆ จนดูเหมือนปุ่มไม่ทำงาน
+                if (forceLive) {
+                    payload = null;
+                    $('banners').innerHTML = banner('red', 'fa-triangle-exclamation',
+                        `โหลดข้อมูลจริงไม่สำเร็จ: ${esc(err.message)}`)
+                        + banner('sky', 'fa-flask', 'กลับไปดูข้อมูลตัวอย่าง '
+                            + retryBtn('fixture', 'ใช้ข้อมูลตัวอย่าง'));
+                    wireBanners();
+                    $('tableBody').innerHTML = `<tr><td class="p-6 text-center text-slate-400">—</td></tr>`;
+                    $('metrics').innerHTML = '';
+                    return;
+                }
+                fellBack = true;
+                fallbackError = err.message;
+                payload = fixturePayload(dept);
             }
             renderBanners();
             render();
@@ -414,15 +448,27 @@
                 <i class="fa-solid ${icon} mr-1"></i> ${html}</div>`;
         }
 
+        /** ปุ่มในแบนเนอร์ — ผูก event ที่ wireBanners() ไม่ใช่ onclick inline */
+        const retryBtn = (act, label) => `<button data-banner-act="${act}"
+            class="ml-1 underline font-bold hover:no-underline">${label}</button>`;
+
+        function wireBanners() {
+            $('banners').querySelectorAll('[data-banner-act]').forEach(b =>
+                b.addEventListener('click', () => load({ forceLive: b.dataset.bannerAct === 'live' })));
+        }
+
         function renderBanners() {
             const out = [];
+            if (fellBack) {
+                out.push(banner('sky', 'fa-circle-info',
+                    'กำลังแสดงข้อมูลจำลองสำหรับทดสอบระบบ (เนื่องจากยังไม่มีข้อมูลจริงในชีต)'
+                    + (fallbackError ? ` <span class="opacity-70">— ${esc(fallbackError)}</span>` : '')
+                    + retryBtn('live', 'ลองโหลดข้อมูลจริงอีกครั้ง')));
+            }
             if (payload.isFixture) {
                 out.push(banner('amber', 'fa-flask',
                     '<b>โหมดข้อมูลตัวอย่าง (ไม่ใช่ข้อมูลจริง)</b> — ชื่อทีม ชื่อสมาชิก โรงเรียน ข้อมูลสุขภาพ และยอดเงินทั้งหมดเป็นข้อมูลสมมติ '
                     + 'ใช้สำหรับดูหน้าตาระบบเท่านั้น ชีต "Final 100 ทีม" จะเริ่มมีข้อมูลจริงหลังประกาศผลรอบ 0 (29 ก.ย. 2569)'));
-            } else if (payload.totalRows === 0) {
-                out.push(banner('sky', 'fa-circle-info',
-                    'ยังไม่มีทีมใดยืนยันสิทธิ์ — ชีต "Final 100 ทีม" จะเริ่มมีข้อมูลหลังประกาศผลรอบ 0 (29 ก.ย. 2569)'));
             }
             if (payload.missingColumns?.length) {
                 out.push(banner('red', 'fa-triangle-exclamation',
@@ -433,6 +479,7 @@
                     `คอลัมน์ที่ทีมงานกรอกเองในชีต (ระบบไม่เติมให้): <b>${esc(payload.manualColumns.join(', '))}</b> — ถ้าว่างแปลว่ายังไม่ได้กรอก ไม่ใช่ระบบผิดพลาด`));
             }
             $('banners').innerHTML = out.join('');
+            wireBanners();
         }
 
         // ---- การ์ดสถานะงาน / กล่องด่วน / ตัวกรองด่วน ----
@@ -616,6 +663,7 @@
             amber: 'bg-amber-50 text-amber-700 border-amber-200',
             sky: 'bg-sky-50 text-sky-700 border-sky-200',
             violet: 'bg-violet-50 text-violet-700 border-violet-200',
+            red: 'bg-red-50 text-red-700 border-red-200',
         };
 
         const pill = (color, text, icon) =>
@@ -623,10 +671,6 @@
             + (icon ? `<i class="fa-solid ${icon}"></i>` : '') + `${esc(text)}</span>`;
 
         const EMPTY = '<span class="text-slate-300">-</span>';
-
-        /** ป้ายสถานะ 2 สถานะ: ตอบว่าใช่ = เขียว, นอกนั้น = เทา (คงข้อความเดิมไว้) */
-        const yesNoPill = (v, noText) =>
-            isYes(v) ? pill('green', v, 'fa-check') : pill('gray', String(v).trim() || noText);
 
         function cell(header, v) {
             const s = String(v ?? '').trim();
@@ -660,15 +704,14 @@
                     return s.includes('⚠️')
                         ? `<span class="text-red-700 font-bold">${esc(s)}</span>`
                         : esc(s);
-                case 'Line_Joined_Status':
-                case 'Advisor Joining? (Yes/No)':
-                    return yesNoPill(s, s);
                 case 'Advisor_Welfare_Opted_In (+200)':
                     return isYes(s) ? pill('violet', 'รับ (+200)', 'fa-gift') : pill('gray', s);
                 case 'On-site_Check-in_Status':
                     return pill('green', s, 'fa-door-open');
                 case 'Payment_Verification_Status':
-                    return pill('green', s, 'fa-circle-check');
+                    return isRejectedPayment(s)
+                        ? pill('red', s, 'fa-triangle-exclamation')
+                        : pill('green', s, 'fa-circle-check');
                 case 'Certificate_Type (Hardcopy/Digital)':
                     return /hard|ตัวจริง|ฉบับจริง/i.test(s)
                         ? pill('amber', s, 'fa-print')
@@ -691,6 +734,109 @@
         ];
 
         const DRAWER_SKIP = ['Team ID', 'Team Name', 'School Name'];  // อยู่บนหัวลิ้นชักแล้ว
+
+        // ---- แผงตรวจสลิป (ฝ่ายลงทะเบียน + ฝ่ายการเงิน) ----
+        //
+        // สลิปมีสองใบและเป็นคนละรายการโอน: ค่าเข้าร่วม 1,200 บาท กับค่าสวัสดิการ
+        // อาจารย์ +200 บาท (ดูกติกาใน CLAUDE.md) จึงต้องวางเทียบกันให้เห็นพร้อมกัน
+        //
+        // รูปย่อของ Drive จะโหลดได้ก็ต่อเมื่อ "คนที่เปิดหน้านี้" มีสิทธิ์เข้าถึงไฟล์
+        // ถ้าติดสิทธิ์ (เคยเจอ policy แชร์นอกองค์กรของ มข.) รูปจะพัง ไม่ใช่ว่าไม่มีสลิป
+        // ปุ่ม "เปิดไฟล์" จึงต้องมีเสมอ และ onerror สลับไปโชว์ปุ่มนั้นแทนรูปที่พัง
+        const SLIP_DEPTS = ['registration', 'finance'];
+        const SLIP_FIELDS = [
+            { header: 'Payment_Slip_Link', title: 'ค่าเข้าร่วม 1,200 บาท', icon: 'fa-receipt' },
+            {
+                header: 'Advisor_Welfare_Slip_Link', title: 'สวัสดิการอาจารย์ +200 บาท',
+                icon: 'fa-gift', optIn: 'Advisor_Welfare_Opted_In (+200)',
+            },
+        ];
+
+        // ลิงก์ที่เป็นไฟล์รูปตรง ๆ (สลิปตัวอย่างในโหมด demo) — แสดงเป็น <img> ได้เลย
+        // ไม่ต้องผ่าน thumbnail ของ Drive
+        const isImageUrl = (u) => /\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(String(u ?? ''));
+
+        function slipCard(field, url, optInVal) {
+            const thumb = driveThumbUrl(url) || (isImageUrl(url) ? url : null);
+            const badge = field.optIn
+                ? (isYes(optInVal) ? pill('violet', 'รับ (+200)', 'fa-gift') : pill('gray', 'ไม่รับสวัสดิการ'))
+                : '';
+            const openLink = url
+                ? `<a href="${esc(url)}" target="_blank" rel="noopener"
+                       class="text-blue-600 hover:underline text-[11px] font-bold">
+                       <i class="fa-solid fa-up-right-from-square mr-1"></i>เปิดไฟล์เต็ม</a>`
+                : '';
+
+            let body;
+            if (!url) {
+                body = `<div class="h-32 flex items-center justify-center text-[11px] text-slate-400
+                             bg-slate-50 rounded-lg border border-dashed border-slate-200">ยังไม่ส่งสลิป</div>`;
+            } else if (thumb) {
+                // คลิกที่รูป = สลับย่อ/ขยาย (ไม่ใช่เปิดแท็บใหม่ ปุ่มเปิดไฟล์ทำหน้าที่นั้นอยู่)
+                body = `<img src="${esc(thumb)}" alt="${esc(field.title)}" loading="lazy"
+                          data-slipimg
+                          class="w-full max-h-40 object-contain bg-slate-50 rounded-lg border border-slate-200 cursor-zoom-in"
+                          onerror="this.hidden=true; this.nextElementSibling.style.display='flex';">
+                        <!-- ซ่อนด้วย style ไม่ใช่ attribute hidden: คลาส .flex ของ Tailwind
+                             ชนะ display:none ของ [hidden] กล่องนี้จึงโผล่ทับทุกใบ -->
+                        <div style="display:none" class="h-32 flex flex-col items-center justify-center gap-1 text-[11px] text-amber-700
+                             bg-amber-50 rounded-lg border border-amber-200 px-2 text-center">
+                            <i class="fa-solid fa-eye-slash"></i>แสดงรูปไม่ได้ (สิทธิ์เข้าถึงไฟล์) — กด "เปิดไฟล์เต็ม"
+                        </div>`;
+            } else {
+                body = `<div class="h-32 flex items-center justify-center text-[11px] text-slate-500
+                             bg-slate-50 rounded-lg border border-slate-200 px-2 text-center">ไม่ใช่ลิงก์ Google Drive</div>`;
+            }
+
+            return `<div class="space-y-1">
+                <p class="text-[11px] font-bold text-slate-600">
+                    <i class="fa-solid ${field.icon} mr-1"></i>${esc(field.title)}</p>
+                ${badge ? `<p>${badge}</p>` : ''}
+                ${body}
+                <p class="text-right">${openLink}</p>
+            </div>`;
+        }
+
+        /** '' เมื่อฝ่ายนี้ไม่ตรวจสลิป หรือไม่ได้รับคอลัมน์สลิปมา */
+        function slipPanel(val) {
+            if (!SLIP_DEPTS.includes(dept) || !payload.headers.includes('Payment_Slip_Link')) return '';
+
+            const status = String(val('Payment_Verification_Status') ?? '').trim();
+            const statusPill = status
+                ? cell('Payment_Verification_Status', status)
+                : pill('gray', 'ยังไม่ตรวจ');
+            const verifiedBy = String(val('Verified_By') ?? '').trim();
+
+            return `<section>
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    <i class="fa-solid fa-money-check-dollar mr-1"></i>ตรวจสลิปโอนเงิน</h3>
+                <div class="border border-slate-200 rounded-xl p-3 space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        ${SLIP_FIELDS.map(f => slipCard(f, String(val(f.header) ?? '').trim(),
+                            f.optIn ? val(f.optIn) : '')).join('')}
+                    </div>
+
+                    <div class="flex items-center justify-between gap-2 text-[11px] text-slate-500 border-t border-slate-100 pt-2">
+                        <span>สถานะ: ${statusPill}</span>
+                        ${verifiedBy ? `<span class="truncate">โดย ${esc(verifiedBy)}</span>` : ''}
+                    </div>
+
+                    <input id="slipNote" type="text" maxlength="200"
+                        placeholder="หมายเหตุถึงทีม (ถ้ามี) เช่น ยอดโอนไม่ครบ"
+                        class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs">
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button data-slipact="ตรวจสอบแล้ว"
+                            class="px-2 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-50">
+                            <i class="fa-solid fa-circle-check mr-1"></i>ตรวจสอบแล้ว (อนุมัติ)</button>
+                        <button data-slipact="สลิปไม่ถูกต้อง"
+                            class="px-2 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold disabled:opacity-50">
+                            <i class="fa-solid fa-triangle-exclamation mr-1"></i>สลิปไม่ถูกต้อง / แนบใหม่</button>
+                    </div>
+                    <p id="slipMsg" class="text-[11px] text-slate-500"></p>
+                </div>
+            </section>`;
+        }
 
         function drawerSection(title, icon, entries) {
             if (!entries.length) return '';
@@ -726,12 +872,107 @@
             });
 
             const rest = pairs.filter(([h]) => !claimed.has(h) && !DRAWER_SKIP.includes(h));
-            $('drawerBody').innerHTML = drawerSection('ข้อมูลทีม', 'fa-users', rest) + groups.join('');
+            $('drawerBody').innerHTML = slipPanel(val)
+                + drawerSection('ข้อมูลทีม', 'fa-users', rest) + groups.join('');
+            wireSlipPanel(val('Email Address'));
 
             $('drawer').classList.add('open');
             $('drawer').setAttribute('aria-hidden', 'false');
             $('drawerBackdrop').classList.remove('hidden');
         };
+
+        /**
+         * ผูกปุ่มในแผงตรวจสลิป — เรียกทุกครั้งหลังวาดลิ้นชักใหม่ (innerHTML ทำให้
+         * ปุ่มเดิมหายไปทั้งชุด จึงผูกใหม่แทนการใช้ event delegation ที่ระดับหน้า)
+         */
+        function wireSlipPanel(email) {
+            $('drawerBody').querySelectorAll('[data-slipimg]').forEach(img =>
+                img.addEventListener('click', () => {
+                    const zoomed = img.classList.toggle('max-h-[70vh]');
+                    img.classList.toggle('max-h-40', !zoomed);
+                    img.classList.toggle('cursor-zoom-out', zoomed);
+                    img.classList.toggle('cursor-zoom-in', !zoomed);
+                }));
+
+            $('drawerBody').querySelectorAll('[data-slipact]').forEach(btn =>
+                btn.addEventListener('click', () => saveSlipStatus(email, btn.dataset.slipact)));
+        }
+
+        /**
+         * บันทึกผลตรวจสลิป แล้วอัปเดตหน้าจอแบบ optimistic
+         *
+         * visibleRows ถือ "อ้างอิงเดียวกัน" กับ payload.rows (filterRows คืน
+         * reference ไม่ได้ copy) การแก้ค่าในแถวดิบจึงทำให้ทั้งตาราง การ์ดตัวเลข
+         * และการ์ดสถานะงานตรงกันทันทีเมื่อเรียก render()
+         */
+        async function saveSlipStatus(email, status) {
+            const msg = $('slipMsg');
+            const note = $('slipNote')?.value.trim() ?? '';
+            const buttons = [...$('drawerBody').querySelectorAll('[data-slipact]')];
+
+            const raw = payload.rows.find(r => r[payload.headers.indexOf('Email Address')] === email);
+            if (!raw) { msg.textContent = 'ไม่พบแถวของทีมนี้'; return; }
+
+            const statusIdx = payload.headers.indexOf('Payment_Verification_Status');
+            const verifiedIdx = payload.headers.indexOf('Verified_By');
+            const remarkIdx = payload.headers.indexOf('หมายเหตุ (Remark)');
+
+            // โหมดข้อมูลตัวอย่าง: เขียนลงแถวในหน่วยความจำเลย ไม่ยิง GAS (ยิงไปก็พัง
+            // เพราะทีมสมมติไม่มีอยู่ในชีต) ปุ่มจึงยังกดทดสอบหน้าจอได้ครบวงจร
+            if (payload.isFixture) {
+                const remark = note ? `[ตรวจสลิป] ${note}` : '';
+                if (statusIdx !== -1) raw[statusIdx] = status;
+                if (verifiedIdx !== -1) raw[verifiedIdx] = 'demo@kku.ac.th';
+                if (remarkIdx !== -1 && remark) raw[remarkIdx] = remark;
+                // เขียนกลับต้นทางด้วย ไม่งั้นสลับฝ่ายแล้วกลับมา ผลตรวจจะหายไป
+                applyFixtureEdit(email, { status, verifiedBy: 'demo@kku.ac.th', remark });
+                afterSlipSave(raw, `บันทึกแล้ว (ข้อมูลตัวอย่าง): ${status}`);
+                return;
+            }
+
+            buttons.forEach(b => b.disabled = true);
+            msg.textContent = 'กำลังบันทึก...';
+            try {
+                const res = await savePaymentVerification({
+                    email, status, note, idToken: await currentIdToken(),
+                });
+                if (statusIdx !== -1) raw[statusIdx] = res.paymentStatus;
+                if (verifiedIdx !== -1) raw[verifiedIdx] = res.verifiedBy;
+                if (remarkIdx !== -1 && note) raw[remarkIdx] = res.remark;
+
+                afterSlipSave(raw, `บันทึกแล้ว: ${status}`);
+            } catch (err) {
+                // ไม่ต้องย้อนค่า: แถวดิบถูกแก้หลัง await สำเร็จเท่านั้น
+                buttons.forEach(b => b.disabled = false);
+                msg.textContent = `บันทึกไม่สำเร็จ: ${err.message}`;
+            }
+        }
+
+        /** วาดจอใหม่หลังแถวถูกแก้ — ทางข้อมูลจริงกับข้อมูลตัวอย่างต้องผ่านที่เดียวกัน
+         *  ไม่งั้นสองโหมดจะเริ่มแสดงผลไม่เหมือนกัน */
+        function afterSlipSave(raw, message) {
+            render();
+            // ตัวกรองอาจทำให้ลำดับแถวเปลี่ยน — หาตำแหน่งใหม่จากอีเมล ไม่ใช้ index เดิม
+            const at = visibleRows.indexOf(raw);
+            if (at !== -1) {
+                openDrawer(at);
+                $('slipMsg').textContent = message;
+            } else {
+                closeDrawer();   // แถวหลุดตัวกรองไปแล้ว ลิ้นชักที่ค้างอยู่จะชี้ผิดแถว
+            }
+            toast(message);
+        }
+
+        /** ข้อความยืนยันสั้น ๆ มุมจอ — ลิ้นชักถูกวาดใหม่ทุกครั้งหลังบันทึก
+         *  ข้อความใน slipMsg จึงมองข้ามง่าย */
+        let toastTimer = null;
+        function toast(text) {
+            const el = $('toast');
+            el.textContent = text;
+            el.classList.remove('hidden');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+        }
 
         window.closeDrawer = () => {
             $('drawer').classList.remove('open');

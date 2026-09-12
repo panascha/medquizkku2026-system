@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 460" width="320" height="460" role="img"
+     aria-label="สลิปตัวอย่าง สวัสดิการอาจารย์ 200 บาท">
+  <rect width="320" height="460" fill="#f8fafc"/>
+  <rect x="12" y="12" width="296" height="436" rx="14" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="12" y="12" width="296" height="56" rx="14" fill="#7c3aed"/>
+  <text x="160" y="46" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#ffffff">
+    DEMO SLIP (ไม่ใช่สลิปจริง)
+  </text>
+  <text x="32" y="110" font-family="sans-serif" font-size="13" fill="#64748b">โอนเงินสำเร็จ</text>
+  <text x="32" y="152" font-family="sans-serif" font-size="34" fill="#0f172a">200.00</text>
+  <text x="140" y="152" font-family="sans-serif" font-size="15" fill="#64748b">บาท</text>
+  <line x1="32" y1="176" x2="288" y2="176" stroke="#e2e8f0"/>
+  <text x="32" y="206" font-family="sans-serif" font-size="12" fill="#64748b">รายการ</text>
+  <text x="32" y="226" font-family="sans-serif" font-size="13" fill="#0f172a">ชุดสวัสดิการอาจารย์ที่ปรึกษา (+200)</text>
+  <text x="32" y="260" font-family="sans-serif" font-size="12" fill="#64748b">จาก</text>
+  <text x="32" y="280" font-family="sans-serif" font-size="13" fill="#0f172a">นายสมชาย ทดสอบ</text>
+  <text x="32" y="314" font-family="sans-serif" font-size="12" fill="#64748b">ไปยัง</text>
+  <text x="32" y="334" font-family="sans-serif" font-size="13" fill="#0f172a">KBank 230-1-87504-8</text>
+  <text x="32" y="370" font-family="sans-serif" font-size="12" fill="#64748b">วันที่ทำรายการ</text>
+  <text x="32" y="390" font-family="sans-serif" font-size="13" fill="#0f172a">29 ก.ย. 2569 18:24 น.</text>
+  <text x="32" y="424" font-family="monospace" font-size="13" fill="#0f172a">DEMO-0000-0200</text>
+</svg>
