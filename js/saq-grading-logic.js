@@ -607,28 +607,14 @@ function renderProgress() {
 }
 
 /**
- * แก้ผลคลัสเตอร์ที่ยืนยันแล้ว — ต้องพิมพ์คำว่า UNLOCK เอง ไม่ใช่แค่กด OK
- * (confirm() ปุ่มเดียวคือสิ่งที่คนกดผ่านโดยไม่อ่าน) เหตุผลเดียวกับหน้าตรวจ Essay
- * และไม่ใช้รหัสผ่านฝั่งหน้าเว็บ เพราะไฟล์นี้อยู่ใน repo สาธารณะ — ด่านจริงคือ
- * unlockToken ที่ฝั่ง GAS บังคับ + แถวใน SAQ_Grading_Log ที่บันทึกว่าใครเป็นคนแก้
+ * คำปลดล็อกที่ฝั่ง GAS บังคับเมื่อแก้ผลคลัสเตอร์ที่ยืนยันแล้ว — หน้านี้แนบไปกับ
+ * ทุกคำตัดสิน กรรมการจึงกดแก้ได้ทันทีโดยไม่ต้องพิมพ์อะไรก่อน
+ *
+ * ด่านที่เหลือคือร่องรอย ไม่ใช่การถาม: GAS บันทึกทุกการแก้ผลที่ยืนยันไปแล้วลง
+ * SAQ_Grading_Log เป็น "UNLOCK triageDecision" พร้อมผลเดิม ผลใหม่ ชื่อคนแก้
+ * และจำนวนทีมที่กระทบ
  */
 const UNLOCK_WORD = 'UNLOCK';
-function askUnlock(c, decision) {
-    const from = JUDGMENT_PILL[c.humanJudgment]?.text || c.humanJudgment || '(ว่าง)';
-    const to = JUDGMENT_PILL[decision]?.text || decision;
-    const typed = prompt(
-        `แก้ผลคลัสเตอร์ที่ยืนยันแล้ว ${c.clusterId}\n\n` +
-        `${from} → ${to}\n` +
-        `กระทบ ${c.teamCount} ทีม ข้อละ ${payload?.item?.pointsPerItem ?? 12} คะแนน\n` +
-        `การแก้จะถูกบันทึกชื่อผู้ทำลงใน SAQ_Grading_Log\n\n` +
-        `พิมพ์คำว่า ${UNLOCK_WORD} เพื่อยืนยัน:`, '');
-    if (typed === null) return false;
-    if (typed.trim().toUpperCase() !== UNLOCK_WORD) {
-        toast(`ยกเลิก — ต้องพิมพ์คำว่า ${UNLOCK_WORD} ให้ตรง`, 'red');
-        return false;
-    }
-    return true;
-}
 
 let toastTimer = null;
 function toast(msg, tone = 'slate') {
@@ -740,7 +726,7 @@ function applyLive(map) {
 }
 
 /**
- * POST เดียวที่ decide()/runCommit() ใช้ร่วมกัน — แนบ unlockToken เมื่อ unlock=true เท่านั้น
+ * POST เดียวที่ decide()/runCommit() ใช้ร่วมกัน — แนบ unlockToken ไปกับทุกคำตัดสิน
  *
  * ข้อที่ส่งไปต้องมาจากตัวคลัสเตอร์เอง ไม่ใช่ตัวแปร itemId ระดับโมดูล: ตัวแปรนั้น
  * เปลี่ยนได้ทุกครั้งที่ load() ถูกเรียก ซึ่งเกิดได้ระหว่างที่เรารอ await อยู่ (ผู้ใช้
@@ -750,7 +736,7 @@ function applyLive(map) {
  * Cluster_ID ฝั่ง GAS คือ "<itemId>-C<n>" หรือ "<itemId>-EMPTY" เสมอ (10_SaqGrading.js)
  * และ itemId ไม่มีขีดกลาง — prefix ก่อนขีดแรกจึงเป็นข้อของคลัสเตอร์นั้นแน่นอน
  */
-async function postSaqTriage(clusterId, decision, unlock) {
+async function postSaqTriage(clusterId, decision) {
     const target = String(clusterId).split('-')[0] || payload?.item?.itemId || itemId;
     const res = await fetch(API_URL, {
         method: 'POST',
@@ -760,8 +746,9 @@ async function postSaqTriage(clusterId, decision, unlock) {
             itemId: target,
             clusterId,
             decision,
-            // GAS ปฏิเสธการแก้คลัสเตอร์ที่ Confirmed แล้วถ้าไม่มีคำนี้
-            ...(unlock ? { unlockToken: UNLOCK_WORD } : {}),
+            // แนบเสมอ — GAS ใช้คำนี้เป็นด่านเดียวของการแก้คลัสเตอร์ที่ Confirmed แล้ว
+            // และหน้านี้ไม่ถามกรรมการก่อน (การแก้ถูกบันทึกไว้ใน SAQ_Grading_Log แทน)
+            unlockToken: UNLOCK_WORD,
         }),
     });
     return res.json();
@@ -780,17 +767,11 @@ async function decide(clusterId, decision) {
     const c = (payload?.clusters || []).find((x) => x.clusterId === clusterId);
     if (!c) return;
 
-    // คลัสเตอร์ที่ยืนยันแล้วคือของที่ล็อกไว้ — หนึ่งคลัสเตอร์ถือคะแนนของหลายสิบทีม
-    // การกดซ้ำโดยไม่ตั้งใจจึงเปลี่ยนคะแนนจริง ต้องพิมพ์คำยืนยันเองก่อน
-    // ด่านนี้ต้องอยู่ก่อนการเขียน RTDB เสมอ ไม่งั้นการกดยกเลิกก็ยังไปโผล่จอคนอื่น
-    let unlock = false;
-    if (c.humanStatus === 'Confirmed') {
-        if (c.humanJudgment === decision) {
-            toast(`คลัสเตอร์นี้ยืนยันเป็น "${JUDGMENT_PILL[decision]?.text || decision}" อยู่แล้ว`);
-            return;
-        }
-        if (!askUnlock(c, decision)) return;
-        unlock = true;
+    // กดซ้ำค่าเดิมที่ยืนยันไปแล้ว = ไม่มีอะไรให้เปลี่ยน — ตัดรอบ network ทิ้งไปเลย
+    // ส่วนการแก้เป็นค่าอื่นกดได้ทันที ไม่มีการถามยืนยันคั่น
+    if (c.humanStatus === 'Confirmed' && c.humanJudgment === decision) {
+        toast(`คลัสเตอร์นี้ยืนยันเป็น "${JUDGMENT_PILL[decision]?.text || decision}" อยู่แล้ว`);
+        return;
     }
 
     const prev = {
@@ -810,15 +791,7 @@ async function decide(clusterId, decision) {
     pushLive(c);
 
     try {
-        let data = await postSaqTriage(clusterId, decision, unlock);
-        // ฝั่งเราคิดว่าคลัสเตอร์นี้ยังไม่ Confirmed (เลยไม่ได้แนบ unlockToken มาแต่แรก)
-        // แต่ชีตจริงว่า Confirmed ไปแล้ว — สถานะในเครื่องเพี้ยนไปจากชีต (เช่นกรรมการ
-        // อีกคนเพิ่งยืนยันไปโดยที่ RTDB ยังไม่มาถึง) ให้ถามปลดล็อกแล้วลองซ้ำครั้งเดียว
-        // แทนที่จะโยน error ทิ้งเฉย ๆ
-        if (data.status !== 'success' && !unlock && /UNLOCK/.test(data.message || '')) {
-            if (!askUnlock(c, decision)) throw new Error(data.message || 'บันทึกไม่สำเร็จ');
-            data = await postSaqTriage(clusterId, decision, true);
-        }
+        const data = await postSaqTriage(clusterId, decision);
         if (data.status !== 'success') throw new Error(data.message || 'บันทึกไม่สำเร็จ');
 
         // ผลจากเซิร์ฟเวอร์คือของจริง — เขียนทับค่าที่เดาไว้ล่วงหน้า
@@ -1019,11 +992,7 @@ async function runCommit() {
             // ยิงทีละใบ ใบละหนึ่งรอบ network — ข้อที่มีหลายร้อยคลัสเตอร์ใช้เวลาเป็นนาที
             // ต้องบอกความคืบหน้า ไม่งั้นกรรมการจะคิดว่าหน้าค้างแล้วปิดแท็บกลางแบตช์
             if (btn) btn.textContent = `กำลังบันทึก ${i + 1}/${pending.length}...`;
-            // แนบ unlockToken เสมอ: คลัสเตอร์ในลิสต์นี้อ่านจาก payload ที่โหลดไว้ก่อนเปิด
-            // โมดัล ถ้าระหว่างนั้นกรรมการอีกคนกดยืนยันไปแล้วในชีต (state จริงกลาย
-            // เป็น Confirmed) แต่ฝั่งเรายังเห็นเป็น PENDING อยู่ ไม่แนบคำนี้จะโดน
-            // เซิร์ฟเวอร์ปฏิเสธกลางแบตช์
-            const data = await postSaqTriage(pending[i].clusterId, commitDefault, true);
+            const data = await postSaqTriage(pending[i].clusterId, commitDefault);
             if (data.status !== 'success') throw new Error(`${pending[i].clusterId}: ${data.message || 'บันทึกไม่สำเร็จ'}`);
         }
         if (btn) btn.textContent = 'กำลังยืนยันทั้งข้อ...';
