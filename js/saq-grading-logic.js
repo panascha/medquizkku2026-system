@@ -739,6 +739,23 @@ function applyLive(map) {
     renderRows();
 }
 
+/** POST เดียวที่ decide()/runCommit() ใช้ร่วมกัน — แนบ unlockToken เมื่อ unlock=true เท่านั้น */
+async function postSaqTriage(clusterId, decision, unlock) {
+    const res = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+            action: 'submitSaqTriage',
+            idToken: await getIdToken(),
+            itemId,
+            clusterId,
+            decision,
+            // GAS ปฏิเสธการแก้คลัสเตอร์ที่ Confirmed แล้วถ้าไม่มีคำนี้
+            ...(unlock ? { unlockToken: UNLOCK_WORD } : {}),
+        }),
+    });
+    return res.json();
+}
+
 /**
  * ส่งคำตัดสินของกรรมการ 1 คลัสเตอร์.
  * CORRECT/INCORRECT = ยืนยันทันที (Human_Status = Confirmed)
@@ -782,19 +799,15 @@ async function decide(clusterId, decision) {
     pushLive(c);
 
     try {
-        const res = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'submitSaqTriage',
-                idToken: await getIdToken(),
-                itemId,
-                clusterId,
-                decision,
-                // GAS ปฏิเสธการแก้คลัสเตอร์ที่ Confirmed แล้วถ้าไม่มีคำนี้
-                ...(unlock ? { unlockToken: UNLOCK_WORD } : {}),
-            }),
-        });
-        const data = await res.json();
+        let data = await postSaqTriage(clusterId, decision, unlock);
+        // ฝั่งเราคิดว่าคลัสเตอร์นี้ยังไม่ Confirmed (เลยไม่ได้แนบ unlockToken มาแต่แรก)
+        // แต่ชีตจริงว่า Confirmed ไปแล้ว — สถานะในเครื่องเพี้ยนไปจากชีต (เช่นกรรมการ
+        // อีกคนเพิ่งยืนยันไปโดยที่ RTDB ยังไม่มาถึง) ให้ถามปลดล็อกแล้วลองซ้ำครั้งเดียว
+        // แทนที่จะโยน error ทิ้งเฉย ๆ
+        if (data.status !== 'success' && !unlock && /UNLOCK/.test(data.message || '')) {
+            if (!askUnlock(c, decision)) throw new Error(data.message || 'บันทึกไม่สำเร็จ');
+            data = await postSaqTriage(clusterId, decision, true);
+        }
         if (data.status !== 'success') throw new Error(data.message || 'บันทึกไม่สำเร็จ');
 
         // ผลจากเซิร์ฟเวอร์คือของจริง — เขียนทับค่าที่เดาไว้ล่วงหน้า
@@ -992,17 +1005,11 @@ async function runCommit() {
 
     try {
         for (const cl of pending) {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                body: JSON.stringify({
-                    action: 'submitSaqTriage',
-                    idToken: await getIdToken(),
-                    itemId: c.itemId,
-                    clusterId: cl.clusterId,
-                    decision: commitDefault,
-                }),
-            });
-            const data = await res.json();
+            // แนบ unlockToken เสมอ: คลัสเตอร์ในลิสต์นี้อ่านจาก payload ที่โหลดไว้ก่อนเปิด
+            // โมดัล ถ้าระหว่างนั้นกรรมการอีกคนกดยืนยันไปแล้วในชีต (state จริงกลาย
+            // เป็น Confirmed) แต่ฝั่งเรายังเห็นเป็น PENDING อยู่ ไม่แนบคำนี้จะโดน
+            // เซิร์ฟเวอร์ปฏิเสธกลางแบตช์
+            const data = await postSaqTriage(cl.clusterId, commitDefault, true);
             if (data.status !== 'success') throw new Error(`${cl.clusterId}: ${data.message || 'บันทึกไม่สำเร็จ'}`);
         }
 
@@ -1022,8 +1029,10 @@ async function runCommit() {
         await load(c.itemId);
     } catch (err) {
         toast(err.message, 'red');
-        if (btn) { btn.disabled = false; btn.textContent = 'ยืนยันผลตรวจทั้งข้อ'; }
-        if (cancelBtn) cancelBtn.disabled = false;
+        // ความจริงอยู่ที่ชีตเสมอ — โหลดใหม่ให้ state ในเครื่องตรงกับ SAQ_AI_Prelim
+        // ก่อนปิดโมดัล ไม่งั้นลิสต์ pending/aiReady ที่ค้างอยู่จะเป็นข้อมูลเก่า
+        await load(c.itemId);
+        closeCommitModal();
     }
 }
 
