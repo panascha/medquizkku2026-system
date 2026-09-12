@@ -739,14 +739,25 @@ function applyLive(map) {
     renderRows();
 }
 
-/** POST เดียวที่ decide()/runCommit() ใช้ร่วมกัน — แนบ unlockToken เมื่อ unlock=true เท่านั้น */
+/**
+ * POST เดียวที่ decide()/runCommit() ใช้ร่วมกัน — แนบ unlockToken เมื่อ unlock=true เท่านั้น
+ *
+ * ข้อที่ส่งไปต้องมาจากตัวคลัสเตอร์เอง ไม่ใช่ตัวแปร itemId ระดับโมดูล: ตัวแปรนั้น
+ * เปลี่ยนได้ทุกครั้งที่ load() ถูกเรียก ซึ่งเกิดได้ระหว่างที่เรารอ await อยู่ (ผู้ใช้
+ * สลับข้อ หรือแบตช์ใน runCommit() ยิงทีละใบอยู่) ถ้าใช้ตัวแปรนั้น GAS จะไปหา
+ * คลัสเตอร์ของข้อผิดแล้วตอบ "ไม่พบคลัสเตอร์ ..." หรือแย่กว่านั้นคือเขียนผิดข้อ
+ *
+ * Cluster_ID ฝั่ง GAS คือ "<itemId>-C<n>" หรือ "<itemId>-EMPTY" เสมอ (10_SaqGrading.js)
+ * และ itemId ไม่มีขีดกลาง — prefix ก่อนขีดแรกจึงเป็นข้อของคลัสเตอร์นั้นแน่นอน
+ */
 async function postSaqTriage(clusterId, decision, unlock) {
+    const target = String(clusterId).split('-')[0] || payload?.item?.itemId || itemId;
     const res = await fetch(API_URL, {
         method: 'POST',
         body: JSON.stringify({
             action: 'submitSaqTriage',
             idToken: await getIdToken(),
-            itemId,
+            itemId: target,
             clusterId,
             decision,
             // GAS ปฏิเสธการแก้คลัสเตอร์ที่ Confirmed แล้วถ้าไม่มีคำนี้
@@ -1004,14 +1015,18 @@ async function runCommit() {
     if (cancelBtn) cancelBtn.disabled = true;
 
     try {
-        for (const cl of pending) {
+        for (let i = 0; i < pending.length; i++) {
+            // ยิงทีละใบ ใบละหนึ่งรอบ network — ข้อที่มีหลายร้อยคลัสเตอร์ใช้เวลาเป็นนาที
+            // ต้องบอกความคืบหน้า ไม่งั้นกรรมการจะคิดว่าหน้าค้างแล้วปิดแท็บกลางแบตช์
+            if (btn) btn.textContent = `กำลังบันทึก ${i + 1}/${pending.length}...`;
             // แนบ unlockToken เสมอ: คลัสเตอร์ในลิสต์นี้อ่านจาก payload ที่โหลดไว้ก่อนเปิด
             // โมดัล ถ้าระหว่างนั้นกรรมการอีกคนกดยืนยันไปแล้วในชีต (state จริงกลาย
             // เป็น Confirmed) แต่ฝั่งเรายังเห็นเป็น PENDING อยู่ ไม่แนบคำนี้จะโดน
             // เซิร์ฟเวอร์ปฏิเสธกลางแบตช์
-            const data = await postSaqTriage(cl.clusterId, commitDefault, true);
-            if (data.status !== 'success') throw new Error(`${cl.clusterId}: ${data.message || 'บันทึกไม่สำเร็จ'}`);
+            const data = await postSaqTriage(pending[i].clusterId, commitDefault, true);
+            if (data.status !== 'success') throw new Error(`${pending[i].clusterId}: ${data.message || 'บันทึกไม่สำเร็จ'}`);
         }
+        if (btn) btn.textContent = 'กำลังยืนยันทั้งข้อ...';
 
         const res = await fetch(API_URL, {
             method: 'POST',
