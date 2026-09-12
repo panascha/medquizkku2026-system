@@ -103,6 +103,9 @@
 
     <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50"></div>
 
+    <!-- ยืนยันผลตรวจทั้งข้อ — แทน confirm() เดิม -->
+    <div id="commitModal" class="hidden"></div>
+
     <script type="module">
         // auth.js มี onAuthStateChanged ข้างใน — แค่ import ก็เด้งไป login.html
         // ถ้ายังไม่ได้ล็อกอิน ซึ่งเป็นพฤติกรรมที่ต้องการของหน้านี้

@@ -504,7 +504,9 @@ function renderStatusBar() {
     const c = counts();
     if (!c) { $('statusBar').innerHTML = ''; return; }
 
-    const ready = c.readyToCommit;
+    // ปุ่มกดได้เสมอตราบใดที่ข้อนี้มีคลัสเตอร์แล้ว — ต่อให้ยังมีที่ยังไม่ยืนยัน/
+    // ต้องตัดสิน ก็เปิดหน้าต่างยืนยันได้ กรรมการตั้งค่าเริ่มต้นในนั้นแทน confirm()
+    const enabled = c.clusters > 0;
     $('statusBar').innerHTML = `
         <div class="flex flex-wrap items-center gap-3 text-xs">
             <span class="font-bold text-slate-700">ข้อ ${esc(c.itemId)}</span>
@@ -513,15 +515,15 @@ function renderStatusBar() {
             <span class="text-sky-700 font-bold">กรรมการตัดสินแล้ว ${c.humanReady}</span>
             <span class="text-slate-600">รับผล AI ได้ ${c.aiReady}</span>
             <span class="${c.pending ? 'text-amber-700' : 'text-emerald-700'} font-bold">ต้องตัดสิน ${c.pending}</span>
-            <button id="commitBtn" ${ready ? '' : 'disabled'}
-                class="ml-auto px-4 py-2 rounded-xl font-extrabold text-sm transition-all ${ready
+            <button id="commitBtn" ${enabled ? '' : 'disabled'}
+                class="ml-auto px-4 py-2 rounded-xl font-extrabold text-sm transition-all ${enabled
             ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
             : 'bg-slate-200 text-slate-400 cursor-not-allowed'}">
                 ยืนยันผลตรวจทั้งข้อ ${esc(c.itemId)}
             </button>
         </div>`;
     const btn = $('commitBtn');
-    if (btn && ready) btn.onclick = commit;
+    if (btn && enabled) btn.onclick = openCommitModal;
 }
 
 /**
@@ -886,23 +888,124 @@ function scrollToCursor() {
     window.scrollTo({ top, behavior: 'smooth' });
 }
 
-async function commit() {
+// ── หน้าต่างยืนยันผลตรวจทั้งข้อ (แทน confirm() เดิม) ────────────────────────
+/**
+ * เปิดได้แม้ยังมีคลัสเตอร์ที่ยังไม่ยืนยัน/ยังไม่ตัดสิน — กรรมการเลือกค่าเริ่มต้น
+ * (ถูก/ผิด) ให้คลัสเตอร์ที่ยัง "ต้องตัดสิน" (AI ไม่แน่ใจ หรือกรรมการพักไว้) ในนี้
+ * แล้วระบบค่อยยิง submitSaqTriage ให้ทีละใบก่อนเรียก commitSaqHumanDecisions
+ * ส่วนคลัสเตอร์ที่ AI ตอบชัดเจนอยู่แล้ว (AI_READY) ไม่ต้องแตะ — commit ฝั่ง GAS
+ * รับคำตอบ AI แทนให้เองตามเดิม
+ */
+let commitDefault = 'CORRECT';
+
+const pendingClusters = () => (payload?.clusters || []).filter((c) => c.state === 'PENDING');
+const aiReadyClusters = () => (payload?.clusters || []).filter((c) => c.state === 'AI_READY');
+
+function openCommitModal() {
+    if (!counts()) return;
+    commitDefault = 'CORRECT';
+    renderCommitModal();
+    $('commitModal').classList.remove('hidden');
+}
+
+function closeCommitModal() {
+    $('commitModal').classList.add('hidden');
+    $('commitModal').innerHTML = '';
+}
+
+function idListPreview(list, n = 15) {
+    const ids = list.map((x) => esc(x.clusterId));
+    if (ids.length <= n) return ids.join(', ');
+    return `${ids.slice(0, n).join(', ')} และอีก ${ids.length - n} คลัสเตอร์`;
+}
+
+function renderCommitModal() {
     const c = counts();
-    if (!c || !c.readyToCommit) return;
+    if (!c) return;
+    const pending = pendingClusters();
+    const aiReady = aiReadyClusters();
 
-    const ok = confirm(
-        `ยืนยันผลตรวจข้อ ${c.itemId}\n\n` +
-        `• คลัสเตอร์ทั้งหมด ${c.clusters} (${c.teams} ทีม)\n` +
-        `• ยืนยันไว้แล้ว ${c.confirmed}\n` +
-        `• กรรมการตัดสินแล้วรอประทับ ${c.humanReady}\n` +
-        `• รับผลจาก AI ที่ชัดเจน ${c.aiReady} คลัสเตอร์ (กรรมการไม่ได้แก้)\n\n` +
-        `หลังยืนยันแล้วต้องกลับไปสั่งซิงก์คะแนนจากเมนูในชีต และต้องสั่งครั้งเดียวหลังยืนยันครบทั้ง 7 ข้อ`
-    );
-    if (!ok) return;
+    $('commitModal').innerHTML = `
+    <div class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 max-h-[85vh] overflow-y-auto">
+            <h2 class="text-lg font-extrabold text-[#0f1f4b] mb-1">ยืนยันผลตรวจข้อ ${esc(c.itemId)}</h2>
+            <p class="text-xs text-slate-500 mb-4">คลัสเตอร์ทั้งหมด ${c.clusters} · ทีม ${c.teams}</p>
 
-    const btn = $('commitBtn');
+            <div class="space-y-2 text-sm mb-4">
+                <div class="flex justify-between border-b border-slate-100 pb-1">
+                    <span class="text-slate-600">ยืนยันไว้แล้ว</span><b class="text-emerald-700">${c.confirmed}</b>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-1">
+                    <span class="text-slate-600">กรรมการตัดสินแล้ว รอประทับ</span><b class="text-sky-700">${c.humanReady}</b>
+                </div>
+                <div class="flex justify-between border-b border-slate-100 pb-1">
+                    <span class="text-slate-600">รับผล AI ที่ชัดเจน (จะรับอัตโนมัติ)</span><b class="text-slate-700">${aiReady.length}</b>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-600">ยังไม่ตัดสิน (AI ไม่แน่ใจ / พักไว้)</span><b class="${pending.length ? 'text-amber-700' : 'text-emerald-700'}">${pending.length}</b>
+                </div>
+            </div>
+
+            ${aiReady.length ? `<p class="text-[11px] text-slate-400 mb-3">AI รับอัตโนมัติ: ${idListPreview(aiReady)}</p>` : ''}
+
+            ${pending.length ? `
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                <p class="text-xs font-bold text-amber-900 mb-2">ตั้งค่าเริ่มต้นให้คลัสเตอร์ที่เหลือ ${pending.length} ใบ</p>
+                <p class="text-[11px] text-amber-800 mb-2">${idListPreview(pending)}</p>
+                <div class="flex gap-2">
+                    <button data-default="CORRECT" class="commit-default-btn grow px-3 py-2 rounded-lg text-sm font-extrabold border-2 ${commitDefault === 'CORRECT' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-200'}">ถูกทั้งหมด</button>
+                    <button data-default="INCORRECT" class="commit-default-btn grow px-3 py-2 rounded-lg text-sm font-extrabold border-2 ${commitDefault === 'INCORRECT' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-rose-700 border-rose-200'}">ผิดทั้งหมด</button>
+                </div>
+                <p class="text-[10px] text-amber-700 mt-2">คลัสเตอร์เหล่านี้จะถูกตัดสินตามค่าเริ่มต้นที่เลือกไว้ ก่อนยืนยันทั้งข้อ</p>
+            </div>` : ''}
+
+            <p class="text-[11px] text-slate-500 mb-4">หลังยืนยันแล้วต้องกลับไปสั่งซิงก์คะแนนจากเมนูในชีต และต้องสั่งครั้งเดียวหลังยืนยันครบทั้ง 7 ข้อ</p>
+
+            <div class="flex gap-2">
+                <button id="commitModalCancel" class="grow px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm">ยกเลิก</button>
+                <button id="commitModalConfirm" class="grow px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm">ยืนยันผลตรวจทั้งข้อ</button>
+            </div>
+        </div>
+    </div>`;
+
+    [...document.querySelectorAll('.commit-default-btn')].forEach((b) => {
+        b.onclick = () => { commitDefault = b.dataset.default; renderCommitModal(); };
+    });
+    $('commitModalCancel').onclick = closeCommitModal;
+    $('commitModalConfirm').onclick = runCommit;
+}
+
+/**
+ * ยิง submitSaqTriage ให้ทุกคลัสเตอร์ "ต้องตัดสิน" ด้วยค่าเริ่มต้นที่เลือกไว้
+ * ทีละใบ (ไม่ขนาน — GAS ล็อกชีตอยู่แล้ว ยิงพร้อมกันมีแต่รอคิวเปล่า ๆ) แล้วค่อย
+ * เรียก commitSaqHumanDecisions ปิดท้ายข้อเดียวกับปุ่มเดิม
+ */
+async function runCommit() {
+    const c = counts();
+    if (!c) return;
+    const pending = pendingClusters();
+
+    const btn = $('commitModalConfirm');
+    const cancelBtn = $('commitModalCancel');
     if (btn) { btn.disabled = true; btn.textContent = 'กำลังยืนยัน...'; }
+    if (cancelBtn) cancelBtn.disabled = true;
+
     try {
+        for (const cl of pending) {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'submitSaqTriage',
+                    idToken: await getIdToken(),
+                    itemId: c.itemId,
+                    clusterId: cl.clusterId,
+                    decision: commitDefault,
+                }),
+            });
+            const data = await res.json();
+            if (data.status !== 'success') throw new Error(`${cl.clusterId}: ${data.message || 'บันทึกไม่สำเร็จ'}`);
+        }
+
         const res = await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({
@@ -913,11 +1016,14 @@ async function commit() {
         });
         const data = await res.json();
         if (data.status !== 'success') throw new Error(data.message || 'ยืนยันไม่สำเร็จ');
+
+        closeCommitModal();
         toast(`ยืนยันข้อ ${data.itemId} แล้ว ${data.stamped} คลัสเตอร์ (กรรมการ ${data.humanTyped} · รับจาก AI ${data.fromAi})`, 'green');
         await load(c.itemId);
     } catch (err) {
         toast(err.message, 'red');
-        renderStatusBar();
+        if (btn) { btn.disabled = false; btn.textContent = 'ยืนยันผลตรวจทั้งข้อ'; }
+        if (cancelBtn) cancelBtn.disabled = false;
     }
 }
 
@@ -933,6 +1039,7 @@ function onKey(ev) {
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const tag = (ev.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || ev.target.isContentEditable) return;
+    if (!$('commitModal').classList.contains('hidden')) return;
 
     const list = visible();
     if (!list.length) return;
