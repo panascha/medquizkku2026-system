@@ -10,6 +10,12 @@ export let allTeams = [];
 let teamsData = [];       // เก็บข้อมูลทั้งหมดจาก GAS
 let currentFilter = 'all';
 export let currentTeam = null;
+
+// Fresh ID token per GAS call — server-side gate added 2026-09-13 on
+// Registration doGet/doPost (see memory/project_server_auth_hardening.md).
+// No force-refresh: Firebase auto-refreshes near expiry, same idiom as
+// pages/essay-grading.html's window.idToken().
+const getIdToken = async () => auth.currentUser ? await auth.currentUser.getIdToken() : '';
 export const callbacks = {
     onTeamsLoaded: null,
     onStatusChange: null,
@@ -81,7 +87,7 @@ async function loadDataFromGAS() {
 
 export async function loadAllTeams(forceRefresh = false) {
     try {
-        const response = await fetch(WEB_APP_URL);
+        const response = await fetch(`${WEB_APP_URL}?idToken=${encodeURIComponent(await getIdToken())}`);
         const result = await response.json();
         if (result.status === "success") {
             allTeams = result.data.map((row, i) => {
@@ -322,7 +328,8 @@ export async function saveReview(payload) {
         const body = {
             ...payload,
             email: currentTeam.id, // ใช้ id ซึ่งเก็บอีเมลหัวหน้าทีมไว้
-            reviewerEmail: auth.currentUser.email
+            reviewerEmail: auth.currentUser.email,
+            idToken: await getIdToken()
         };
 
         // ส่งไปที่ GAS
