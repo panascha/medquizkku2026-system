@@ -1,0 +1,338 @@
+<!-- Public Self-Service: On-site Competition Day Status (Round 1 / Round 2) -->
+<!-- ZERO-AUTH public page — no auth.js, no Firebase, no Google Sign-in. -->
+<!-- Replaces the Looker Studio board. Reads LS_OnSite via OnSite GAS Web App -->
+<!-- (action=lookupOnSiteStatus). Name-badge QR codes link to ?team=MQ001. -->
+<!-- Layout = absolute overlay on assets/onsite/bg.jpg (768x1366). All positions -->
+<!-- below are % of that canvas, measured from the artwork's gold box borders. -->
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>เช็คสถานะวันงาน — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        html, body { height: 100%; }
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: #120d08;
+            margin: 0;
+        }
+
+        /* Canvas keeps the artwork's 768:1366 ratio: full width on phones,
+           height-limited on wide screens. cqw = 1% of canvas width, so every
+           font size scales with the artwork. */
+        #canvas {
+            position: relative;
+            width: min(100vw, calc(100dvh * 768 / 1366));
+            aspect-ratio: 768 / 1366;
+            margin: 0 auto;
+            background: url("assets/onsite/bg.jpg") center / 100% 100% no-repeat;
+            container-type: inline-size;
+            overflow: hidden;
+            color: #f5e6b8;
+        }
+        @supports not (height: 100dvh) {
+            #canvas { width: min(100vw, calc(100vh * 768 / 1366)); }
+        }
+
+        .slot { position: absolute; }
+
+        /* ID box: x 29–738, y 51–150; the "ID :" label ends ~x175 */
+        #idSlot { left: 23.5%; top: 4.1%; width: 71.5%; height: 6.4%; display: flex; align-items: center; gap: 1.5cqw; }
+        #teamInput {
+            flex: 1; min-width: 0; height: 70%;
+            background: transparent; border: none; border-bottom: 0.3cqw solid rgba(245, 215, 122, .45);
+            color: #f5d77a; font-size: 6.2cqw; font-weight: 800; letter-spacing: .08em;
+            text-transform: uppercase; outline: none; padding: 0 1cqw;
+        }
+        #teamInput::placeholder { color: rgba(245, 215, 122, .35); font-weight: 600; }
+        #teamInput:focus { border-bottom-color: #f5d77a; }
+        #btnLookup {
+            height: 70%; aspect-ratio: 1; border-radius: 1.6cqw;
+            background: linear-gradient(180deg, #f5d77a, #c79a2e); color: #2a1c07;
+            font-size: 4.2cqw; display: flex; align-items: center; justify-content: center;
+        }
+        #btnLookup:disabled { opacity: .5; }
+
+        /* Team box: y 158–414 */
+        #teamSlot { left: 6%; top: 12.4%; width: 88%; height: 17.2%; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+        #teamName { font-size: 5.6cqw; font-weight: 800; color: #f5d77a; line-height: 1.25; }
+        #members { margin-top: 1.4cqw; font-size: 3.6cqw; line-height: 1.55; color: #eadcb4; }
+        #teamMsg { font-size: 3.7cqw; line-height: 1.5; text-align: center; color: #eadcb4; }
+
+        /* Scale pans: badge 200px square sitting on the plates (plate top ~y725) */
+        .badge { width: 26%; top: 39.5%; aspect-ratio: 1; pointer-events: none; }
+        .badge img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1cqw 2cqw rgba(0,0,0,.55)); }
+        #badgeR1 { left: 4.3%; }
+        #badgeR2 { left: 69.7%; }
+        .badge.pop img { animation: pop .45s cubic-bezier(.2, 1.4, .4, 1) both; }
+        @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* Instruction box: y 890–1292, "INSTRUCTION" title to y951 */
+        #instrSlot {
+            left: 6.2%; top: 70.4%; width: 87.6%; height: 23.2%;
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
+            font-size: 3.5cqw; line-height: 1.55; padding-right: 1cqw;
+        }
+        #instrSlot::-webkit-scrollbar { width: .8cqw; }
+        #instrSlot::-webkit-scrollbar-thumb { background: rgba(245, 215, 122, .4); border-radius: 1cqw; }
+        .round-block + .round-block { margin-top: 2.6cqw; padding-top: 2.6cqw; border-top: .25cqw dashed rgba(245, 215, 122, .3); }
+        .round-head { display: flex; align-items: center; gap: 1.6cqw; flex-wrap: wrap; font-weight: 800; color: #f5d77a; font-size: 3.9cqw; }
+        .chip { font-size: 2.9cqw; font-weight: 700; padding: .3cqw 1.8cqw; border-radius: 99px; }
+        .chip-pass { background: #1f7a3f; color: #eafff0; }
+        .chip-fail { background: #6b2a8a; color: #f6eaff; }
+        .chip-wait { background: #5b4a2a; color: #f5e6b8; }
+        .chip-group { background: #f5d77a; color: #2a1c07; }
+        .status-text { margin-top: .8cqw; font-weight: 700; color: #fff6dc; }
+        .instr-text { margin-top: .6cqw; white-space: pre-line; color: #eadcb4; }
+        .instr-img { margin-top: 1.6cqw; width: 100%; border-radius: 1.4cqw; border: .3cqw solid rgba(245, 215, 122, .5); cursor: zoom-in; display: block; }
+        .zoom-hint { font-size: 2.7cqw; color: rgba(245, 215, 122, .7); margin-top: .6cqw; }
+
+        .spin { animation: spin .8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Lightbox */
+        #lightbox { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .92); display: flex; align-items: center; justify-content: center; }
+        #lightbox[hidden], .slot[hidden] { display: none; }  /* id-level display:flex would otherwise beat the hidden attribute */
+        #lightbox img { max-width: 100vw; max-height: 100dvh; object-fit: contain; touch-action: pinch-zoom; }
+        #lightboxClose { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; width: 44px; height: 44px; border-radius: 99px; background: rgba(255, 255, 255, .15); color: #fff; font-size: 20px; }
+    </style>
+</head>
+
+<body>
+    <main id="canvas" aria-label="เช็คสถานะวันงาน MedQuiz KKU 2026">
+
+        <!-- ID box (doubles as the manual lookup form) -->
+        <form id="idSlot" class="slot" onsubmit="event.preventDefault(); doLookup();">
+            <label for="teamInput" class="sr-only">รหัสทีม</label>
+            <input id="teamInput" type="text" inputmode="text" autocomplete="off" autocapitalize="characters"
+                spellcheck="false" maxlength="6" placeholder="MQ001">
+            <button id="btnLookup" type="submit" aria-label="ตรวจสอบสถานะ">
+                <i id="lookupIcon" class="fa-solid fa-magnifying-glass"></i>
+            </button>
+        </form>
+
+        <!-- Team info / messages -->
+        <section id="teamSlot" class="slot" aria-live="polite">
+            <p id="teamMsg">กรอกรหัสทีม (เช่น MQ001)<br>หรือสแกน QR Code บนป้ายชื่อ</p>
+        </section>
+
+        <!-- Scale pans -->
+        <div id="badgeR1" class="slot badge" hidden><img alt=""></div>
+        <div id="badgeR2" class="slot badge" hidden><img alt=""></div>
+
+        <!-- Instruction panel -->
+        <section id="instrSlot" class="slot" aria-live="polite"></section>
+    </main>
+
+    <div id="lightbox" hidden onclick="closeLightbox()">
+        <img id="lightboxImg" alt="กำหนดการ">
+        <button id="lightboxClose" type="button" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <script>
+        // =====================================================================
+        // CONFIG — OnSite GAS project /exec URL (NOT Registration / Exam Received)
+        // =====================================================================
+        const API_URL = "https://script.google.com/macros/s/AKfycbxqyrFCMHgwna03zGskM2d7xrk9kNQu8L71VU4gbAfBfwr7aJy0uLF2JIQ3lq4TXNZIGw/exec";
+
+        const BADGE_IMAGES = {
+            round1: { NOT_STARTED: "assets/onsite/not_started.png", PASSED: "assets/onsite/r1_passed.png", FAILED: "assets/onsite/r1_failed.png" },
+            round2: { NOT_STARTED: "assets/onsite/not_started.png", PASSED: "assets/onsite/r2_passed.png", FAILED: "assets/onsite/r2_failed.png" }
+        };
+        const BADGE_ALT = { NOT_STARTED: "ยังไม่ถึงเวลา", PASSED: "ยินดีด้วย", FAILED: "เสียใจด้วย" };
+
+        function $(id) { return document.getElementById(id); }
+
+        function escapeHtml(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        }
+
+        /** Mirrors GAS _normalizeOnSiteTeamId: 'mq1' / 'MQ-001' → 'MQ001', else null. */
+        function normalizeTeamId(raw) {
+            const m = String(raw || "").trim().toUpperCase().match(/^MQ-?0*(\d{1,3})$/);
+            return m ? "MQ" + String(Number(m[1])).padStart(3, "0") : null;
+        }
+
+        // =====================================================================
+        // UI state
+        // =====================================================================
+        function setLoading(on) {
+            $("btnLookup").disabled = on;
+            $("lookupIcon").className = on ? "fa-solid fa-spinner spin" : "fa-solid fa-magnifying-glass";
+        }
+
+        function showTeamMessage(html) {
+            $("teamSlot").innerHTML = '<p id="teamMsg">' + html + "</p>";
+        }
+
+        function clearResult() {
+            $("badgeR1").hidden = true;
+            $("badgeR2").hidden = true;
+            $("instrSlot").innerHTML = "";
+        }
+
+        function setBadge(slotId, round, state) {
+            const slot = $(slotId);
+            const src = BADGE_IMAGES[round][state];
+            if (!src) { slot.hidden = true; return; }   // NOT_APPLICABLE → empty pan
+            const img = slot.querySelector("img");
+            img.src = src;
+            img.alt = BADGE_ALT[state] || "";
+            slot.classList.remove("pop");
+            void slot.offsetWidth;                        // restart animation on re-lookup
+            slot.classList.add("pop");
+            slot.hidden = false;
+        }
+
+        // =====================================================================
+        // API — plain string body, no Content-Type → no CORS preflight
+        // =====================================================================
+        // One automatic retry: a cold GAS cache miss can take ~15 s and occasionally
+        // returns Google's HTML error page (res.json() throws). The failed call has
+        // usually warmed the 45 s server cache, so the retry is fast.
+        async function postAction(payload) {
+            for (let attempt = 1; ; attempt++) {
+                try {
+                    const res = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+                    if (!res.ok) throw new Error("HTTP " + res.status);
+                    return await res.json();
+                } catch (err) {
+                    if (attempt >= 2) throw err;
+                    await new Promise(function (resolve) { setTimeout(resolve, 1500); });
+                }
+            }
+        }
+
+        // =====================================================================
+        // Lookup
+        // =====================================================================
+        async function doLookup() {
+            const teamId = normalizeTeamId($("teamInput").value);
+            clearResult();
+
+            if (!teamId) {
+                showTeamMessage('<i class="fa-solid fa-circle-exclamation"></i> รูปแบบรหัสทีมไม่ถูกต้อง<br>กรุณากรอกในรูปแบบ <b>MQ001</b>');
+                return;
+            }
+            $("teamInput").value = teamId;
+
+            if (API_URL.indexOf("__") === 0) {
+                showTeamMessage('<i class="fa-solid fa-triangle-exclamation"></i> ระบบยังไม่เปิดใช้งาน<br>กรุณาติดต่อทีมงาน');
+                return;
+            }
+
+            setLoading(true);
+            showTeamMessage('<i class="fa-solid fa-spinner spin"></i> กำลังตรวจสอบ...');
+
+            let r;
+            try {
+                r = await postAction({ action: "lookupOnSiteStatus", teamId: teamId });
+            } catch (err) {
+                setLoading(false);
+                showTeamMessage('<i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถเชื่อมต่อระบบได้ในขณะนี้<br>กรุณาลองใหม่อีกครั้ง');
+                return;
+            }
+            setLoading(false);
+
+            if (r.status === "error") { showTeamMessage(escapeHtml(r.message || "เกิดข้อผิดพลาด")); return; }
+            if (!r.found) {
+                showTeamMessage('<i class="fa-solid fa-circle-exclamation"></i> ไม่พบรหัสทีม <b>' + escapeHtml(teamId) + "</b><br>กรุณาตรวจสอบรหัสทีมอีกครั้ง");
+                return;
+            }
+
+            // Keep the URL shareable/refreshable — status changes during the day
+            try { history.replaceState(null, "", "?team=" + encodeURIComponent(r.teamId)); } catch (e) { }
+
+            renderResult(r);
+        }
+
+        // =====================================================================
+        // Render
+        // =====================================================================
+        function renderResult(r) {
+            const members = (r.members || []).map(function (name, i) {
+                return "<div>" + (i + 1) + ". " + escapeHtml(name) + "</div>";
+            }).join("");
+            $("teamSlot").innerHTML =
+                '<div id="teamName">' + escapeHtml(r.teamName || r.teamId) + "</div>" +
+                '<div id="members">' + (members || "-") + "</div>";
+
+            setBadge("badgeR1", "round1", r.round1 && r.round1.imageState);
+            setBadge("badgeR2", "round2", r.round2 && r.round2.imageState);
+
+            let html = roundBlock("รอบที่ 1", r.round1, true);
+            if (r.round2 && r.round2.imageState !== "NOT_APPLICABLE") html += roundBlock("รอบที่ 2", r.round2, false);
+            $("instrSlot").innerHTML = html;
+            $("instrSlot").scrollTop = 0;
+        }
+
+        function stateChip(state) {
+            if (state === "PASSED") return '<span class="chip chip-pass">ผ่าน</span>';
+            if (state === "FAILED") return '<span class="chip chip-fail">ไม่ผ่าน</span>';
+            return '<span class="chip chip-wait">ยังไม่ประกาศผล</span>';
+        }
+
+        /** Hides sheet placeholder "-" so an empty cell never renders as a stray dash. */
+        function meaningful(s) {
+            const t = String(s == null ? "" : s).trim();
+            return t && t !== "-" ? t : "";
+        }
+
+        function roundBlock(title, round, isRound1) {
+            if (!round) return "";
+            let head = '<div class="round-head">' + title + " " + stateChip(round.imageState);
+            if (isRound1 && round.activityGroup) head += '<span class="chip chip-group">กลุ่มกิจกรรม ' + escapeHtml(round.activityGroup) + "</span>";
+            head += "</div>";
+
+            const status = meaningful(round.statusText);
+            const instr = meaningful(round.instructionText);
+            let body = "";
+            if (status) body += '<div class="status-text">' + escapeHtml(status) + "</div>";
+            if (instr) body += '<div class="instr-text">' + escapeHtml(instr) + "</div>";
+            if (round.instructionImageUrl) {
+                // onerror: missing/broken schedule image silently falls back to the text above
+                body += '<img class="instr-img" src="' + escapeHtml(round.instructionImageUrl) + '" alt="กำหนดการ ' + title + '"' +
+                    ' onclick="openLightbox(this.src)" onerror="this.nextElementSibling.remove(); this.remove();">' +
+                    '<div class="zoom-hint"><i class="fa-solid fa-magnifying-glass-plus"></i> แตะรูปเพื่อขยาย</div>';
+            }
+            return '<div class="round-block">' + head + body + "</div>";
+        }
+
+        // =====================================================================
+        // Lightbox
+        // =====================================================================
+        function openLightbox(src) {
+            $("lightboxImg").src = src;
+            $("lightbox").hidden = false;
+            document.body.style.overflow = "hidden";
+        }
+        function closeLightbox() {
+            $("lightbox").hidden = true;
+            $("lightboxImg").removeAttribute("src");
+            document.body.style.overflow = "";
+        }
+        document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeLightbox(); });
+
+        // =====================================================================
+        // Auto-lookup from name-badge QR (?team=MQ001)
+        // =====================================================================
+        (function () {
+            const team = new URLSearchParams(location.search).get("team");
+            if (team) {
+                $("teamInput").value = team;
+                doLookup();
+            }
+        })();
+    </script>
+</body>
+
+</html>
