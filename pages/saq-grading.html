@@ -113,13 +113,14 @@
         import { auth } from '../js/firebase-config.js';
         import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { initSaqGrading, saqReload } from '../js/saq-grading-logic.js';
+        import { requireStaff } from '../js/staff-guard.js';
 
         window.handleLogout = () => { if (confirm('ยืนยันการออกจากระบบ?')) logout(); };
         window.saqReloadItem = () => saqReload();
 
         let started = false;
-        onAuthStateChanged(auth, (user) => {
-            if (!user) { window.location.href = 'login.html'; return; }
+        onAuthStateChanged(auth, async (user) => {
+            if (!(await requireStaff(user))) return;
             document.getElementById('staffName').textContent = user.displayName || user.email;
             if (started) return;      // token refresh ไม่ต้องโหลดซ้ำ
             started = true;

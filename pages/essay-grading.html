@@ -613,15 +613,16 @@
             // ต้องเป็นจุดเดียวกับที่โหมดเดโมตัดสินใจเรียก startDemo หรือ initAuth
             // auth.js มี onAuthStateChanged ข้างในแค่ import ก็เปิดใช้แล้ว
             if (demoMode) return startDemo();
-            const [{ logout }, { onAuthStateChanged }] = await Promise.all([
+            const [{ logout }, { onAuthStateChanged }, { requireStaff }] = await Promise.all([
                 import('../js/auth.js'),
                 import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'),
+                import('../js/staff-guard.js'),
             ]);
             const getIdToken = async () => auth.currentUser ? await auth.currentUser.getIdToken() : '';
             window.idToken = getIdToken;
             authRef = { logout, getIdToken };
-            onAuthStateChanged(auth, (user) => {
-                if (!user) { window.location.href = 'login.html'; return; }
+            onAuthStateChanged(auth, async (user) => {
+                if (!(await requireStaff(user))) return;
                 me = { email: user.email, name: user.displayName || user.email };
                 $('staffName').textContent = me.name;
                 watchOccupancy();

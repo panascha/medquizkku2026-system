@@ -194,20 +194,13 @@
         import { auth } from './js/firebase-config.js';
         import { onAuthStateChanged, signOut }
             from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { requireStaff } from './js/staff-guard.js';
 
         const LOGIN_URL = "pages/login.html";
 
-        onAuthStateChanged(auth, (user) => {
-            const isValidStaff = !!user &&
-                (user.email.endsWith("@kku.ac.th") || user.email.endsWith("@kkumail.com"));
-
-            if (!isValidStaff) {
-                // ยังไม่ล็อกอิน หรือไม่ใช่บัญชี staff → เด้งออกทันที (fail-closed)
-                // replace() กัน back button ย้อนกลับมาหน้าพอร์ทัลที่ยังไม่ผ่านสิทธิ์
-                if (user) signOut(auth);
-                window.location.replace(LOGIN_URL);
-                return;
-            }
+        onAuthStateChanged(auth, async (user) => {
+            // domain + staff_whitelist; fail-closed → signOut + replace() ไป login
+            if (!(await requireStaff(user))) return;
 
             // ผ่านสิทธิ์ → เผยเนื้อหาพอร์ทัล
             document.getElementById('staffName').textContent = user.displayName || user.email;
