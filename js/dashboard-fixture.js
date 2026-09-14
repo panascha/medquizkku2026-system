@@ -41,8 +41,7 @@ const FIXTURE_DEPT_COLS = {
         'On-site_Check-in_Status', 'หมายเหตุ (Remark)'],
 };
 
-const FIXTURE_MANUAL = ['ยอดเงินที่ต้องชำระ', 'ยอดเงินที่โอนจริง', 'Transfer_Date_Time',
-    'On-site_Check-in_Status'];
+const FIXTURE_MANUAL = ['ยอดเงินที่ต้องชำระ', 'On-site_Check-in_Status'];
 
 // สลิปตัวอย่างเป็นไฟล์ในโปรเจกต์ ไม่ใช่ลิงก์ Drive ปลอม — ลิงก์ Drive ปลอมทำให้
 // รูปโหลดไม่ขึ้นทุกใบ เห็นแต่กล่อง "แสดงรูปไม่ได้" จึงทดสอบหน้าตาแผงตรวจสลิปไม่ได้
