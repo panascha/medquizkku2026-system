@@ -332,6 +332,7 @@
         let payload = null;      // ข้อมูลดิบของฝ่ายที่เลือก (การ์ดตัวเลขใช้ชุดนี้)
         let visibleRows = [];    // แถวดิบที่ผ่านตัวกรอง — ลิ้นชักรายละเอียดใช้ชุดนี้
         let quick = '';          // ตัวกรองด่วนที่เลือกอยู่ ('' = ทั้งหมด)
+        const deptCache = new Map();   // dept -> payload ข้อมูลจริงที่โหลดสำเร็จ (ไม่เก็บข้อมูลตัวอย่างที่ตกลงมา)
 
         // สองชุดนี้ห้ามสลับกัน: tableView = คอลัมน์ที่ตัดแล้ว (ตาราง + PDF)
         // exportView = ทุกคอลัมน์ที่ฝ่ายนี้ได้รับ (.xlsx) ดูเหตุผลใน projectRows()
@@ -345,7 +346,11 @@
         // โหลดข้อมูลจริงได้ก็ต่อเมื่อรู้ตัวตนแล้ว เพราะ doGet ต้องการ ID token
         // (โหมดข้อมูลตัวอย่างไม่ต้องรอ — ใช้ทดสอบหน้าเว็บโดยไม่ยิง GAS)
         let started = false;
-        const start = () => { if (!started) { started = true; selectDept('overview'); } };
+        const start = () => {
+            if (started) return;
+            started = true;
+            selectDept('overview');
+        };
 
         // มีค่าเฉพาะโหมดข้อมูลจริง — โหมดตัวอย่างไม่โหลด Firebase Auth เลย
         let authRef = null;
@@ -386,6 +391,14 @@
             quick = '';   // ตัวกรองด่วนของแต่ละฝ่ายไม่เหมือนกัน เปลี่ยนฝ่ายแล้วต้องล้าง
             document.querySelectorAll('.dept-tab').forEach(b =>
                 b.classList.toggle('tab-active', b.dataset.dept === key));
+            if (deptCache.has(key)) {
+                payload = deptCache.get(key);
+                fellBack = false;
+                fallbackError = '';
+                renderBanners();
+                render();
+                return;
+            }
             await load();
         }
 
@@ -401,18 +414,26 @@
         let fallbackError = '';     // ว่าง = ชีตไม่มีแถว (ไม่ใช่ error) / มีค่า = โหลดจริงพัง
 
         async function load({ forceLive = false } = {}) {
+            // จำฝ่ายที่ขอไว้ก่อน await — ระหว่างรอผู้ใช้อาจกดแท็บอื่นไปแล้ว
+            // ถ้าใช้ dept หลัง await ข้อมูลฝ่ายเก่าจะถูกวาดทับ/แคชผิดฝ่าย
+            const key = dept;
             $('tableBody').innerHTML = `<tr><td class="p-6 text-center text-slate-400">กำลังโหลด...</td></tr>`;
-            fellBack = false;
-            fallbackError = '';
+            let next;
             try {
                 // ส่ง demoMode ไม่ใช่ useFixture — ชุด demo ไม่มี ?fixture=1 บน URL
                 // ไม่งั้นจะเหลือแค่ loadDept() ที่เดาเอาเองจาก DASHBOARD_API_URL ว่าง
-                payload = await loadDept(dept, { useFixture: demoMode, idToken: await currentIdToken() });
+                next = await loadDept(key, { useFixture: demoMode, idToken: await currentIdToken() });
+                if (!next.isFixture && next.totalRows > 0) deptCache.set(key, next);
+                if (key !== dept) return;
+                fellBack = false;
+                fallbackError = '';
+                payload = next;
                 if (!payload.isFixture && payload.totalRows === 0) {
                     fellBack = true;
                     payload = fixturePayload(dept);
                 }
             } catch (err) {
+                if (key !== dept) return;
                 // กด "ลองโหลดข้อมูลจริง" แล้วยังพัง = ต้องเห็นสาเหตุ ไม่ใช่เด้งกลับ
                 // เข้าโหมดตัวอย่างเงียบ ๆ จนดูเหมือนปุ่มไม่ทำงาน
                 if (forceLive) {
@@ -776,7 +797,7 @@
                 // คลิกที่รูป = สลับย่อ/ขยาย (ไม่ใช่เปิดแท็บใหม่ ปุ่มเปิดไฟล์ทำหน้าที่นั้นอยู่)
                 body = `<img src="${esc(thumb)}" alt="${esc(field.title)}" loading="lazy"
                           data-slipimg
-                          class="w-full max-h-40 object-contain bg-slate-50 rounded-lg border border-slate-200 cursor-zoom-in"
+                          class="w-full max-h-[60vh] object-contain bg-slate-50 rounded-lg border border-slate-200 cursor-zoom-out"
                           onerror="this.hidden=true; this.nextElementSibling.style.display='flex';">
                         <!-- ซ่อนด้วย style ไม่ใช่ attribute hidden: คลาส .flex ของ Tailwind
                              ชนะ display:none ของ [hidden] กล่องนี้จึงโผล่ทับทุกใบ -->
@@ -812,7 +833,7 @@
                 <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                     <i class="fa-solid fa-money-check-dollar mr-1"></i>ตรวจสลิปโอนเงิน</h3>
                 <div class="border border-slate-200 rounded-xl p-3 space-y-3">
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-4">
                         ${SLIP_FIELDS.map(f => slipCard(f, String(val(f.header) ?? '').trim(),
                             f.optIn ? val(f.optIn) : '')).join('')}
                     </div>
@@ -889,10 +910,10 @@
         function wireSlipPanel(email) {
             $('drawerBody').querySelectorAll('[data-slipimg]').forEach(img =>
                 img.addEventListener('click', () => {
-                    const zoomed = img.classList.toggle('max-h-[70vh]');
-                    img.classList.toggle('max-h-40', !zoomed);
-                    img.classList.toggle('cursor-zoom-out', zoomed);
-                    img.classList.toggle('cursor-zoom-in', !zoomed);
+                    const compact = img.classList.toggle('max-h-40');
+                    img.classList.toggle('max-h-[60vh]', !compact);
+                    img.classList.toggle('cursor-zoom-in', compact);
+                    img.classList.toggle('cursor-zoom-out', !compact);
                 }));
 
             $('drawerBody').querySelectorAll('[data-slipact]').forEach(btn =>
@@ -952,6 +973,8 @@
         /** วาดจอใหม่หลังแถวถูกแก้ — ทางข้อมูลจริงกับข้อมูลตัวอย่างต้องผ่านที่เดียวกัน
          *  ไม่งั้นสองโหมดจะเริ่มแสดงผลไม่เหมือนกัน */
         function afterSlipSave(raw, message) {
+            // ฝ่ายอื่นที่แคชไว้ถือสถานะสลิปเก่า — ทิ้งให้โหลดใหม่ตอนกดแท็บ
+            for (const k of [...deptCache.keys()]) if (k !== dept) deptCache.delete(k);
             render();
             // ตัวกรองอาจทำให้ลำดับแถวเปลี่ยน — หาตำแหน่งใหม่จากอีเมล ไม่ใช้ index เดิม
             const at = visibleRows.indexOf(raw);
@@ -1064,7 +1087,7 @@
         });
 
         // ---- ปุ่ม ----
-        window.handleRefresh = () => load();
+        window.handleRefresh = () => { deptCache.clear(); return load(); };
 
         // ส่งออกด้วย "ชื่อคอลัมน์ดิบ" ไม่ใช่ชื่อไทยที่แสดงบนหน้าจอ เพื่อให้เอาไฟล์
         // ไปเทียบกับชีต "Final 100 ทีม" ได้ตรงคอลัมน์ (PDF คือการ print หน้าจอ
