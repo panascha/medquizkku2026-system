@@ -1,4 +1,4 @@
-<!-- Staff-only: On-site escort roster + activity-base monitor (event day 1 Nov 2569). -->
+<!-- Staff-only: All-staff live event monitor — room pulse, schedule drift, escort roster (event day 1 Nov 2569). -->
 <!-- Guarded by Firebase Google sign-in + js/staff-guard.js (KKU domain + staff_whitelist). -->
 <!-- Data: OnSite GAS Web App action=getAllOnSiteTeams (server re-checks the ID token + whitelist). -->
 <!-- Base rotation is driven by the rotation start IT stamps from the Sheet menu -->
@@ -11,42 +11,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>พี่เลี้ยงวันงาน — MedQuiz KKU 2026</title>
+    <title>ติดตามวันงาน — MedQuiz KKU 2026</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Sarabun', sans-serif; background: #f1f5f9; }
-        .tab-active { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
+        /* Egyptian MedQuiz palette — high contrast for outdoor sun + dim hall. */
+        :root {
+            --navy: #0B132B; --navy2: #0F1F4B; --card: #152A5E; --line: #2C4580;
+            --gold1: #F5D77A; --gold2: #E4B43C; --text: #F8FAFC; --muted: #C3CEE6;
+        }
+        body { font-family: 'Sarabun', sans-serif; background: var(--navy); color: var(--text); }
+        .panel { background: var(--navy2); border: 1px solid var(--line); }
+        .card { background: var(--card); border: 1px solid var(--line); }
+        .muted { color: var(--muted); }
+        .gold { color: var(--gold1); }
+        .gold-bg { background: linear-gradient(90deg, var(--gold1), var(--gold2)); color: var(--navy); }
+        .tab-active { background: linear-gradient(90deg, var(--gold1), var(--gold2)); color: var(--navy); border-color: var(--gold2); }
+        .room-active { outline: 3px solid var(--gold1); outline-offset: -1px; }
+        .badge-A { background: #10B981; color: var(--navy); }
+        .badge-B { background: #F59E0B; color: var(--navy); }
+        .badge-C { background: #0D9488; color: var(--navy); }
+        .badge-spot { background: #2563EB; color: #fff; }
+        .badge-gs { background: #7C3AED; color: #fff; }
+        .dot { display: inline-block; width: .65rem; height: .65rem; border-radius: 9999px; vertical-align: middle; }
     </style>
 </head>
 
-<body class="min-h-screen text-slate-800">
+<body class="min-h-screen">
 
     <!-- Loading / auth gate -->
     <div id="gate" class="min-h-screen flex items-center justify-center p-6 text-center">
         <div>
-            <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-800"></i>
-            <p id="gateMsg" class="mt-3 text-slate-600">กำลังตรวจสอบสิทธิ์ Staff…</p>
+            <i class="fa-solid fa-circle-notch fa-spin text-3xl gold"></i>
+            <p id="gateMsg" class="mt-3 muted">กำลังตรวจสอบสิทธิ์ Staff…</p>
         </div>
     </div>
 
     <div id="app" class="hidden max-w-3xl mx-auto pb-16">
         <!-- Header -->
-        <header class="sticky top-0 z-20 bg-blue-900 text-white px-4 pt-3 pb-3 shadow">
+        <header class="sticky top-0 z-20 text-white px-4 pt-3 pb-3 shadow-lg" style="background: var(--navy2); border-bottom: 3px solid var(--gold2);">
             <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
-                    <h1 class="font-bold text-lg leading-tight">พี่เลี้ยงวันงาน MedQuiz KKU 2026</h1>
-                    <p id="userEmail" class="text-xs text-blue-200 truncate"></p>
+                    <h1 class="font-bold text-lg leading-tight gold">ติดตามวันงาน MedQuiz KKU 2026</h1>
+                    <p id="userEmail" class="text-xs muted truncate"></p>
                 </div>
                 <div class="text-right shrink-0">
                     <div id="clock" class="font-mono text-xl font-bold tabular-nums">--:--:--</div>
-                    <button id="logoutBtn" class="text-xs text-blue-200 underline">ออกจากระบบ</button>
+                    <button id="logoutBtn" class="text-xs muted underline">ออกจากระบบ</button>
                 </div>
             </div>
             <div class="mt-2 flex items-center justify-between gap-2 text-xs">
-                <span id="lastUpdated" class="text-blue-200">ยังไม่ได้โหลดข้อมูล</span>
-                <button id="syncBtn" class="bg-white/15 hover:bg-white/25 rounded-full px-3 py-1 font-semibold">
+                <span id="lastUpdated" class="muted">ยังไม่ได้โหลดข้อมูล</span>
+                <button id="syncBtn" class="gold-bg rounded-full px-3 py-1 font-semibold">
                     <i id="syncIcon" class="fa-solid fa-rotate"></i> ซิงค์
                 </button>
             </div>
@@ -55,21 +72,30 @@
         <!-- Connection error (keeps showing last data from this session) -->
         <div id="errorBox" class="hidden mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 text-sm"></div>
 
+        <!-- Schedule drift vs master timeline (event day + IT stamp only) -->
+        <div id="driftBanner" class="hidden mx-4 mt-3 rounded-xl px-4 py-3 bg-amber-400 text-slate-950 font-semibold"></div>
+
         <!-- Phase banner -->
         <section id="phaseBanner" class="mx-4 mt-3 rounded-xl px-4 py-3 border"></section>
 
+        <!-- Live Building & Room Pulse (tap a room to filter the roster) -->
+        <section class="mx-4 mt-3 rounded-xl panel px-4 py-3">
+            <h2 class="font-bold gold"><i class="fa-solid fa-building"></i> สถานะห้อง / อาคาร</h2>
+            <div id="roomPulse" class="mt-2 grid grid-cols-2 gap-2 text-sm"></div>
+        </section>
+
         <!-- Base rotation panel (phase 1 only) -->
-        <section id="rotationPanel" class="hidden mx-4 mt-3 rounded-xl bg-white border border-slate-200 px-4 py-3">
+        <section id="rotationPanel" class="hidden mx-4 mt-3 rounded-xl panel px-4 py-3">
             <div class="flex items-center justify-between gap-2">
-                <h2 class="font-bold"><i class="fa-solid fa-route text-emerald-700"></i> การเดินฐาน (60 ทีม)</h2>
-                <select id="slotSelect" class="text-sm border border-slate-300 rounded-md px-2 py-1 bg-white">
+                <h2 class="font-bold gold"><i class="fa-solid fa-route"></i> การเดินฐาน (60 ทีม)</h2>
+                <select id="slotSelect" class="text-sm rounded-md px-2 py-1 card text-white">
                     <option value="auto">อัตโนมัติ (ตามเวลาเริ่มจาก IT)</option>
                     <option value="0">บังคับ: รอบที่ 1</option>
                     <option value="1">บังคับ: รอบที่ 2</option>
                     <option value="2">บังคับ: รอบที่ 3</option>
                 </select>
             </div>
-            <p id="rotationStatus" class="mt-1 text-sm text-slate-600"></p>
+            <p id="rotationStatus" class="mt-1 text-sm muted"></p>
             <div id="rotationGrid" class="mt-2 grid grid-cols-3 gap-2 text-center text-sm"></div>
         </section>
 
@@ -79,12 +105,12 @@
         <!-- Tabs + search -->
         <nav id="tabs" class="mx-4 mt-3 flex gap-2 overflow-x-auto pb-1 text-sm"></nav>
         <div class="mx-4 mt-2 relative">
-            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 muted"></i>
             <input id="search" type="search" autocomplete="off"
                 placeholder="ค้นหา รหัสทีม / ชื่อทีม / ชื่อนักเรียน"
-                class="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-800">
+                class="w-full rounded-lg card text-white placeholder-slate-400 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
-        <p id="listNote" class="mx-4 mt-2 text-xs text-slate-500"></p>
+        <p id="listNote" class="mx-4 mt-2 text-xs muted"></p>
 
         <!-- Team cards -->
         <main id="cards" class="mx-4 mt-2 space-y-2"></main>
@@ -114,7 +140,19 @@
             gameshowFinalist: "ห้องประชุมมอดินแดง (เตรียมแข่ง Game Show 14:00–17:00)",
             spotEliminated: "ผู้ชม Game Show / ติดต่อรับเกียรติบัตร",
             activityAfter: "เข้าร่วม MED Talk (13:20–13:50) → ผู้ชม Game Show / รับเกียรติบัตร",
+            lab8Room: "ห้องปฏิบัติการ 8",
+            audRoom: "ห้องประชุมมอดินแดง",
         };
+        const BASE_FLOORS = ["ชั้น 3", "ชั้น 4", "ชั้น 4"];   // aligned with BASES (staff spec)
+        // Auditorium plan (Bangkok HH:mm, wall clock): MED Talk then Game Show.
+        const AUD_PLAN = [
+            { from: "13:20", to: "13:50", label: "MED Talk" },
+            { from: "14:00", to: "17:00", label: "Game Show", needsR2: true },   // can't start before R2 results
+        ];
+
+        // Drift banner: IT rotation stamp vs master timeline (R2 SPOT 10:50). Shown only on
+        // the event day so rehearsal stamps never trigger it, and only when late > threshold.
+        const DRIFT = { eventDate: "2026-11-01", plannedStart: "10:50", thresholdMin: 5 };
 
         const $ = id => document.getElementById(id);
         let data = null;          // last successful payload (memory only)
@@ -248,6 +286,66 @@
 
         function rotationKey(rot) { return `${rot.state}:${rot.slot ?? ""}`; }
 
+        /** Inverse of baseFor: group in base index b at slot s. */
+        const groupInBase = (b, slot) => GROUPS[((b - slot) % 3 + 3) % 3];
+
+        const bangkokDate = ms => new Date(ms).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+
+        /** {lateMin, endMs} when the rotation started > threshold late on the event day, else null. */
+        function driftInfo(start, rot) {
+            if (!start || rot.manual || (rot.state !== "active" && rot.state !== "changeover")) return null;
+            if (bangkokDate(start) !== DRIFT.eventDate) return null;
+            const lateMs = start - Date.parse(`${DRIFT.eventDate}T${DRIFT.plannedStart}:00+07:00`);
+            if (lateMs <= DRIFT.thresholdMin * 60000) return null;
+            // In changeover rot.slot is already the upcoming slot → its end time.
+            return { lateMin: Math.round(lateMs / 60000), endMs: start + (rot.slot * (SLOT_MIN + GAP_MIN) + SLOT_MIN) * 60000 };
+        }
+
+        /** Wall-clock plan, but only on the event day, and Game Show waits for R2 results. */
+        function auditoriumStatus(hm, eventDay, r2Decided) {
+            if (!eventDay) return "แผน: " + AUD_PLAN.map(p => `${p.label} ${p.from}`).join(" · ");
+            for (const p of AUD_PLAN) {
+                if (hm < p.from) return `รอ ${p.label} ${p.from} น.`;
+                if (hm < p.to) return p.needsR2 && !r2Decided
+                    ? `รอประกาศผลรอบ 2 ก่อนเริ่ม ${p.label}`
+                    : `${p.label} กำลังดำเนินการ (ถึง ${p.to})`;
+            }
+            return "จบกิจกรรมในห้องแล้ว";
+        }
+
+        /** Room cards for the pulse widget: [{id, name, floor, status, sub, tappable}]. */
+        function roomPulse(rot) {
+            const rotating = data.r1Decided && !data.r2Decided && rot.state !== "done";
+            const rooms = [{
+                id: "lab8", name: TEXT.lab8Room, floor: "", tappable: true, sub: "",
+                status: !data.r1Decided ? "รอผลรอบ 1" : data.r2Decided ? "จบ Spot Test แล้ว" : `Spot Test · ${data.counts.r1Passed} ทีม`,
+            }];
+            BASES.forEach((name, b) => {
+                let status, sub = "";
+                if (!data.r1Decided) status = "รอผลรอบ 1";
+                else if (!rotating) status = "ว่าง — จบเดินฐาน";
+                else {
+                    const slot = rot.slot ?? 0, g = groupInBase(b, slot);
+                    status = rot.state === "active" ? `กลุ่ม ${g} อยู่ในฐาน`
+                        : rot.state === "changeover" ? `กลุ่ม ${g} กำลังเดินมา`
+                        : `รอเริ่ม — กลุ่ม ${g} เข้าก่อน`;
+                    if (rot.state === "active" && slot + 1 < SLOTS) sub = `ถัดไป: กลุ่ม ${groupInBase(b, slot + 1)}`;
+                }
+                rooms.push({ id: `base${b}`, name, floor: BASE_FLOORS[b], status, sub, tappable: true });
+            });
+            rooms.push({ id: "aud", name: TEXT.audRoom, floor: "", status: auditoriumStatus(fmtHm(nowMs()), bangkokDate(nowMs()) === DRIFT.eventDate, data.r2Decided), sub: "ตามกำหนดการ", tappable: false });
+            return rooms;
+        }
+
+        /** Roster filter for a tapped room: teams in it now, or heading to it during changeover. */
+        function roomFilter(id, rot) {
+            if (id === "lab8") return t => t.r1Passed === true;
+            const b = Number(id.slice(4));
+            if (!data.r1Decided || data.r2Decided || rot.state === "done") return () => false;
+            const g = groupInBase(b, rot.slot ?? 0);
+            return t => t.r1Passed !== true && t.activityGroup === g;
+        }
+
         // ── Render ──────────────────────────────────────────────────────────
         function renderBanner(rot) {
             const b = $("phaseBanner");
@@ -290,42 +388,70 @@
 
             $("rotationGrid").innerHTML = GROUPS.map(g => {
                 const loc = locationFor({ r1Passed: false, activityGroup: g }, rot);
-                return `<div class="rounded-lg bg-slate-50 border border-slate-200 p-2">
-                    <div class="font-bold">กลุ่ม ${g}</div>
-                    <div class="text-emerald-800 font-semibold leading-tight">${escapeHtml(loc.now)}</div>
-                    ${loc.next ? `<div class="text-xs text-slate-500 mt-1">ถัดไป: ${escapeHtml(loc.next)}</div>` : ""}
+                return `<div class="rounded-lg card p-2">
+                    <div><span class="badge-${g} rounded-full px-2 py-0.5 text-xs font-bold">กลุ่ม ${g}</span></div>
+                    <div class="mt-1 font-semibold leading-tight">${escapeHtml(loc.now)}</div>
+                    ${loc.next ? `<div class="text-xs muted mt-1">ถัดไป: ${escapeHtml(loc.next)}</div>` : ""}
                 </div>`;
             }).join("");
         }
 
+        function renderDrift(rot) {
+            const d = driftInfo(data.rotationStartMs, rot);
+            $("driftBanner").classList.toggle("hidden", !d);
+            if (d) $("driftBanner").textContent =
+                `⚠️ กำหนดการเลทกว่าแผนแม่บท ~${d.lateMin} นาที (คาดว่าจะจบฐานรอบนี้เวลา ${fmtHm(d.endMs)})`;
+        }
+
+        let lastPulseHtml = "";
+        function renderPulse(rot) {
+            const html = roomPulse(rot).map(r => {
+                const inner = `<div class="font-bold leading-tight">${escapeHtml(r.name)}${r.floor ? ` <span class="muted font-normal text-xs">${escapeHtml(r.floor)}</span>` : ""}</div>
+                    <div class="gold font-semibold leading-tight mt-0.5">${escapeHtml(r.status)}</div>
+                    ${r.sub ? `<div class="text-xs muted mt-0.5">${escapeHtml(r.sub)}</div>` : ""}`;
+                return r.tappable
+                    ? `<button data-room="${r.id}" class="text-left rounded-lg card p-2 ${tab === r.id ? "room-active" : ""}">${inner}</button>`
+                    : `<div class="rounded-lg card p-2">${inner}</div>`;
+            }).join("");
+            // Only touch the DOM on change: replacing buttons mid-tap would swallow the click.
+            if (html !== lastPulseHtml) { $("roomPulse").innerHTML = html; lastPulseHtml = html; }
+        }
+        $("roomPulse").onclick = e => {
+            const btn = e.target.closest("[data-room]");
+            if (!btn || !data) return;
+            tab = tab === btn.dataset.room ? "all" : btn.dataset.room;   // tap again = clear
+            query = ""; $("search").value = "";
+            render();
+            $("listNote").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+
         function renderCounts() {
             const c = data.counts;
-            const cell = (label, v) => `<div class="rounded-lg bg-white border border-slate-200 py-1.5">
-                <div class="text-lg font-bold">${v}</div><div class="text-slate-500">${label}</div></div>`;
+            const cell = (label, v) => `<div class="rounded-lg panel py-1.5">
+                <div class="text-lg font-bold gold">${v}</div><div class="muted">${label}</div></div>`;
             $("countsBar").innerHTML = cell("ทั้งหมด", c.total) + cell("Spot Test", c.r1Passed) +
                 cell("เดินฐาน", c.r1Failed) + cell("Game Show", c.r2Passed);
         }
 
         const TABS = [
             { id: "all", label: () => `📊 ทั้งหมด (${data.counts.total})`, filter: () => true },
-            { id: "A", label: () => `🟢 กลุ่ม A (${data.counts.groupA})`, filter: t => t.activityGroup === "A" },
-            { id: "B", label: () => `🟡 กลุ่ม B (${data.counts.groupB})`, filter: t => t.activityGroup === "B" },
-            { id: "C", label: () => `🔵 กลุ่ม C (${data.counts.groupC})`, filter: t => t.activityGroup === "C" },
-            { id: "spot", label: () => `🔬 Spot Test (${data.counts.r1Passed})`, filter: t => t.r1Passed === true },
-            { id: "gs", label: () => `🏆 Game Show (${data.counts.r2Passed})`, filter: t => t.r2Passed === true },
+            { id: "A", label: () => `<span class="dot badge-A"></span> กลุ่ม A (${data.counts.groupA})`, filter: t => t.activityGroup === "A" },
+            { id: "B", label: () => `<span class="dot badge-B"></span> กลุ่ม B (${data.counts.groupB})`, filter: t => t.activityGroup === "B" },
+            { id: "C", label: () => `<span class="dot badge-C"></span> กลุ่ม C (${data.counts.groupC})`, filter: t => t.activityGroup === "C" },
+            { id: "spot", label: () => `<span class="dot badge-spot"></span> Spot Test (${data.counts.r1Passed})`, filter: t => t.r1Passed === true },
+            { id: "gs", label: () => `<span class="dot badge-gs"></span> Game Show (${data.counts.r2Passed})`, filter: t => t.r2Passed === true },
         ];
 
         function renderTabs() {
             $("tabs").innerHTML = TABS.map(t =>
-                `<button data-tab="${t.id}" class="shrink-0 rounded-full border border-slate-300 bg-white px-3 py-1.5 font-semibold ${tab === t.id ? "tab-active" : ""}">${t.label()}</button>`
+                `<button data-tab="${t.id}" class="shrink-0 rounded-full panel px-3 py-1.5 font-semibold ${tab === t.id ? "tab-active" : ""}">${t.label()}</button>`
             ).join("");
         }
         $("tabs").onclick = e => {
             const btn = e.target.closest("[data-tab]");
             if (!btn) return;
             tab = btn.dataset.tab;
-            renderTabs();
-            renderCards(rotationState());
+            render();   // also clears the room highlight in the pulse widget
         };
 
         function matches(t, q) {
@@ -335,36 +461,39 @@
         }
 
         function groupBadge(t) {
-            if (t.r2Passed === true) return `<span class="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5">Game Show</span>`;
-            if (t.r1Passed === true) return `<span class="rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">Spot Test</span>`;
-            if (t.activityGroup) return `<span class="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">กลุ่ม ${escapeHtml(t.activityGroup)}</span>`;
-            return `<span class="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">รอผลรอบ 1</span>`;
+            if (t.r2Passed === true) return `<span class="rounded-full badge-gs px-2 py-0.5">Game Show</span>`;
+            if (t.r1Passed === true) return `<span class="rounded-full badge-spot px-2 py-0.5">Spot Test</span>`;
+            if (GROUPS.includes(t.activityGroup)) return `<span class="rounded-full badge-${t.activityGroup} px-2 py-0.5">กลุ่ม ${t.activityGroup}</span>`;
+            return `<span class="rounded-full bg-slate-600 text-white px-2 py-0.5">รอผลรอบ 1</span>`;
         }
 
         function renderCards(rot) {
             const q = query.trim().toLowerCase();
             const activeTab = TABS.find(t => t.id === tab);
-            const list = q ? data.teams.filter(t => matches(t, q)) : data.teams.filter(activeTab.filter);
+            const room = activeTab ? null : roomPulse(rot).find(r => r.id === tab);
+            const filter = activeTab ? activeTab.filter : roomFilter(tab, rot);
+            const list = q ? data.teams.filter(t => matches(t, q)) : data.teams.filter(filter);
             $("listNote").textContent = q
                 ? `ผลการค้นหา "${query.trim()}" ในทุกทีม: ${list.length} ทีม`
+                : room ? `ห้อง ${room.name}: ${list.length} ทีม (อยู่ในห้อง / กำลังเดินไป) — แตะห้องอีกครั้งเพื่อดูทั้งหมด`
                 : `${list.length} ทีม`;
             $("cards").innerHTML = list.length ? list.map(t => {
                 const loc = locationFor(t, rot);
-                return `<article class="rounded-xl bg-white border border-slate-200 px-4 py-3 shadow-sm">
+                return `<article class="rounded-xl card px-4 py-3">
                     <div class="flex items-center gap-2">
-                        <span class="rounded-full bg-blue-900 text-white text-xs font-bold px-2 py-0.5">${escapeHtml(t.teamId)}</span>
-                        <h3 class="font-bold truncate">${escapeHtml(t.teamName) || '<span class="text-slate-400">(ไม่มีชื่อทีม)</span>'}</h3>
+                        <span class="rounded-full gold-bg text-xs font-bold px-2 py-0.5">${escapeHtml(t.teamId)}</span>
+                        <h3 class="font-bold truncate">${escapeHtml(t.teamName) || '<span class="muted">(ไม่มีชื่อทีม)</span>'}</h3>
                     </div>
-                    <ol class="mt-1 text-sm text-slate-700 list-decimal list-inside">
+                    <ol class="mt-1 text-sm muted list-decimal list-inside">
                         ${t.members.map(m => `<li>${escapeHtml(m)}</li>`).join("")}
                     </ol>
                     <div class="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
                         ${groupBadge(t)}
-                        <span class="rounded-full bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5">📍 ${escapeHtml(loc.now)}</span>
-                        ${loc.next ? `<span class="rounded-full bg-slate-100 text-slate-700 px-2 py-0.5">➡️ ถัดไป: ${escapeHtml(loc.next)}</span>` : ""}
+                        <span class="rounded-full bg-amber-100 text-slate-950 px-2 py-0.5">📍 ${escapeHtml(loc.now)}</span>
+                        ${loc.next ? `<span class="rounded-full panel px-2 py-0.5">➡️ ถัดไป: ${escapeHtml(loc.next)}</span>` : ""}
                     </div>
                 </article>`;
-            }).join("") : `<p class="text-center text-slate-500 py-8">ไม่พบทีม</p>`;
+            }).join("") : `<p class="text-center muted py-8">ไม่พบทีม</p>`;
         }
 
         function render() {
@@ -372,7 +501,9 @@
             const rot = rotationState();
             lastRotationKey = rotationKey(rot);
             $("slotSelect").value = slotOverride;   // not in the 1 s tick: would fight an open dropdown
+            renderDrift(rot);
             renderBanner(rot);
+            renderPulse(rot);
             renderRotation(rot);
             renderCounts();
             renderTabs();
@@ -395,7 +526,7 @@
             if (!data) return;
             const rot = rotationState();
             if (rotationKey(rot) !== lastRotationKey) render();
-            else renderRotation(rot);
+            else { renderRotation(rot); renderPulse(rot); }   // pulse: auditorium follows wall clock
         }, 1000);
     </script>
 </body>
