@@ -1,0 +1,403 @@
+<!-- Staff-only: On-site escort roster + activity-base monitor (event day 1 Nov 2569). -->
+<!-- Guarded by Firebase Google sign-in + js/staff-guard.js (KKU domain + staff_whitelist). -->
+<!-- Data: OnSite GAS Web App action=getAllOnSiteTeams (server re-checks the ID token + whitelist). -->
+<!-- Base rotation is driven by the rotation start IT stamps from the Sheet menu -->
+<!-- ("⏱️ เริ่มหมุนฐาน"), not fixed wall-clock times, so a late Round 1 cannot show wrong stations. -->
+<!-- No localStorage copy of the roster (PDPA): only the per-device slot override is stored. -->
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>พี่เลี้ยงวันงาน — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background: #f1f5f9; }
+        .tab-active { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
+    </style>
+</head>
+
+<body class="min-h-screen text-slate-800">
+
+    <!-- Loading / auth gate -->
+    <div id="gate" class="min-h-screen flex items-center justify-center p-6 text-center">
+        <div>
+            <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-800"></i>
+            <p id="gateMsg" class="mt-3 text-slate-600">กำลังตรวจสอบสิทธิ์ Staff…</p>
+        </div>
+    </div>
+
+    <div id="app" class="hidden max-w-3xl mx-auto pb-16">
+        <!-- Header -->
+        <header class="sticky top-0 z-20 bg-blue-900 text-white px-4 pt-3 pb-3 shadow">
+            <div class="flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                    <h1 class="font-bold text-lg leading-tight">พี่เลี้ยงวันงาน MedQuiz KKU 2026</h1>
+                    <p id="userEmail" class="text-xs text-blue-200 truncate"></p>
+                </div>
+                <div class="text-right shrink-0">
+                    <div id="clock" class="font-mono text-xl font-bold tabular-nums">--:--:--</div>
+                    <button id="logoutBtn" class="text-xs text-blue-200 underline">ออกจากระบบ</button>
+                </div>
+            </div>
+            <div class="mt-2 flex items-center justify-between gap-2 text-xs">
+                <span id="lastUpdated" class="text-blue-200">ยังไม่ได้โหลดข้อมูล</span>
+                <button id="syncBtn" class="bg-white/15 hover:bg-white/25 rounded-full px-3 py-1 font-semibold">
+                    <i id="syncIcon" class="fa-solid fa-rotate"></i> ซิงค์
+                </button>
+            </div>
+        </header>
+
+        <!-- Connection error (keeps showing last data from this session) -->
+        <div id="errorBox" class="hidden mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 text-sm"></div>
+
+        <!-- Phase banner -->
+        <section id="phaseBanner" class="mx-4 mt-3 rounded-xl px-4 py-3 border"></section>
+
+        <!-- Base rotation panel (phase 1 only) -->
+        <section id="rotationPanel" class="hidden mx-4 mt-3 rounded-xl bg-white border border-slate-200 px-4 py-3">
+            <div class="flex items-center justify-between gap-2">
+                <h2 class="font-bold"><i class="fa-solid fa-route text-emerald-700"></i> การเดินฐาน (60 ทีม)</h2>
+                <select id="slotSelect" class="text-sm border border-slate-300 rounded-md px-2 py-1 bg-white">
+                    <option value="auto">อัตโนมัติ (ตามเวลาเริ่มจาก IT)</option>
+                    <option value="0">บังคับ: รอบที่ 1</option>
+                    <option value="1">บังคับ: รอบที่ 2</option>
+                    <option value="2">บังคับ: รอบที่ 3</option>
+                </select>
+            </div>
+            <p id="rotationStatus" class="mt-1 text-sm text-slate-600"></p>
+            <div id="rotationGrid" class="mt-2 grid grid-cols-3 gap-2 text-center text-sm"></div>
+        </section>
+
+        <!-- Counts -->
+        <section id="countsBar" class="mx-4 mt-3 grid grid-cols-4 gap-2 text-center text-xs"></section>
+
+        <!-- Tabs + search -->
+        <nav id="tabs" class="mx-4 mt-3 flex gap-2 overflow-x-auto pb-1 text-sm"></nav>
+        <div class="mx-4 mt-2 relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="search" type="search" autocomplete="off"
+                placeholder="ค้นหา รหัสทีม / ชื่อทีม / ชื่อนักเรียน"
+                class="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-800">
+        </div>
+        <p id="listNote" class="mx-4 mt-2 text-xs text-slate-500"></p>
+
+        <!-- Team cards -->
+        <main id="cards" class="mx-4 mt-2 space-y-2"></main>
+    </div>
+
+    <script type="module">
+        import { auth } from "./js/firebase-config.js";
+        import { requireStaff } from "./js/staff-guard.js";
+        import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // Same OnSite Web App deployment as check-onsite.html (redeploy in place: clasp deploy -i).
+        const API_URL = "https://script.google.com/macros/s/AKfycbxqyrFCMHgwna03zGskM2d7xrk9kNQu8L71VU4gbAfBfwr7aJy0uLF2JIQ3lq4TXNZIGw/exec";
+        const REFRESH_MS = 60000;      // ≥ GAS row cache (45 s); jitter spreads staff phones
+        const REFRESH_JITTER_MS = 15000;
+
+        // Base rotation: 3 slots × 35 min, 5 min changeover. Group g at slot s is at
+        // BASES[(g + s) % 3] → A: Gross→Para→Skill, B: Para→Skill→Gross, C: Skill→Gross→Para.
+        const SLOT_MIN = 35, GAP_MIN = 5, SLOTS = 3;
+        const BASES = ["Gross Anatomy", "Parasitology", "Skill Lab"];
+        const GROUPS = ["A", "B", "C"];
+
+        // Room / schedule wording — edit here if the action plan changes.
+        const TEXT = {
+            r1Room: "ห้องสอบคอมพิวเตอร์ (แข่งขันรอบที่ 1)",
+            spotRoom: "ห้องปฏิบัติการ 8 (สอบ Spot Test)",
+            rotationDone: "จบเดินฐาน — พักรับประทานอาหารกลางวัน (รอประกาศผลรอบ 2 เวลา 13:00 น.)",
+            gameshowFinalist: "ห้องประชุมมอดินแดง (เตรียมแข่ง Game Show 14:00–17:00)",
+            spotEliminated: "ผู้ชม Game Show / ติดต่อรับเกียรติบัตร",
+            activityAfter: "เข้าร่วม MED Talk (13:20–13:50) → ผู้ชม Game Show / รับเกียรติบัตร",
+        };
+
+        const $ = id => document.getElementById(id);
+        let data = null;          // last successful payload (memory only)
+        let fetchedAt = 0;        // Date.now() when data arrived
+        let serverOffset = 0;     // serverNowMs − phone clock
+        let tab = "all";
+        let query = "";
+        let loading = false;
+        let lastRotationKey = "";
+
+        const escapeHtml = s => String(s ?? "").replace(/[&<>"']/g, c =>
+            ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+        function loadSlotOverride() {
+            try { return localStorage.getItem("onsiteStaffSlot") || "auto"; } catch { return "auto"; }
+        }
+        function saveSlotOverride(v) {
+            try { localStorage.setItem("onsiteStaffSlot", v); } catch { /* private mode */ }
+        }
+        let slotOverride = loadSlotOverride();
+
+        // ── Auth ────────────────────────────────────────────────────────────
+        onAuthStateChanged(auth, async (user) => {
+            if (!(await requireStaff(user))) return;
+            $("userEmail").textContent = user.email;
+            $("gate").classList.add("hidden");
+            $("app").classList.remove("hidden");
+            if (!data) { fetchData(); scheduleRefresh(); }
+        });
+        $("logoutBtn").onclick = () => signOut(auth).then(() => location.replace("pages/login.html"));
+
+        // ── Fetch ───────────────────────────────────────────────────────────
+        async function callApi() {
+            const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : "";
+            const res = await fetch(`${API_URL}?action=getAllOnSiteTeams&idToken=${encodeURIComponent(idToken)}`);
+            const json = await res.json();   // GAS error pages are HTML → throws → retried
+            if (json.status !== "success") {
+                const err = new Error(json.message || "unknown error");
+                err.fatal = /^unauthorized:/.test(json.message || "");
+                throw err;
+            }
+            return json;
+        }
+
+        async function fetchData() {
+            if (loading) return;
+            loading = true;
+            $("syncIcon").classList.add("fa-spin");
+            try {
+                let json;
+                try { json = await callApi(); }
+                catch (e) {
+                    if (e.fatal) throw e;
+                    json = await callApi();   // one retry: a cold cache miss takes ~12–16 s
+                }
+                data = json;
+                fetchedAt = Date.now();
+                serverOffset = (json.serverNowMs || fetchedAt) - fetchedAt;
+                $("errorBox").classList.add("hidden");
+                render();
+            } catch (e) {
+                const box = $("errorBox");
+                box.classList.remove("hidden");
+                box.innerHTML = e.fatal
+                    ? `<i class="fa-solid fa-lock"></i> ไม่มีสิทธิ์ดึงข้อมูล: ${escapeHtml(e.message)}`
+                    : `<i class="fa-solid fa-triangle-exclamation"></i> เชื่อมต่อระบบไม่ได้ (${escapeHtml(e.message)})` +
+                      (data ? " — แสดงข้อมูลล่าสุดที่โหลดไว้" : " — กดซิงค์เพื่อลองใหม่");
+            } finally {
+                loading = false;
+                $("syncIcon").classList.remove("fa-spin");
+                updateLastUpdated();
+            }
+        }
+
+        function scheduleRefresh() {
+            setTimeout(async () => {
+                if (document.visibilityState === "visible") await fetchData();
+                scheduleRefresh();
+            }, REFRESH_MS + Math.random() * REFRESH_JITTER_MS);
+        }
+        $("syncBtn").onclick = fetchData;
+
+        // ── Time & rotation ─────────────────────────────────────────────────
+        const nowMs = () => Date.now() + serverOffset;
+
+        function fmtClock(ms) {
+            return new Date(ms).toLocaleTimeString("en-GB", { timeZone: "Asia/Bangkok", hour12: false });
+        }
+        function fmtHm(ms) {
+            return new Date(ms).toLocaleTimeString("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
+        }
+
+        /** {state: 'unknown'|'active'|'changeover'|'done', slot, remainMs} */
+        function rotationState() {
+            if (slotOverride !== "auto") return { state: "active", slot: Number(slotOverride), manual: true };
+            const start = data && data.rotationStartMs;
+            if (!start) return { state: "unknown" };
+            const elapsed = Math.max(0, nowMs() - start);
+            const period = (SLOT_MIN + GAP_MIN) * 60000;
+            const slot = Math.floor(elapsed / period);
+            const within = elapsed - slot * period;
+            if (slot >= SLOTS || (slot === SLOTS - 1 && within >= SLOT_MIN * 60000)) return { state: "done" };
+            if (within < SLOT_MIN * 60000) return { state: "active", slot, remainMs: SLOT_MIN * 60000 - within };
+            return { state: "changeover", slot: slot + 1, remainMs: period - within };
+        }
+
+        const baseFor = (group, slot) => BASES[(GROUPS.indexOf(group) + slot) % 3];
+
+        /** Where a team should be now + next, given the phase. */
+        function locationFor(t, rot) {
+            if (!data.r1Decided) return { now: TEXT.r1Room, next: null };
+            if (data.r2Decided) {
+                if (t.r2Passed === true) return { now: TEXT.gameshowFinalist, next: null };
+                if (t.r1Passed === true) return { now: TEXT.spotEliminated, next: null };
+                return { now: TEXT.activityAfter, next: null };
+            }
+            if (t.r1Passed === true) return { now: TEXT.spotRoom, next: null };
+            const g = t.activityGroup;
+            if (!GROUPS.includes(g)) return { now: "ไม่มีกลุ่มกิจกรรม — ติดต่อ IT", next: null };
+            if (rot.state === "done") return { now: TEXT.rotationDone, next: null };
+            if (rot.state === "unknown") return { now: `เริ่มที่ ${baseFor(g, 0)}`, next: `${baseFor(g, 1)} → ${baseFor(g, 2)}` };
+            const nextBase = rot.slot + 1 < SLOTS ? baseFor(g, rot.slot + 1) : "จบเดินฐาน (พักกลางวัน)";
+            if (rot.state === "changeover") return { now: `กำลังย้ายไป ${baseFor(g, rot.slot)}`, next: nextBase };
+            return { now: baseFor(g, rot.slot), next: nextBase };
+        }
+
+        function mmss(ms) {
+            const s = Math.max(0, Math.round(ms / 1000));
+            return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+        }
+
+        function rotationKey(rot) { return `${rot.state}:${rot.slot ?? ""}`; }
+
+        // ── Render ──────────────────────────────────────────────────────────
+        function renderBanner(rot) {
+            const b = $("phaseBanner");
+            let cls, html;
+            if (!data.r1Decided) {
+                const decided = data.counts.total - data.counts.r1Undecided;
+                cls = "bg-amber-50 border-amber-300 text-amber-900";
+                html = `<p class="font-bold">🟡 กำลังแข่งขันรอบที่ 1 (MCQ & Unseen)</p>
+                        <p class="text-sm">ทุกทีม (${data.counts.total}) อยู่ที่${TEXT.r1Room}` +
+                        (decided ? ` · ตัดสินแล้ว ${decided}/${data.counts.total} ทีม (ยังไม่ครบ)` : "") + `</p>`;
+            } else if (data.r2Decided) {
+                cls = "bg-purple-50 border-purple-300 text-purple-900";
+                html = `<p class="font-bold">🏆 ประกาศผลรอบ 2 แล้ว — Game Show</p>
+                        <p class="text-sm">${data.counts.r2Passed} ทีมเข้า Game Show · ที่เหลือเป็นผู้ชม / รับเกียรติบัตร</p>`;
+            } else if (rot.state === "done") {
+                cls = "bg-orange-50 border-orange-300 text-orange-900";
+                html = `<p class="font-bold">🍱 พักรับประทานอาหารกลางวัน</p><p class="text-sm">รอประกาศผลรอบ 2 เวลา 13:00 น.</p>`;
+            } else {
+                cls = "bg-emerald-50 border-emerald-300 text-emerald-900";
+                html = `<p class="font-bold">🟢 ประกาศผลรอบ 1 แล้ว — Spot Test + เดินฐาน</p>
+                        <p class="text-sm">${data.counts.r1Passed} ทีมสอบ Spot Test · ${data.counts.r1Failed} ทีมเดินฐานกิจกรรม</p>`;
+            }
+            b.className = `mx-4 mt-3 rounded-xl px-4 py-3 border ${cls}`;
+            b.innerHTML = html;
+        }
+
+        function renderRotation(rot) {
+            const panel = $("rotationPanel");
+            const show = data.r1Decided && !data.r2Decided;
+            panel.classList.toggle("hidden", !show);
+            if (!show) return;
+            const start = data.rotationStartMs;
+            let status;
+            if (rot.manual) status = `<b>บังคับรอบที่ ${rot.slot + 1}</b> (ตั้งเองบนเครื่องนี้ — เปลี่ยนกลับเป็น "อัตโนมัติ" เมื่อ IT เริ่มจับเวลา)`;
+            else if (rot.state === "unknown") status = "IT ยังไม่กดเริ่มหมุนฐาน — แสดงฐานแรกของแต่ละกลุ่ม (เลือกรอบเองได้ด้านขวา)";
+            else if (rot.state === "done") status = `เดินฐานครบ 3 รอบแล้ว (เริ่ม ${fmtHm(start)} น.)`;
+            else if (rot.state === "changeover") status = `<b>เปลี่ยนฐาน → รอบที่ ${rot.slot + 1}</b> · เริ่มในอีก <span class="tabular-nums">${mmss(rot.remainMs)}</span>`;
+            else status = `<b>รอบที่ ${rot.slot + 1}/3</b> · เหลือ <span class="tabular-nums">${mmss(rot.remainMs)}</span> นาที (เริ่มหมุนฐาน ${fmtHm(start)} น.)`;
+            $("rotationStatus").innerHTML = status;
+
+            $("rotationGrid").innerHTML = GROUPS.map(g => {
+                const loc = locationFor({ r1Passed: false, activityGroup: g }, rot);
+                return `<div class="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                    <div class="font-bold">กลุ่ม ${g}</div>
+                    <div class="text-emerald-800 font-semibold leading-tight">${escapeHtml(loc.now)}</div>
+                    ${loc.next ? `<div class="text-xs text-slate-500 mt-1">ถัดไป: ${escapeHtml(loc.next)}</div>` : ""}
+                </div>`;
+            }).join("");
+        }
+
+        function renderCounts() {
+            const c = data.counts;
+            const cell = (label, v) => `<div class="rounded-lg bg-white border border-slate-200 py-1.5">
+                <div class="text-lg font-bold">${v}</div><div class="text-slate-500">${label}</div></div>`;
+            $("countsBar").innerHTML = cell("ทั้งหมด", c.total) + cell("Spot Test", c.r1Passed) +
+                cell("เดินฐาน", c.r1Failed) + cell("Game Show", c.r2Passed);
+        }
+
+        const TABS = [
+            { id: "all", label: () => `📊 ทั้งหมด (${data.counts.total})`, filter: () => true },
+            { id: "A", label: () => `🟢 กลุ่ม A (${data.counts.groupA})`, filter: t => t.activityGroup === "A" },
+            { id: "B", label: () => `🟡 กลุ่ม B (${data.counts.groupB})`, filter: t => t.activityGroup === "B" },
+            { id: "C", label: () => `🔵 กลุ่ม C (${data.counts.groupC})`, filter: t => t.activityGroup === "C" },
+            { id: "spot", label: () => `🔬 Spot Test (${data.counts.r1Passed})`, filter: t => t.r1Passed === true },
+            { id: "gs", label: () => `🏆 Game Show (${data.counts.r2Passed})`, filter: t => t.r2Passed === true },
+        ];
+
+        function renderTabs() {
+            $("tabs").innerHTML = TABS.map(t =>
+                `<button data-tab="${t.id}" class="shrink-0 rounded-full border border-slate-300 bg-white px-3 py-1.5 font-semibold ${tab === t.id ? "tab-active" : ""}">${t.label()}</button>`
+            ).join("");
+        }
+        $("tabs").onclick = e => {
+            const btn = e.target.closest("[data-tab]");
+            if (!btn) return;
+            tab = btn.dataset.tab;
+            renderTabs();
+            renderCards(rotationState());
+        };
+
+        function matches(t, q) {
+            return t.teamId.toLowerCase().includes(q) ||
+                t.teamName.toLowerCase().includes(q) ||
+                t.members.some(m => m.toLowerCase().includes(q));
+        }
+
+        function groupBadge(t) {
+            if (t.r2Passed === true) return `<span class="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5">Game Show</span>`;
+            if (t.r1Passed === true) return `<span class="rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">Spot Test</span>`;
+            if (t.activityGroup) return `<span class="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">กลุ่ม ${escapeHtml(t.activityGroup)}</span>`;
+            return `<span class="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">รอผลรอบ 1</span>`;
+        }
+
+        function renderCards(rot) {
+            const q = query.trim().toLowerCase();
+            const activeTab = TABS.find(t => t.id === tab);
+            const list = q ? data.teams.filter(t => matches(t, q)) : data.teams.filter(activeTab.filter);
+            $("listNote").textContent = q
+                ? `ผลการค้นหา "${query.trim()}" ในทุกทีม: ${list.length} ทีม`
+                : `${list.length} ทีม`;
+            $("cards").innerHTML = list.length ? list.map(t => {
+                const loc = locationFor(t, rot);
+                return `<article class="rounded-xl bg-white border border-slate-200 px-4 py-3 shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="rounded-full bg-blue-900 text-white text-xs font-bold px-2 py-0.5">${escapeHtml(t.teamId)}</span>
+                        <h3 class="font-bold truncate">${escapeHtml(t.teamName) || '<span class="text-slate-400">(ไม่มีชื่อทีม)</span>'}</h3>
+                    </div>
+                    <ol class="mt-1 text-sm text-slate-700 list-decimal list-inside">
+                        ${t.members.map(m => `<li>${escapeHtml(m)}</li>`).join("")}
+                    </ol>
+                    <div class="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
+                        ${groupBadge(t)}
+                        <span class="rounded-full bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5">📍 ${escapeHtml(loc.now)}</span>
+                        ${loc.next ? `<span class="rounded-full bg-slate-100 text-slate-700 px-2 py-0.5">➡️ ถัดไป: ${escapeHtml(loc.next)}</span>` : ""}
+                    </div>
+                </article>`;
+            }).join("") : `<p class="text-center text-slate-500 py-8">ไม่พบทีม</p>`;
+        }
+
+        function render() {
+            if (!data) return;
+            const rot = rotationState();
+            lastRotationKey = rotationKey(rot);
+            $("slotSelect").value = slotOverride;   // not in the 1 s tick: would fight an open dropdown
+            renderBanner(rot);
+            renderRotation(rot);
+            renderCounts();
+            renderTabs();
+            renderCards(rot);
+        }
+
+        $("search").addEventListener("input", e => { query = e.target.value; if (data) renderCards(rotationState()); });
+        $("slotSelect").onchange = e => { slotOverride = e.target.value; saveSlotOverride(slotOverride); render(); };
+
+        function updateLastUpdated() {
+            if (!fetchedAt) return;
+            const min = Math.floor((Date.now() - fetchedAt) / 60000);
+            $("lastUpdated").textContent = `อัปเดตล่าสุด ${min < 1 ? "เมื่อสักครู่" : min + " นาทีที่แล้ว"} (ข้อมูลชีต ${data.generatedAt})`;
+        }
+
+        // 1 s tick: clock + countdown; full re-render only when the rotation slot/state flips.
+        setInterval(() => {
+            $("clock").textContent = fmtClock(nowMs());
+            updateLastUpdated();
+            if (!data) return;
+            const rot = rotationState();
+            if (rotationKey(rot) !== lastRotationKey) render();
+            else renderRotation(rot);
+        }, 1000);
+    </script>
+</body>
+
+</html>
