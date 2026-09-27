@@ -18,6 +18,7 @@ export let currentTeam = null;
 const getIdToken = async () => auth.currentUser ? await auth.currentUser.getIdToken() : '';
 export const callbacks = {
     onTeamsLoaded: null,
+    onLoadError: null,
     onStatusChange: null,
     onOccupancyChange: null,
     onStaffPresenceChange: null,
@@ -68,8 +69,9 @@ async function syncUpdatedStatusFromFirebase() {
 
     teamsData.forEach(t => {
         const fbData = fbTeams[escapeEmail(t.id)];
-        if (fbData) {
-            t.updated = fbData.status.isUpdated;
+        // node บางทีมอาจไม่มี status → ห้ามให้ throw จนหน้าโหลดค้าง
+        if (fbData && fbData.status) {
+            t.updated = !!fbData.status.isUpdated;
         }
     });
 }
@@ -79,65 +81,69 @@ async function loadDataFromGAS() {
     try {
         await loadAllTeams();
         triggerToast("ดึงข้อมูลสำเร็จ ✅", "success");
+        return true;
     } catch (error) {
         console.error("Fetch Error:", error);
-        triggerToast("❌ โหลดข้อมูลล้มเหลว", "error");
+        triggerToast(`❌ โหลดข้อมูลล้มเหลว: ${error.message}`, "error");
+        if (callbacks.onLoadError) callbacks.onLoadError(error);
+        return false;
     }
 }
 
+// Throws on HTTP / GAS error payload so callers never show a false success.
 export async function loadAllTeams(forceRefresh = false) {
-    try {
-        const response = await fetch(`${WEB_APP_URL}?idToken=${encodeURIComponent(await getIdToken())}`);
-        const result = await response.json();
-        if (result.status === "success") {
-            allTeams = result.data.map((row, i) => {
-                const existingTeam = allTeams.find(t => t.id === row["Member 1 Email"]);
-                return {
-                    idx: i + 1,
-                    id: row["Member 1 Email"],
-                    email: row["Member 1 Email"],
-                    teamName: row["Team Name"],
-                    category: row["Team Category"],
-                    overall: row["Registration Status Overall"],
-                    updated: existingTeam ? existingTeam.updated : false,
-                    emailSentStatus: row["Additional Form Sent Status"],
-                    version: parseInt(row["Review Version"]) || 1,
-                    lastModified: new Date(row["Last Review Timestamp"]).getTime(),
-                    lastSubmit: row["Last Form Submit Timestamp"] ? new Date(row["Last Form Submit Timestamp"]).getTime() : null,
-                    members: [
-                        { prefix: row["Member 1 Prefix"], name: row["Member 1 Name"], email: row["Member 1 Email"], phone: row["Member 1 Phone"], school: row["Member 1 School Name"], level: row["Member 1 Level"] },
-                        { prefix: row["Member 2 Prefix"], name: row["Member 2 Name"], email: row["Member 2 Email"], phone: row["Member 2 Phone"], school: row["Member 2 School Name"], level: row["Member 2 Level"] },
-                        { prefix: row["Member 3 Prefix"], name: row["Member 3 Name"], email: row["Member 3 Email"], phone: row["Member 3 Phone"], school: row["Member 3 School Name"], level: row["Member 3 Level"] }
-                    ],
-                    advisor: { name: row["Advisor Name"], phone: row["Advisor Phone"], email: row["Advisor Email"] },
-                    payment: { bank: row["Transferring Bank"], date: row["Transfer Date"], time: row["Transfer Time"], last4: row["Account Last 4 Digits"] },
-                    certUrl: row["Latest School Cert"],
-                    transcriptUrl: row["Latest Transcript"],
-                    slipUrl: row["Latest Payment Slip"],
-                    certPrevUrl: row["Previous School Cert"],
-                    transcriptPrevUrl: row["Previous Transcript"],
-                    slipPrevUrl: row["Previous Payment Slip"],
-                    certStatus: row["School Cert Review Status"],
-                    transcriptStatus: row["Transcript Review Status"],
-                    slipStatus: row["Payment Slip Review Status"],
-                    feedback: row["Feedback for Student"],
-                    additionalFormLink: row["Additional Form Link"],
-                    reviewer: row["Reviewer Email"]
-                };
-            });
-
-            teamsData = allTeams; // Sync both states to point to the exact same array reference
-
-            await syncUpdatedStatusFromFirebase();
-            
-            if (window.renderStats) window.renderStats(allTeams);
-            if (window.filterTeams) window.filterTeams();
-
-            if (callbacks.onTeamsLoaded) callbacks.onTeamsLoaded(allTeams);
-        }
-    } catch (e) {
-        console.error("Load failed", e);
+    const response = await fetch(`${WEB_APP_URL}?idToken=${encodeURIComponent(await getIdToken())}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    if (!result || result.status !== "success" || !Array.isArray(result.data)) {
+        throw new Error((result && result.message) || "GAS ตอบกลับข้อมูลไม่ถูกต้อง");
     }
+    // ข้ามแถวว่างใน Master_Database_Registration (ไม่มีอีเมลหัวหน้าทีม)
+    const rows = result.data.filter(row => row && String(row["Member 1 Email"] || "").trim());
+    allTeams = rows.map((row, i) => {
+        const existingTeam = allTeams.find(t => t.id === row["Member 1 Email"]);
+        return {
+            idx: i + 1,
+            id: row["Member 1 Email"],
+            email: row["Member 1 Email"],
+            teamName: row["Team Name"],
+            category: row["Team Category"],
+            overall: row["Registration Status Overall"],
+            updated: existingTeam ? existingTeam.updated : false,
+            emailSentStatus: row["Additional Form Sent Status"],
+            version: parseInt(row["Review Version"]) || 1,
+            lastModified: new Date(row["Last Review Timestamp"]).getTime(),
+            lastSubmit: row["Last Form Submit Timestamp"] ? new Date(row["Last Form Submit Timestamp"]).getTime() : null,
+            members: [
+                { prefix: row["Member 1 Prefix"], name: row["Member 1 Name"], email: row["Member 1 Email"], phone: row["Member 1 Phone"], school: row["Member 1 School Name"], level: row["Member 1 Level"] },
+                { prefix: row["Member 2 Prefix"], name: row["Member 2 Name"], email: row["Member 2 Email"], phone: row["Member 2 Phone"], school: row["Member 2 School Name"], level: row["Member 2 Level"] },
+                { prefix: row["Member 3 Prefix"], name: row["Member 3 Name"], email: row["Member 3 Email"], phone: row["Member 3 Phone"], school: row["Member 3 School Name"], level: row["Member 3 Level"] }
+            ],
+            advisor: { name: row["Advisor Name"], phone: row["Advisor Phone"], email: row["Advisor Email"] },
+            payment: { bank: row["Transferring Bank"], date: row["Transfer Date"], time: row["Transfer Time"], last4: row["Account Last 4 Digits"] },
+            certUrl: row["Latest School Cert"],
+            transcriptUrl: row["Latest Transcript"],
+            slipUrl: row["Latest Payment Slip"],
+            certPrevUrl: row["Previous School Cert"],
+            transcriptPrevUrl: row["Previous Transcript"],
+            slipPrevUrl: row["Previous Payment Slip"],
+            certStatus: row["School Cert Review Status"],
+            transcriptStatus: row["Transcript Review Status"],
+            slipStatus: row["Payment Slip Review Status"],
+            feedback: row["Feedback for Student"],
+            additionalFormLink: row["Additional Form Link"],
+            reviewer: row["Reviewer Email"]
+        };
+    });
+
+    teamsData = allTeams; // Sync both states to point to the exact same array reference
+
+    await syncUpdatedStatusFromFirebase();
+    
+    if (window.renderStats) window.renderStats(allTeams);
+    if (window.filterTeams) window.filterTeams();
+
+    if (callbacks.onTeamsLoaded) callbacks.onTeamsLoaded(allTeams);
 }
 
 // ============================================================================

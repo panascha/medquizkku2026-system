@@ -2028,6 +2028,16 @@
                 updateGasStatus(true);
             };
 
+            callbacks.onLoadError = (err) => {
+                hideLoader();
+                updateGasStatus(false);
+                const msg = String(err && err.message || err);
+                const hint = msg.startsWith('unauthorized')
+                    ? '\n\nบัญชีนี้อาจไม่อยู่ใน staff whitelist หรือ token หมดอายุ — ลองออกจากระบบแล้วเข้าใหม่'
+                    : '';
+                alert('❌ โหลดข้อมูลทีมไม่สำเร็จ\n\n' + msg + hint);
+            };
+
             callbacks.onStatusChange = (email, statusObj) => {
                 const card = document.querySelector(`[data-email="${email}"]`);
                 if (card) updateCardStatus(card, statusObj);
@@ -2094,7 +2104,11 @@
                 document.getElementById('navAvatar').textContent = initials;
                 updateLoaderText('กำลังเชื่อมต่อฐานข้อมูล...');
                 updateFbStatus(true);
-                await initCheckingSystem(user);
+                try {
+                    await initCheckingSystem(user);
+                } finally {
+                    hideLoader(); // กันหน้าโหลดค้างไม่ว่าจะสำเร็จหรือล้มเหลว
+                }
             });
 
             // ─── Filter & Render ─────────────────────────────────────────────
@@ -2869,7 +2883,12 @@
                 closeModal('modalConflict');
                 if (!localCurrentTeam) return;
                 showToast('กำลังโหลดข้อมูลใหม่...', '');
-                await loadAllTeams(true);
+                try {
+                    await loadAllTeams(true);
+                } catch (e) {
+                    showToast('❌ โหลดข้อมูลล้มเหลว: ' + e.message, 'error');
+                    return;
+                }
                 await selectTeam(localCurrentTeam.id);
             };
 
@@ -2922,9 +2941,16 @@
             window.refreshData = async function () {
                 const btn = document.getElementById('btnRefresh');
                 btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...`;
-                await loadAllTeams(true);
-                btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> รีเฟรช`;
-                showToast('✅ โหลดข้อมูลล่าสุดแล้ว', 'success');
+                try {
+                    await loadAllTeams(true);
+                    updateGasStatus(true);
+                    showToast('✅ โหลดข้อมูลล่าสุดแล้ว', 'success');
+                } catch (e) {
+                    updateGasStatus(false);
+                    showToast('❌ โหลดข้อมูลล้มเหลว: ' + e.message, 'error');
+                } finally {
+                    btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> รีเฟรช`;
+                }
             };
 
             // ─── Misc ─────────────────────────────────────────────────────────
