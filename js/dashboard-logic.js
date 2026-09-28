@@ -544,7 +544,8 @@ export function quickFilters(payload, dept = '') {
 }
 
 // ปุ่มกรองด่วนของฝ่ายการเงิน — ตัวเลขในวงเล็บนับจากทุกแถว (ไม่ขึ้นกับการค้นหา)
-// ใช้ isRejectedPayment / isYes ชุดเดียวกับป้ายสถานะและการ์ด ตัวเลขจึงตรงกัน
+// ใช้ isRejectedPayment / isYes ชุดเดียวกับป้ายสถานะ — "ผ่านแล้ว" ไม่นับสลิป
+// ไม่ถูกต้อง จึงน้อยกว่าการ์ด "ตรวจสอบการชำระเงินแล้ว" (ซึ่งนับทุกสถานะที่มีค่า) โดยตั้งใจ
 const PAYMENT_QUICK = (() => {
     const col = (payload, row, h) => String(row[payload.headers.indexOf(h)] ?? '').trim();
     const status = (p, r) => col(p, r, 'Payment_Verification_Status');
@@ -553,7 +554,7 @@ const PAYMENT_QUICK = (() => {
             test: (p, r) => !hasVal(status(p, r)) },
         rejected: { label: 'สลิปไม่ถูกต้อง', icon: 'fa-circle-xmark', column: 'Payment_Verification_Status',
             test: (p, r) => isRejectedPayment(status(p, r)) },
-        verified: { label: 'ตรวจสอบแล้ว', icon: 'fa-circle-check', column: 'Payment_Verification_Status',
+        verified: { label: 'ผ่านแล้ว', icon: 'fa-circle-check', column: 'Payment_Verification_Status',
             test: (p, r) => hasVal(status(p, r)) && !isRejectedPayment(status(p, r)) },
         combinedReceipt: { label: 'ขอรวมใบเสร็จ', icon: 'fa-receipt', column: 'Combined_Receipt? (รวมใบเสร็จไหม)',
             test: (p, r) => isYes(col(p, r, 'Combined_Receipt? (รวมใบเสร็จไหม)')) },
