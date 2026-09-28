@@ -354,7 +354,7 @@ function parseMemberSummary(s) {
 /**
  * ข้อควรระวังของทีมหนึ่งตามฝ่าย — คืนอาร์เรย์ว่างถ้าทุกคนตอบแบบ "ปกติ"
  * @return {Array<{who:string, kind:string, text:string}>}
- *   kind: drug | disease | food | diet | prayer | welfare
+ *   kind: drug | disease | food | diet | prayer
  */
 export function memberAlerts(dept, payload, row) {
     const g = (h) => {
@@ -385,10 +385,8 @@ export function memberAlerts(dept, payload, row) {
             out.push({ who: '', kind: spec.kind, text: summary });
         }
     }
-
-    if (dept === 'coordination' && isYes(g('Advisor_Welfare_Opted_In (+200)'))) {
-        out.push({ who: 'อ.', kind: 'welfare', text: 'สวัสดิการ +200' });
-    }
+    // ไม่นับชุดสวัสดิการอาจารย์ (+200): เป็นสิทธิ์ที่ซื้อ ไม่ใช่ข้อควรระวัง และมี
+    // หลายสิบทีม จะกลบทีมที่ต้องจัดห้องละหมาดจริง — ดูได้จากการ์ด/ป้ายในตารางแทน
     return out;
 }
 
@@ -397,8 +395,7 @@ function hasAlertRule(dept, payload) {
     const has = (h) => payload.headers.includes(h);
     const specs = ALERT_SPECS[dept];
     if (!specs) return false;
-    return specs.some(s => has(`M1${s.suffix}`) || (s.summary && has(s.summary)))
-        || (dept === 'coordination' && has('Advisor_Welfare_Opted_In (+200)'));
+    return specs.some(s => has(`M1${s.suffix}`) || (s.summary && has(s.summary)));
 }
 
 /** นิยาม "สมบูรณ์แล้ว" ของแต่ละฝ่าย — null = ฝ่ายนี้ไม่มีข้อมูลพอจะตัดสิน */
