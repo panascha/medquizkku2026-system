@@ -990,6 +990,8 @@ const DRILL_SPECS = {
         medAllergy: {
             title: 'คนที่แพ้ยา', unit: 'person',
             suffix: '_Medicine_Allergy', test: hasVal, cats: 'medAllergy',
+            // แพ้ยาทุกตัวเสี่ยง anaphylaxis — ยาที่คำค้นไม่รู้จักต้องไม่ดู "ปลอดภัยกว่า"
+            allDanger: true,
             contextLabel: 'ตอบว่าไม่แพ้ยา',
         },
     },
@@ -1077,6 +1079,7 @@ export function drilldown(dept, payload, rows, key) {
                 if (spec.test(v)) {
                     const it = item();
                     it.cats = categorize(spec.cats, v);
+                    if (spec.allDanger) it.cats.forEach(c => { c.danger = true; });
                     it.danger = it.cats.some(c => c.danger);
                     allItems.push(it);
                     for (const c of it.cats) {
@@ -1104,6 +1107,7 @@ export function drilldown(dept, payload, rows, key) {
     return {
         title: spec.title,
         unit: spec.unit,
+        allDanger: !!spec.allDanger,
         groupBy: spec.unit === 'team' ? 'โรงเรียน' : 'หมวด',
         // unit:'person' นับคนไม่ซ้ำ ไม่ใช่ผลรวมของหมวด (1 คนอยู่ได้หลายหมวด)
         // ยอดนี้ต้องเท่ากับตัวเลขบนการ์ดเสมอ
