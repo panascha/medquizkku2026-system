@@ -316,9 +316,9 @@
         import { DASHBOARD_API_URL } from '../js/firebase-config.js';
         import {
             DEPARTMENTS, loadDept, filterRows, computeMetrics, exportXlsx, exportPdf,
-            projectRows, columnLabel, isYes, hasVal, PRAYER_SUMMARY_COL, MEMBER_COUNT_COL,
+            projectRows, columnLabel, isYes, hasVal, PRAYER_SUMMARY_COL, MEMBER_COUNT_COL, ALERT_COL,
             STICKY_COL_COUNT, computeWorkflow, findUrgent, quickFilters, drilldown,
-            driveThumbUrl, savePaymentVerification, isRejectedPayment
+            driveThumbUrl, savePaymentVerification, isRejectedPayment, specialDiet, wantsPrayerRoom
         } from '../js/dashboard-logic.js';
         import { fixturePayload, applyFixtureEdit } from '../js/dashboard-fixture.js';
 
@@ -576,10 +576,12 @@
         function renderQuickFilters() {
             $('quickFilters').innerHTML = quickFilters(payload, dept).map(f => `
                 <button data-quick="${f.key}"
+                    aria-pressed="${quick === f.key}"
                     class="qf-pill px-3 py-1.5 rounded-full text-xs font-bold border transition-colors
                         ${quick === f.key
-                            ? 'bg-blue-900 border-blue-900 text-white'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}">
+                            ? (f.alert ? 'bg-red-600 border-red-600 text-white' : 'bg-blue-900 border-blue-900 text-white')
+                            : (f.alert ? 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
+                                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}">
                     <i class="fa-solid ${f.icon} mr-1"></i>${esc(f.label)}
                 </button>`).join('');
 
@@ -686,6 +688,11 @@
             sky: 'bg-sky-50 text-sky-700 border-sky-200',
             violet: 'bg-violet-50 text-violet-700 border-violet-200',
             red: 'bg-red-50 text-red-700 border-red-200',
+            // ป้ายข้อควรระวัง (พยาบาล/อาหาร) — ขอบเข้มกว่าป้ายสถานะทั่วไปให้สะดุดตา
+            alertRed: 'bg-red-50 text-red-800 border-red-300',
+            alertAmber: 'bg-amber-50 text-amber-800 border-amber-300',
+            orange: 'bg-orange-50 text-orange-700 border-orange-300',
+            purple: 'bg-purple-50 text-purple-700 border-purple-300',
         };
 
         const pill = (color, text, icon) =>
@@ -694,8 +701,56 @@
 
         const EMPTY = '<span class="text-slate-300">-</span>';
 
-        function cell(header, v) {
+        // ---- ป้ายข้อควรระวัง ----
+        // kind มาจาก memberAlerts() ใน dashboard-logic.js
+        const ALERT_STYLES = {
+            drug: { color: 'alertRed', icon: 'fa-pills', label: 'แพ้ยา' },
+            disease: { color: 'alertAmber', icon: 'fa-heart-pulse', label: 'โรค' },
+            food: { color: 'orange', icon: 'fa-triangle-exclamation', label: 'แพ้อาหาร' },
+            diet: { color: 'purple', icon: 'fa-utensils', label: '' },
+            prayer: { color: 'violet', icon: 'fa-person-praying', label: 'ละหมาด' },
+            welfare: { color: 'violet', icon: 'fa-gift', label: '' },
+        };
+
+        // ป้ายยาวตัดด้วย … แต่ยังอ่านเต็มได้จาก title (และในลิ้นชัก)
+        function alertChip({ who, kind, text }) {
+            const st = ALERT_STYLES[kind] || ALERT_STYLES.disease;
+            const icon = kind === 'diet' && /ฮาลาล|halal/i.test(text) ? 'fa-moon' : st.icon;
+            const body = [who, st.label ? `${st.label}:` : '', text].filter(Boolean).join(' ');
+            return `<span title="${esc(body)}" class="inline-flex items-center gap-1 border ${PILL_STYLES[st.color]} px-2 py-0.5 rounded-full text-[11px] font-bold max-w-[240px]">`
+                + `<i class="fa-solid ${icon} shrink-0"></i><span class="truncate">${esc(body)}</span></span>`;
+        }
+
+        // คอลัมน์รายคน/สรุปด้านสุขภาพ อาหาร และห้องละหมาด — คำตอบ "ปกติ"
+        // (ไม่มี / ไม่แพ้ / ทั่วไป / ไม่ต้องการ …) ไม่ขึ้นป้าย
+        const CARE_FIELD_KIND = [
+            [/_Medicine_Allergy$|^Medicine_Allergy_Summary$/, 'drug', hasVal],
+            [/_Chronic_Disease$|_Disease_Medication$|^Chronic_Disease_Summary$/, 'disease', hasVal],
+            [/_Food_Allergy$|^Food_Allergy_Summary$/, 'food', hasVal],
+            [/_Diet_Request$/, 'diet', specialDiet],
+            [/_Prayer_Room$|^Prayer_Room_Request/, 'prayer', wantsPrayerRoom],
+        ];
+
+        function cell(header, v, { drawer = false } = {}) {
             const s = String(v ?? '').trim();
+
+            if (header === ALERT_COL) {
+                if (!s) return EMPTY;
+                let list;
+                try { list = JSON.parse(s); } catch { return esc(s); }
+                return `<div class="flex flex-wrap gap-1 min-w-[180px]">${list.map(alertChip).join('')}</div>`;
+            }
+
+            const care = CARE_FIELD_KIND.find(([re]) => re.test(header));
+            if (care) {
+                const [, kind, real] = care;
+                // ในลิ้นชักยังโชว์คำตอบ "ไม่มี" แบบจาง ๆ — แยกออกจาก "ยังไม่ตอบ" ได้
+                if (!real(s)) return drawer && s ? `<span class="text-slate-400">${esc(s)}</span>` : EMPTY;
+                // ข้อความรวมหลายคนในคอลัมน์สรุป/คำตอบยาว ๆ แสดงเต็มในลิ้นชัก
+                return drawer
+                    ? `<span class="font-bold ${kind === 'drug' ? 'text-red-700' : kind === 'disease' ? 'text-amber-700' : kind === 'food' ? 'text-orange-700' : 'text-purple-700'}">${esc(s)}</span>`
+                    : alertChip({ who: '', kind, text: s });
+            }
 
             if (/^https?:\/\//.test(s)) {
                 return `<a href="${esc(s)}" target="_blank" rel="noopener"
@@ -704,11 +759,12 @@
 
             // คอลัมน์สรุปห้องละหมาด: projectRows() คืนมาเป็น "M1 M3"
             // ถ้ารูปแบบไม่ตรง แปลว่าเป็นข้อความดิบจากคอลัมน์รวมของชีต ให้แสดงตามนั้น
+            // ไม่มีใครขอ = ขีดจาง ๆ (ไม่ขึ้นป้าย "ไม่มี" ซ้ำทุกแถว)
             if (header === PRAYER_SUMMARY_COL) {
-                if (!s) return pill('gray', 'ไม่มี');
+                if (!s) return EMPTY;
                 return /^M[123]( M[123])*$/.test(s)
-                    ? s.split(' ').map(t => pill('violet', t, 'fa-person-praying')).join(' ')
-                    : esc(s);
+                    ? s.split(' ').map(t => pill('violet', `${t} ละหมาด`, 'fa-person-praying')).join(' ')
+                    : alertChip({ who: '', kind: 'prayer', text: s });
             }
 
             if (!s) {
@@ -727,7 +783,9 @@
                         ? `<span class="text-red-700 font-bold">${esc(s)}</span>`
                         : esc(s);
                 case 'Advisor_Welfare_Opted_In (+200)':
-                    return isYes(s) ? pill('violet', 'รับ (+200)', 'fa-gift') : pill('gray', s);
+                    // ไม่รับ = ขีดจาง ๆ ในตาราง (คำตอบดิบยังอ่านได้ในลิ้นชัก)
+                    if (isYes(s)) return pill('violet', 'รับ (+200)', 'fa-gift');
+                    return drawer ? `<span class="text-slate-400">${esc(s)}</span>` : EMPTY;
                 case 'On-site_Check-in_Status':
                     return pill('green', s, 'fa-door-open');
                 case 'Payment_Verification_Status':
@@ -869,7 +927,7 @@
                     ${entries.map(([h, v]) => `
                         <div class="grid grid-cols-5 gap-2 px-3 py-2">
                             <dt class="col-span-2 text-[11px] text-slate-500 leading-snug">${esc(columnLabel(h))}</dt>
-                            <dd class="col-span-3 text-xs break-words">${cell(h, v)}</dd>
+                            <dd class="col-span-3 text-xs break-words">${cell(h, v, { drawer: true })}</dd>
                         </div>`).join('')}
                 </dl>
             </section>`;

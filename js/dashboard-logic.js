@@ -26,7 +26,10 @@ const IDENTITY_COLS = ['Team ID', 'Team Category', 'Team Name', 'School Name', '
 
 // คำตอบที่แปลว่า "ไม่มีอะไรต้องรายงาน" — ชุดเดียวกับ _NONE_ANSWERS ใน
 // 4_FinalConsolidator.js เพื่อให้ตัวเลขบนหน้าเว็บตรงกับสรุปในชีต
-const NONE_ANSWERS = ['', '-', 'ไม่มี', 'ไม่', 'ไม่แพ้', 'ไม่มีครับ', 'ไม่มีค่ะ', 'none', 'no', 'n/a', 'na'];
+// ยกเว้น 'ไม่ต้องการ' (เพิ่ม 28 ก.ย. 2569 เพื่อไม่ให้ขึ้นป้ายในตาราง) ซึ่งฝั่ง GAS
+// ยังไม่มี — ในทางปฏิบัติคำนี้ไม่มีในช่องแพ้ยา/โรค/อาหาร ตัวเลขจึงยังตรงกัน
+// ถ้าแก้ GAS รอบหน้าให้เพิ่มคำนี้ใน _NONE_ANSWERS ด้วย
+const NONE_ANSWERS = ['', '-', 'ไม่มี', 'ไม่', 'ไม่แพ้', 'ไม่มีครับ', 'ไม่มีค่ะ', 'none', 'no', 'n/a', 'na', 'ไม่ต้องการ'];
 
 export const hasVal = (v) => !NONE_ANSWERS.includes(String(v ?? '').trim().toLowerCase());
 
@@ -104,6 +107,9 @@ export function filterRows(payload, filters, dept = '') {
         switch (filters.quick) {
             case 'attention':
                 if (!attentionReasons(dept, payload, row).length) return false;
+                break;
+            case 'alerts':
+                if (!memberAlerts(dept, payload, row).length) return false;
                 break;
         }
         return true;
@@ -303,6 +309,98 @@ export function attentionReasons(dept, payload, row) {
     return out;
 }
 
+// ---------------------------------------------------------------------------
+// ข้อควรระวังรายคน (ป้ายในตาราง + ตัวกรอง "เฉพาะทีมที่มีข้อควรระวัง")
+// ---------------------------------------------------------------------------
+//
+// ตารางของฝ่ายพยาบาล/อาหารเคยแสดงคอลัมน์รายคน 8 ช่อง ซึ่งส่วนใหญ่เป็น "ไม่มี"
+// / "ทั่วไป" ซ้ำ ๆ จนทีมที่มีเคสจริงจมหาย — ตอนนี้ยุบเหลือคอลัมน์ป้ายเดียว
+// (ALERT_COL) ที่มีเฉพาะคำตอบจริง ส่วนรายละเอียดครบทุกช่องยังอยู่ในลิ้นชัก
+//
+// เงื่อนไขของแต่ละป้ายใช้ฟังก์ชันเดียวกับการ์ดตัวเลข (hasVal / specialDiet /
+// wantsPrayerRoom / isYes) — จำนวนป้ายรวมจึงเท่ากับตัวเลขบนการ์ดเสมอ
+
+const ALERT_SPECS = {
+    firstaid: [
+        { kind: 'drug', suffix: '_Medicine_Allergy', test: hasVal, summary: 'Medicine_Allergy_Summary' },
+        { kind: 'disease', suffix: '_Chronic_Disease', test: hasVal, summary: 'Chronic_Disease_Summary' },
+    ],
+    food: [
+        { kind: 'food', suffix: '_Food_Allergy', test: hasVal, summary: 'Food_Allergy_Summary' },
+        { kind: 'diet', suffix: '_Diet_Request', test: specialDiet },
+    ],
+    coordination: [
+        { kind: 'prayer', suffix: '_Prayer_Room', test: wantsPrayerRoom, summary: 'Prayer_Room_Request (ช/ญ)', noAdvisor: true },
+    ],
+};
+const ALERT_WHO = { M1: 'M1', M2: 'M2', M3: 'M3', Advisor: 'อ.' };
+
+/**
+ * แยกข้อความสรุประดับทีมของชีต เช่น "M1: กุ้ง, M3: นมวัว" → [{who, value}]
+ * คืน null ถ้ารูปแบบไม่ใช่ "Mn: ค่า" (ให้คนเรียกใช้ข้อความทั้งก้อนแทน)
+ */
+function parseMemberSummary(s) {
+    const parts = String(s ?? '').split(/[,;\n]/).map(x => x.trim()).filter(Boolean);
+    const out = [];
+    for (const p of parts) {
+        const m = p.match(/^(M[123]|Advisor|อ\.?|อาจารย์)\s*[:：]\s*(.*)$/i);
+        if (!m) return null;
+        const who = /^M/i.test(m[1]) ? m[1].toUpperCase() : 'อ.';
+        out.push({ who, value: m[2].trim() });
+    }
+    return out.length ? out : null;
+}
+
+/**
+ * ข้อควรระวังของทีมหนึ่งตามฝ่าย — คืนอาร์เรย์ว่างถ้าทุกคนตอบแบบ "ปกติ"
+ * @return {Array<{who:string, kind:string, text:string}>}
+ *   kind: drug | disease | food | diet | prayer | welfare
+ */
+export function memberAlerts(dept, payload, row) {
+    const g = (h) => {
+        const i = payload.headers.indexOf(h);
+        return i === -1 ? undefined : String(row[i] ?? '').trim();
+    };
+    const out = [];
+
+    for (const spec of ALERT_SPECS[dept] || []) {
+        const slots = spec.noAdvisor ? ['M1', 'M2', 'M3'] : ['M1', 'M2', 'M3', 'Advisor'];
+        const hits = [];
+        for (const p of slots) {
+            const v = g(`${p}${spec.suffix}`);
+            if (v !== undefined && spec.test(v)) hits.push({ who: ALERT_WHO[p], kind: spec.kind, text: v });
+        }
+        out.push(...hits);
+
+        // คอลัมน์รายคนไม่มีเคสเลย แต่คอลัมน์สรุปของชีตมีข้อความจริง — ไม่ทิ้งข้อมูล
+        // (บางแถวคอลัมน์สรุปมาจากฟอร์มคนละช่องกับคอลัมน์รายคน)
+        if (hits.length || !spec.summary) continue;
+        const summary = g(spec.summary);
+        if (!summary || !hasVal(summary)) continue;
+        const parsed = parseMemberSummary(summary);
+        if (parsed) {
+            parsed.filter(x => spec.test(x.value))
+                .forEach(x => out.push({ who: x.who, kind: spec.kind, text: x.value }));
+        } else if (spec.test(summary)) {
+            out.push({ who: '', kind: spec.kind, text: summary });
+        }
+    }
+
+    if (dept === 'coordination' && isYes(g('Advisor_Welfare_Opted_In (+200)'))) {
+        out.push({ who: 'อ.', kind: 'welfare', text: 'สวัสดิการ +200' });
+    }
+    return out;
+}
+
+/** ฝ่ายนี้ได้รับคอลัมน์ที่ memberAlerts ใช้ตัดสินหรือไม่ (ไม่มี = ไม่โชว์ปุ่มกรอง) */
+function hasAlertRule(dept, payload) {
+    const has = (h) => payload.headers.includes(h);
+    const specs = ALERT_SPECS[dept];
+    if (!specs) return false;
+    return specs.some(s => has(`M1${s.suffix}`) || (s.summary && has(s.summary)))
+        || (dept === 'coordination' && has('Advisor_Welfare_Opted_In (+200)'));
+}
+
 /** นิยาม "สมบูรณ์แล้ว" ของแต่ละฝ่าย — null = ฝ่ายนี้ไม่มีข้อมูลพอจะตัดสิน */
 function completedRule(dept, payload) {
     const has = (h) => payload.headers.includes(h);
@@ -432,7 +530,8 @@ export function findUrgent(dept, payload, rows) {
 /** ปุ่มกรองด่วน — เฉพาะปุ่มที่ฝ่ายนี้มีคอลัมน์รองรับ */
 export function quickFilters(payload, dept = '') {
     const list = [{ key: '', label: 'ทั้งหมด', icon: 'fa-layer-group' }];
-    if (hasAttentionRule(dept, payload)) list.push({ key: 'attention', label: 'มีหมายเหตุเตือน', icon: 'fa-triangle-exclamation' });
+    if (hasAlertRule(dept, payload)) list.push({ key: 'alerts', label: 'แสดงเฉพาะทีมที่มีข้อควรระวัง', icon: 'fa-triangle-exclamation', alert: true });
+    if (hasAttentionRule(dept, payload)) list.push({ key: 'attention', label: 'มีหมายเหตุเตือน', icon: 'fa-flag' });
     return list;
 }
 
@@ -520,6 +619,9 @@ export const STICKY_COL_COUNT = 2;
 
 export const PRAYER_SUMMARY_COL = 'สรุปห้องละหมาด';
 export const MEMBER_COUNT_COL = 'จำนวนสมาชิก';
+// คอลัมน์ป้ายข้อควรระวัง — ค่าในเซลล์เป็น JSON ของ memberAlerts() หรือ '' ถ้าไม่มี
+// (ต้องเป็น '' ไม่ใช่ '[]' เพื่อให้ markEmptyColumnsForPrint() มองว่าว่าง)
+export const ALERT_COL = 'ข้อควรระวัง';
 const PRAYER_MEMBER_COLS = ['M1_Prayer_Room', 'M2_Prayer_Room', 'M3_Prayer_Room'];
 const PRAYER_SOURCE_COLS = ['Prayer_Room_Request (ช/ญ)', ...PRAYER_MEMBER_COLS];
 const MEMBER_NAME_COLS = ['Member 1 Name', 'Member 2 Name', 'Member 3 Name'];
@@ -569,24 +671,13 @@ const DEPT_TABLE_COLS = {
         'On-site_Check-in_Status', 'หมายเหตุ (Remark)',
     ],
 
-    // ตัด M*_Disease_Medication (ข้อความรวมโรค+ยาในช่องเดียว) ออกจากตาราง
-    // เพราะซ้ำกับสองคอลัมน์ที่แยกไว้แล้ว — ยังอยู่ในลิ้นชักและ .xlsx
-    firstaid: [
-        'Team ID', 'Team Name', MEMBER_COUNT_COL,
-        'Chronic_Disease_Summary', 'Medicine_Allergy_Summary',
-        'M1_Chronic_Disease', 'M1_Medicine_Allergy',
-        'M2_Chronic_Disease', 'M2_Medicine_Allergy',
-        'M3_Chronic_Disease', 'M3_Medicine_Allergy',
-        'Advisor_Chronic_Disease', 'Advisor_Medicine_Allergy',
-    ],
+    // พยาบาล/อาหาร: ตัดคอลัมน์สรุป + รายคน (8 ช่อง) ออกจากตาราง แทนด้วยคอลัมน์
+    // ป้ายเดียว (ALERT_COL) ที่มีเฉพาะเคสจริง — 28 ก.ย. 2569 เพราะคำตอบ "ไม่มี"
+    // / "ทั่วไป" ซ้ำ ๆ ทำให้หาทีมที่ต้องระวังไม่เจอ รายคนครบทุกช่องยังอยู่ใน
+    // ลิ้นชักและ .xlsx (M*_Disease_Medication ก็เช่นกัน)
+    firstaid: ['Team ID', 'Team Name', MEMBER_COUNT_COL, ALERT_COL],
 
-    food: [
-        'Team ID', 'Team Name', MEMBER_COUNT_COL, 'Food_Allergy_Summary',
-        'M1_Food_Allergy', 'M1_Diet_Request',
-        'M2_Food_Allergy', 'M2_Diet_Request',
-        'M3_Food_Allergy', 'M3_Diet_Request',
-        'Advisor_Food_Allergy', 'Advisor_Diet_Request',
-    ],
+    food: ['Team ID', 'Team Name', MEMBER_COUNT_COL, ALERT_COL],
 };
 
 /**
@@ -600,7 +691,11 @@ function prayerSummary(row, memberIdxs, bareIdx) {
         .filter(Boolean);
     if (tags.length) return tags.join(' ');
     const bare = bareIdx === -1 ? '' : String(row[bareIdx] ?? '').trim();
-    return hasVal(bare) ? bare : '';
+    if (!hasVal(bare)) return '';
+    // คอลัมน์รวมเป็น "M1: ไม่ต้องการ, M2: ไม่ต้องการ" ได้ — เก็บเฉพาะคนที่ขอจริง
+    const parsed = parseMemberSummary(bare);
+    if (parsed) return parsed.filter(x => x.who.startsWith('M') && wantsPrayerRoom(x.value)).map(x => x.who).join(' ');
+    return wantsPrayerRoom(bare) ? bare : '';
 }
 
 /**
@@ -634,7 +729,8 @@ export function projectRows(dept, payload, rows, { prune = false } = {}) {
         // (เช่นชีตยังไม่มีคอลัมน์นั้น) ก็ข้ามไป ไม่ขึ้นช่องว่างลอย ๆ
         headers = keep.filter(h => src.includes(h)
             || (h === PRAYER_SUMMARY_COL && collapsePrayer)
-            || (h === MEMBER_COUNT_COL && nameIdxs.some(i => i !== -1)));
+            || (h === MEMBER_COUNT_COL && nameIdxs.some(i => i !== -1))
+            || (h === ALERT_COL && hasAlertRule(dept, payload)));
     } else {
         const identity = DISPLAY_IDENTITY_ORDER.filter(h => src.includes(h));
         headers = [...identity];
@@ -653,6 +749,7 @@ export function projectRows(dept, payload, rows, { prune = false } = {}) {
     const plan = headers.map(h => {
         if (h === PRAYER_SUMMARY_COL && collapsePrayer) return 'prayer';
         if (h === MEMBER_COUNT_COL) return 'members';
+        if (h === ALERT_COL) return 'alerts';
         return src.indexOf(h);
     });
 
@@ -660,6 +757,10 @@ export function projectRows(dept, payload, rows, { prune = false } = {}) {
         headers,
         rows: rows.map(r => plan.map(p => {
             if (p === 'prayer') return prayerSummary(r, memberIdxs, bareIdx);
+            if (p === 'alerts') {
+                const a = memberAlerts(dept, payload, r);
+                return a.length ? JSON.stringify(a) : '';
+            }
             if (p === 'members') return String(nameIdxs.filter(i => i !== -1 && hasVal(r[i])).length);
             return p === -1 ? '' : r[p];
         })),
