@@ -913,7 +913,9 @@ const DRILL_CATEGORIES = {
         { label: 'วูบ/หมดสติ', re: /วูบ|หมดสติ|เป็นลม|syncope|faint/i, danger: true },
         { label: 'โรคหัวใจ', re: /หัวใจ|heart|cardi/i, danger: true },
         { label: 'เบาหวาน', re: /เบาหวาน|diabet/i, danger: true },
-        { label: 'กลุ่มอาการภูมิแพ้', re: /ภูมิแพ้|แพ้อากาศ|แพ้ฝุ่น|allerg|rhinitis/i },
+        // "ภูมิแพ้ตัวเอง" = SLE (ภูมิคุ้มกันต่ำ/กินสเตียรอยด์) ไม่ใช่ภูมิแพ้ทั่วไป — ต้องมาก่อนและแยกออก
+        { label: 'ภูมิแพ้ตัวเอง (SLE)', re: /ภูมิแพ้ตัวเอง|แพ้ภูมิตัวเอง|\bsle\b|lupus/i, danger: true },
+        { label: 'กลุ่มอาการภูมิแพ้', re: /ภูมิแพ้(?!ตัวเอง)|แพ้อากาศ|แพ้ฝุ่น|allerg|rhinitis/i },
         { label: 'โลหิตจาง/ธาลัสซีเมีย', re: /ธาลัส|thalass|โลหิตจาง|anemi|anaemi/i },
     ],
     medAllergy: [
@@ -933,7 +935,7 @@ const DRILL_CATEGORIES = {
         { label: 'อาหารทะเล (ไม่ระบุชนิด)', re: /ทะเล|seafood/i },
         { label: 'ถั่วปากอ้า', re: /ปากอ้า|fava/i },
         { label: 'ถั่วลิสง', re: /ลิสง|peanut/i },
-        { label: 'นมวัว', re: /นม|milk|lactose|dairy/i },
+        { label: 'นมวัว', re: /(?<!ข)นม|milk|lactose|dairy/i },   // (?<!ข) กัน "ขนม/ขนมปัง"
         { label: 'ไข่', re: /ไข่|egg/i },
     ],
     diet: [

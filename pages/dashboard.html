@@ -1152,7 +1152,8 @@
             const v = drillView();
 
             $('drillBody').innerHTML = `
-                <div class="sticky top-0 z-10 bg-white pb-2 space-y-2">
+                <!-- ติดบนสุดเฉพาะจอกว้าง: บนมือถือชิปเยอะ ๆ กินพื้นที่รายชื่อไป ~70% -->
+                <div class="sm:sticky sm:top-0 z-10 bg-white pb-2 space-y-2">
                     <div class="flex flex-wrap gap-1.5">
                         ${chip('all', 'ทั้งหมด', d.total)}
                         ${d.groups.map((g, n) => chip(n, g.label, g.count, g.danger ? 'danger' : '')).join('')}
