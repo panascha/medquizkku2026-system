@@ -26,12 +26,18 @@ const IDENTITY_COLS = ['Team ID', 'Team Category', 'Team Name', 'School Name', '
 
 // คำตอบที่แปลว่า "ไม่มีอะไรต้องรายงาน" — ชุดเดียวกับ _NONE_ANSWERS ใน
 // 4_FinalConsolidator.js เพื่อให้ตัวเลขบนหน้าเว็บตรงกับสรุปในชีต
-// ยกเว้น 'ไม่ต้องการ' (เพิ่ม 28 ก.ย. 2569 เพื่อไม่ให้ขึ้นป้ายในตาราง) ซึ่งฝั่ง GAS
-// ยังไม่มี — ในทางปฏิบัติคำนี้ไม่มีในช่องแพ้ยา/โรค/อาหาร ตัวเลขจึงยังตรงกัน
-// ถ้าแก้ GAS รอบหน้าให้เพิ่มคำนี้ใน _NONE_ANSWERS ด้วย
+// 'ไม่ต้องการ' กับคำตอบที่มีแต่เครื่องหมาย (PUNCT_ONLY) ฝั่ง GAS อยู่ใน
+// _isNoneSummary() (ใช้กับคอลัมน์ *_Summary เท่านั้น — ไม่แตะ _isNone ที่ใช้ตัดสินสละสิทธิ์)
 const NONE_ANSWERS = ['', '-', 'ไม่มี', 'ไม่', 'ไม่แพ้', 'ไม่มีครับ', 'ไม่มีค่ะ', 'none', 'no', 'n/a', 'na', 'ไม่ต้องการ'];
 
-export const hasVal = (v) => !NONE_ANSWERS.includes(String(v ?? '').trim().toLowerCase());
+// คำตอบที่มีแต่เครื่องหมาย เช่น "_" "__" "." "—" (29 ก.ย. 2569 พบ "_" แทน "ไม่มี"
+// ขึ้นเป็นโรค/แพ้ยา/แพ้อาหาร) — ฝั่ง GAS _isNone ใช้ regex เดียวกัน
+const PUNCT_ONLY = /^[\s_\-.–—·]*$/;
+
+export const hasVal = (v) => {
+    const s = String(v ?? '').trim().toLowerCase();
+    return !NONE_ANSWERS.includes(s) && !PUNCT_ONLY.test(s);
+};
 
 // ---------------------------------------------------------------------------
 // โหลดข้อมูล
@@ -111,6 +117,8 @@ export function filterRows(payload, filters, dept = '') {
             case 'alerts':
                 if (!memberAlerts(dept, payload, row).length) return false;
                 break;
+            default:
+                if (PAYMENT_QUICK[filters.quick] && !PAYMENT_QUICK[filters.quick].test(payload, row)) return false;
         }
         return true;
     });
@@ -144,10 +152,13 @@ export const wantsPrayerRoom = (v) => hasVal(v) && isYes(v);
 
 // อีกสองเงื่อนไขที่การ์ดตัวเลขกับหน้าต่างเจาะดูรายชื่อต้องใช้ร่วมกัน
 // (เคยเขียน inline ในการ์ด ถ้าลอกไปเขียนซ้ำในหน้าต่างเมื่อไหร่ ตัวเลขจะเริ่มไม่ตรง)
-/** ขออาหารพิเศษ = ตอบมาแล้วและไม่ใช่ "ทั่วไป" */
-export const specialDiet = (v) => hasVal(v) && !String(v).trim().startsWith('ทั่วไป');
-/** ขอเกียรติบัตรแบบ Hardcopy */
-export const isHardcopy = (v) => /hard/i.test(String(v ?? ''));
+/** ขออาหารพิเศษ = ตอบมาแล้วและไม่ใช่ "ทั่วไป" / "ไม่ประสงค์" (ตัวเลือกในฟอร์ม
+ *  ยืนยันสิทธิ์ของคนที่ไม่ขออาหารพิเศษ) — ไม่ใส่ใน NONE_ANSWERS เพราะคนกลุ่มนี้
+ *  ต้องยังอยู่ในรายชื่อ "อาหารทั่วไป" ที่ฝ่ายอาหารใช้สั่งอาหาร */
+export const specialDiet = (v) => hasVal(v) && !/^(ทั่วไป|ไม่ประสงค์)/.test(String(v).trim());
+/** ขอหนังสือเชิญ — คอลัมน์ Certificate_Type มาจากคำถาม "ประเภทเอกสารที่ท่านต้องการ"
+ *  (ใบเสร็จ / หนังสือเชิญ / ไม่ขอ) ไม่ใช่รูปแบบเกียรติบัตรตามชื่อหัวคอลัมน์ */
+export const wantsInvitation = (v) => /เชิญ/.test(String(v ?? ''));
 
 // ---------------------------------------------------------------------------
 // สลิปโอนเงิน — รูปพรีวิว + การบันทึกผลตรวจ
@@ -288,11 +299,8 @@ export function attentionReasons(dept, payload, row) {
             out.push(...slipReasons(g));
             break;
 
-        case 'coordination':
-            if (g('Certificate_Type (Hardcopy/Digital)') !== undefined
-                && !hasVal(g('Certificate_Type (Hardcopy/Digital)')))
-                out.push('ยังไม่ระบุรูปแบบการรับเกียรติบัตร');
-            break;
+        // coordination: ไม่มีกฎเฉพาะฝ่าย — Certificate_Type ว่าง = ไม่ขอเอกสาร
+        // (เคยเตือนว่า "ยังไม่ระบุการรับเกียรติบัตร" ผิด 27 ทีม, 29 ก.ย. 2569)
 
         case 'firstaid': {
             const m = membersMissing(payload, row, ['_Chronic_Disease', '_Medicine_Allergy']);
@@ -424,11 +432,8 @@ function completedRule(dept, payload) {
                 test: (r) => hasVal(g(r, 'Payment_Verification_Status')) && noIssue(r),
             };
         case 'coordination':
-            if (!has('Certificate_Type (Hardcopy/Digital)')) return null;
-            return {
-                hint: 'ระบุการรับเกียรติบัตรแล้ว และไม่มีหมายเหตุเตือน',
-                test: (r) => hasVal(g(r, 'Certificate_Type (Hardcopy/Digital)')) && noIssue(r),
-            };
+            if (!has('หมายเหตุ (Remark)')) return null;
+            return { hint: 'ไม่มีหมายเหตุเตือน', test: noIssue };
         case 'firstaid':
         case 'food':
             if (!has('Member 1 Name')) return null;
@@ -446,7 +451,6 @@ function completedRule(dept, payload) {
 const ATTENTION_RULE_COLS = {
     finance: 'Payment_Slip_Link',
     registration: 'Payment_Slip_Link',
-    coordination: 'Certificate_Type (Hardcopy/Digital)',
     firstaid: 'Member 1 Name',
     food: 'Member 1 Name',
 };
@@ -468,7 +472,7 @@ const ATTENTION_HINTS = {
     overview: 'หมายเหตุที่ติด ⚠️ ไว้ในชีต',
     registration: '⚠️ ในหมายเหตุ ยังไม่ส่งรูปทีม สลิปหาย หรือสลิปไม่ถูกต้อง',
     finance: '⚠️ ในหมายเหตุ สลิปหาย รับสวัสดิการแต่ไม่มีสลิป +200 หรือสลิปไม่ถูกต้อง',
-    coordination: '⚠️ ในหมายเหตุ หรือยังไม่ระบุการรับเกียรติบัตร',
+    coordination: 'หมายเหตุที่ติด ⚠️ ไว้ในชีต',
     firstaid: 'มีสมาชิกที่มีชื่อในทีมแต่ยังไม่กรอกข้อมูลสุขภาพ',
     food: 'มีสมาชิกที่มีชื่อในทีมแต่ยังไม่กรอกข้อมูลอาหาร',
 };
@@ -529,8 +533,32 @@ export function quickFilters(payload, dept = '') {
     const list = [{ key: '', label: 'ทั้งหมด', icon: 'fa-layer-group' }];
     if (hasAlertRule(dept, payload)) list.push({ key: 'alerts', label: 'แสดงเฉพาะทีมที่มีข้อควรระวัง', icon: 'fa-triangle-exclamation', alert: true });
     if (hasAttentionRule(dept, payload)) list.push({ key: 'attention', label: 'มีหมายเหตุเตือน', icon: 'fa-flag' });
+    if (dept === 'finance') {
+        for (const [key, f] of Object.entries(PAYMENT_QUICK)) {
+            if (!payload.headers.includes(f.column)) continue;
+            const n = payload.rows.filter(r => f.test(payload, r)).length;
+            list.push({ key, label: `${f.label} (${n})`, icon: f.icon });
+        }
+    }
     return list;
 }
+
+// ปุ่มกรองด่วนของฝ่ายการเงิน — ตัวเลขในวงเล็บนับจากทุกแถว (ไม่ขึ้นกับการค้นหา)
+// ใช้ isRejectedPayment / isYes ชุดเดียวกับป้ายสถานะและการ์ด ตัวเลขจึงตรงกัน
+const PAYMENT_QUICK = (() => {
+    const col = (payload, row, h) => String(row[payload.headers.indexOf(h)] ?? '').trim();
+    const status = (p, r) => col(p, r, 'Payment_Verification_Status');
+    return {
+        unverified: { label: 'ยังไม่ตรวจ', icon: 'fa-hourglass-half', column: 'Payment_Verification_Status',
+            test: (p, r) => !hasVal(status(p, r)) },
+        rejected: { label: 'สลิปไม่ถูกต้อง', icon: 'fa-circle-xmark', column: 'Payment_Verification_Status',
+            test: (p, r) => isRejectedPayment(status(p, r)) },
+        verified: { label: 'ตรวจสอบแล้ว', icon: 'fa-circle-check', column: 'Payment_Verification_Status',
+            test: (p, r) => hasVal(status(p, r)) && !isRejectedPayment(status(p, r)) },
+        combinedReceipt: { label: 'ขอรวมใบเสร็จ', icon: 'fa-receipt', column: 'Combined_Receipt? (รวมใบเสร็จไหม)',
+            test: (p, r) => isYes(col(p, r, 'Combined_Receipt? (รวมใบเสร็จไหม)')) },
+    };
+})();
 
 // ---------------------------------------------------------------------------
 // ชื่อคอลัมน์ภาษาไทย (ใช้แสดงผลเท่านั้น)
@@ -568,7 +596,7 @@ export const COLUMN_LABELS = {
     'Team Photo Link': 'รูปทีม',
     'หมายเหตุ (Remark)': 'หมายเหตุ',
     // ประสานงาน
-    'Certificate_Type (Hardcopy/Digital)': 'การรับเกียรติบัตร',
+    'Certificate_Type (Hardcopy/Digital)': 'เอกสารที่ขอ (ใบเสร็จ/หนังสือเชิญ)',
     'On-site_Check-in_Status': 'เช็คอินหน้างาน',
     'Prayer_Room_Request (ช/ญ)': 'ห้องละหมาด (ช/ญ)',
     // การเงิน
@@ -816,7 +844,7 @@ export function computeMetrics(dept, payload, rows) {
             return [
                 { label: 'ทีมทั้งหมด', value: total },
                 { label: 'คนที่แพ้อาหาร', value: countPeople(rows, allergy), key: 'foodAllergy' },
-                { label: 'คนที่ขออาหารพิเศษ', value: countPeople(rows, diet, specialDiet), hint: 'ไม่นับคำตอบ "ทั่วไป"', key: 'diet' },
+                { label: 'คนที่ขออาหารพิเศษ', value: countPeople(rows, diet, specialDiet), hint: 'ไม่นับคำตอบ "ทั่วไป" / "ไม่ประสงค์"', key: 'diet' },
                 { label: 'ทีมที่มีข้อจำกัดด้านอาหาร', value: rows.filter(r => allergy.some(x => x !== -1 && hasVal(r[x])) || diet.some(x => x !== -1 && specialDiet(r[x]))).length },
             ];
         }
@@ -828,7 +856,7 @@ export function computeMetrics(dept, payload, rows) {
                 { label: 'ทีมทั้งหมด', value: total },
                 { label: 'คนขอใช้ห้องละหมาด', value: countPeople(rows, prayer, wantsPrayerRoom) },
                 { label: 'อาจารย์รับชุดสวัสดิการ (+200)', value: countRows(rows, i('Advisor_Welfare_Opted_In (+200)'), isYes) },
-                { label: 'ขอเอกสารแบบ Hardcopy', value: countRows(rows, i('Certificate_Type (Hardcopy/Digital)'), isHardcopy), key: 'hardcopy' },
+                { label: 'ขอหนังสือเชิญ', value: countRows(rows, i('Certificate_Type (Hardcopy/Digital)'), wantsInvitation), key: 'invitation' },
                 { label: 'เช็คอินหน้างานแล้ว', value: countRows(rows, i('On-site_Check-in_Status'), hasVal), manual: true },
             ];
         }
@@ -877,10 +905,10 @@ const DRILL_SPECS = {
         },
     },
     coordination: {
-        hardcopy: {
-            title: 'ทีมที่ขอเกียรติบัตรแบบ Hardcopy', unit: 'team',
-            column: 'Certificate_Type (Hardcopy/Digital)', test: isHardcopy,
-            contextLabel: 'ขอแบบ Digital',
+        invitation: {
+            title: 'ทีมที่ขอหนังสือเชิญ', unit: 'team',
+            column: 'Certificate_Type (Hardcopy/Digital)', test: wantsInvitation,
+            contextLabel: 'ขอเอกสารอื่น / ไม่ขอ',
         },
     },
     firstaid: {
@@ -969,7 +997,9 @@ export function drilldown(dept, payload, rows, key) {
                     role: PERSON_LABELS[p],
                     detail: v,
                 });
-                if (spec.test(v)) push(v, item());
+                // จัดกลุ่มด้วยคำที่ยุบ "เเ" (สระเอสองตัว) เป็น "แ" และช่องว่างซ้ำ
+                // ให้ "ภูมิเเพ้" รวมกับ "ภูมิแพ้" — detail ยังเป็นข้อความเดิม
+                if (spec.test(v)) push(v.replace(/เเ/g, 'แ').replace(/\s+/g, ' '), item());
                 else if (v !== '') {
                     contextCount++;
                     if (spec.contextItems) contextItems.push(item());
