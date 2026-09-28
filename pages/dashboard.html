@@ -1078,15 +1078,137 @@
                 </button>
             </li>`;
 
+        // แถวกระชับของหน้าต่างราย "คน" — แสดงข้อความที่ตอบมาเต็ม ๆ ทุกแถวเสมอ
+        // เพราะชื่อหมวดเป็นคำที่ยุบแล้ว (หมวด G6PD ครอบ "G6PD (ห้ามยาแอสไพริน)")
+        const drillPersonRow = (it) => `
+            <li>
+                <button data-drill-row="${it.rowIndex}"
+                    class="drill-item w-full text-left px-3 py-1.5 transition-colors
+                           ${it.danger ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-blue-50/60'}">
+                    <p class="text-[11px] text-slate-500 truncate">
+                        <span class="font-bold text-slate-800">${esc(it.teamId || '—')}</span>
+                        · ${esc(it.teamName || '(ไม่มีชื่อทีม)')}
+                        ${it.school ? `<span class="hidden sm:inline text-slate-400">· ${esc(it.school)}</span>` : ''}
+                    </p>
+                    <p class="text-xs text-slate-800 break-words">
+                        <span class="font-bold">${esc(it.person)}</span>
+                        <span class="text-[10px] text-slate-400">(${esc(it.role)})</span>
+                        ${it.detail ? `— <span class="${it.danger ? 'text-red-800 font-bold' : ''}">${esc(it.detail)}</span>` : ''}
+                    </p>
+                </button>
+            </li>`;
+
+        // สถานะของหน้าต่างที่เปิดอยู่ — filter: 'all' | 'context' | ลำดับของกลุ่ม
+        const drill = { d: null, filter: 'all' };
+
+        function drillView() {
+            const { d, filter } = drill;
+            if (filter === 'context') return { label: d.context.label, items: d.context.items };
+            if (filter === 'all') return { label: 'ทั้งหมด', items: d.items };
+            return d.groups[filter];
+        }
+
+        // ข้อความสำหรับวางในกลุ่ม LINE — ตั้งใจไม่ใส่ชื่อนักเรียน (ข้อมูลสุขภาพ
+        // เป็นข้อมูลอ่อนไหวตาม PDPA) รหัสทีม + ตำแหน่ง ก็ตามตัวคนหน้างานได้แล้ว
+        function drillCopyText() {
+            const v = drillView();
+            const lines = v.items.map((it, n) =>
+                `${n + 1}. ${it.teamId || '—'} ${it.role}${it.detail ? ` — ${it.detail}` : ''}`);
+            return [`${drill.d.title} — ${v.label} ${v.items.length} คน`,
+                `ณ ${new Date().toLocaleString('th-TH')}`, ...lines].join('\n');
+        }
+
+        async function copyText(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch {
+                // navigator.clipboard ใช้ไม่ได้นอก https/localhost — ใช้วิธีเก่าแทน
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.cssText = 'position:fixed;opacity:0';
+                document.body.appendChild(ta);
+                ta.select();
+                const done = document.execCommand('copy');
+                ta.remove();
+                return done;
+            }
+        }
+
+        function renderDrillPerson() {
+            const { d, filter } = drill;
+            const chip = (id, label, count, tone) => {
+                const on = String(filter) === String(id);
+                const cls = on ? 'bg-blue-900 text-white border-blue-900'
+                    : tone === 'danger' ? 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100'
+                    : tone === 'context' ? 'bg-white text-slate-500 border-dashed border-slate-300 hover:bg-slate-50'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50';
+                return `<button data-drill-chip="${id}" aria-pressed="${on}"
+                    class="border rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${cls}">
+                    ${esc(label)} (${count})</button>`;
+            };
+            const hasDanger = d.groups.some(g => g.danger);
+            const v = drillView();
+
+            $('drillBody').innerHTML = `
+                <div class="sticky top-0 z-10 bg-white pb-2 space-y-2">
+                    <div class="flex flex-wrap gap-1.5">
+                        ${chip('all', 'ทั้งหมด', d.total)}
+                        ${d.groups.map((g, n) => chip(n, g.label, g.count, g.danger ? 'danger' : '')).join('')}
+                        ${d.context?.items?.length ? chip('context', `${d.context.label} · ไม่นับรวม`, d.context.count, 'context') : ''}
+                    </div>
+                    <div class="flex items-start justify-between gap-3">
+                        <p class="text-[10px] text-slate-400 leading-snug">
+                            1 คนอาจอยู่หลายหมวด — "ทั้งหมด" นับคนไม่ซ้ำ
+                            ${hasDanger ? '<br><span class="text-red-700">พื้นแดง = เจอคำค้นเคสเสี่ยง (อัตโนมัติ) สะกดต่างไปอาจไม่ขึ้นแดง — อ่านข้อความทุกแถว</span>' : ''}
+                        </p>
+                        <button data-drill-copy title="ไม่ใส่ชื่อนักเรียน (ข้อมูลสุขภาพ — PDPA)"
+                            class="shrink-0 border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
+                            <i class="fa-regular fa-copy mr-1"></i><span>คัดลอกสรุป (ไม่มีชื่อ)</span>
+                        </button>
+                    </div>
+                </div>
+                <ul class="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                    ${v.items.map(drillPersonRow).join('')}
+                </ul>
+                ${d.context && !d.context.items?.length ? `
+                <p class="text-[11px] text-slate-400">${esc(d.context.label)}: ${d.context.count} คน
+                    (ไม่นับรวมในตัวเลขด้านบน)</p>` : ''}`;
+        }
+
+        // คลิกในหน้าต่างผูกไว้ครั้งเดียว เพราะ innerHTML ถูกวาดใหม่ทุกครั้งที่กดชิป
+        $('drillBody').addEventListener('click', async (e) => {
+            const row = e.target.closest('[data-drill-row]');
+            if (row) {
+                closeDrill();
+                return openDrawer(Number(row.dataset.drillRow));
+            }
+            const chip = e.target.closest('[data-drill-chip]');
+            if (chip) {
+                const f = chip.dataset.drillChip;
+                drill.filter = f === 'all' || f === 'context' ? f : Number(f);
+                return renderDrillPerson();
+            }
+            const copy = e.target.closest('[data-drill-copy]');
+            if (copy) {
+                const ok = await copyText(drillCopyText());
+                copy.querySelector('span').textContent = ok ? 'คัดลอกแล้ว ✓' : 'คัดลอกไม่สำเร็จ';
+            }
+        });
+
         function openDrill(key) {
             const d = drilldown(dept, payload, visibleRows, key);
             if (!d) return;
 
             const unit = d.unit === 'person' ? 'คน' : 'ทีม';
             $('drillTitle').textContent = `${d.title} — ${d.total} ${unit}`;
-            $('drillMeta').textContent = `จัดกลุ่มตาม${d.groupBy} · ${d.groups.length} กลุ่ม`;
+            $('drillMeta').textContent = `จัดกลุ่มตาม${d.groupBy} · ${d.groups.length} ${d.groupBy === 'หมวด' ? 'หมวด' : 'กลุ่ม'}`;
 
-            $('drillBody').innerHTML = d.groups.map(g => `
+            if (d.unit === 'person') {
+                Object.assign(drill, { d, filter: 'all' });
+                renderDrillPerson();
+            } else $('drillBody').innerHTML = d.groups.map(g => `
                 <section class="border border-slate-200 rounded-xl overflow-hidden">
                     <h3 class="bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 flex items-center justify-between gap-2">
                         <span class="min-w-0 break-words">${esc(g.label)}</span>
@@ -1112,12 +1234,7 @@
                         : ''}
                 </section>` : '');
 
-            $('drillBody').querySelectorAll('[data-drill-row]').forEach(b =>
-                b.addEventListener('click', () => {
-                    closeDrill();
-                    openDrawer(Number(b.dataset.drillRow));
-                }));
-
+            $('drillBody').scrollTop = 0;
             $('drill').classList.remove('hidden');
             $('drill').setAttribute('aria-hidden', 'false');
             $('drillBackdrop').classList.remove('hidden');

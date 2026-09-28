@@ -896,6 +896,73 @@ const PERSON_NAME_COLS = {
     M1: 'Member 1 Name', M2: 'Member 2 Name', M3: 'Member 3 Name', Advisor: 'Advisor Name',
 };
 
+// หมวดของคำตอบแบบพิมพ์เอง (unit:'person') — ยุบคำเขียนต่างกันให้อยู่หมวดเดียว
+// เช่น "G6PD" / "G6pd" / "G6PD(ถั่วปากอ้า)" → G6PD
+//
+// กติกา:
+//  - แยกคำตอบเป็นท่อนตาม , ; / ขึ้นบรรทัด "และ" "กับ" แล้วจับหมวดทีละท่อน
+//    1 คนจึงอยู่ได้หลายหมวด ("ภูมิแพ้, หอบหืด" → 2 หมวด) ยอด "ทั้งหมด" นับคนไม่ซ้ำ
+//  - ท่อนที่ไม่เข้าหมวดไหน → เป็นหมวดของตัวเองด้วยข้อความเดิม (ยุบ เเ/ช่องว่าง/ตัวพิมพ์)
+//    ห้ามทิ้ง ห้ามโยนรวมเป็น "อื่น ๆ" — ไม่งั้นคนหายจากทุกหมวด
+//  - danger = ไฮไลต์จากคำค้นเท่านั้น สะกดแปลกก็หลุดได้ หน้าจอจึงต้องแสดงข้อความเต็มทุกแถว
+const DRILL_CATEGORIES = {
+    disease: [
+        { label: 'G6PD', re: /g\s*-?\s*6\s*-?\s*p\s*-?\s*d|จี\s*6|พร่องเอนไซม์/i, danger: true },
+        { label: 'หอบหืด', re: /หอบ|หืด|asthma/i, danger: true },
+        { label: 'ลมชัก', re: /ลมชัก|epilep|seizure/i, danger: true },
+        { label: 'วูบ/หมดสติ', re: /วูบ|หมดสติ|เป็นลม|syncope|faint/i, danger: true },
+        { label: 'โรคหัวใจ', re: /หัวใจ|heart|cardi/i, danger: true },
+        { label: 'เบาหวาน', re: /เบาหวาน|diabet/i, danger: true },
+        { label: 'กลุ่มอาการภูมิแพ้', re: /ภูมิแพ้|แพ้อากาศ|แพ้ฝุ่น|allerg|rhinitis/i },
+        { label: 'โลหิตจาง/ธาลัสซีเมีย', re: /ธาลัส|thalass|โลหิตจาง|anemi|anaemi/i },
+    ],
+    medAllergy: [
+        { label: 'ยาฆ่าเชื้อ (Penicillin/Amoxicillin/ซัลฟา ฯลฯ)',
+          re: /penicil|เพนนิ|เพนิ|เพ็นนิ|amox|อะม็อก|อะมอก|augment|ออกเมนติน|ampicil|cloxa|ceph|cef|เซฟ|sulfa|ซัลฟา|bactrim|antibiotic|ยาฆ่าเชื้อ|ปฏิชีวนะ/i,
+          danger: true },
+        { label: 'NSAIDs/ยาแก้ปวดแก้อักเสบ',
+          re: /nsaid|ibupro|ไอบู|brufen|บรูเฟน|aspirin|แอสไพริน|diclofen|ไดโคลฟี|naproxen|mefenam|ponstan|พอนสแตน|celecox|arcoxia|แก้ปวด|แก้อักเสบ/i,
+          danger: true },
+        { label: 'พาราเซตามอล', re: /paracet|พารา|tylenol|ไทลินอล/i, danger: true },
+    ],
+    foodAllergy: [
+        { label: 'กุ้ง', re: /กุ้ง|shrimp|prawn/i },
+        { label: 'ปู', re: /ปู|crab/i },
+        { label: 'หมึก', re: /หมึก|squid/i },
+        { label: 'หอย', re: /หอย|shellfish|oyster|clam/i },
+        { label: 'อาหารทะเล (ไม่ระบุชนิด)', re: /ทะเล|seafood/i },
+        { label: 'ถั่วปากอ้า', re: /ปากอ้า|fava/i },
+        { label: 'ถั่วลิสง', re: /ลิสง|peanut/i },
+        { label: 'นมวัว', re: /นม|milk|lactose|dairy/i },
+        { label: 'ไข่', re: /ไข่|egg/i },
+    ],
+    diet: [
+        { label: 'อาหารไม่เผ็ด', re: /เผ็ด|spicy/i },
+        { label: 'ฮาลาล', re: /ฮาลาล|halal|มุสลิม|อิสลาม/i },
+        { label: 'มังสวิรัติ/เจ', re: /มังสวิรัติ|vegetarian|vegan|วีแกน|^เจ(?![็-๎])|อาหารเจ|กินเจ|ทานเจ/i },
+        { label: 'ไม่ทานเนื้อวัว', re: /วัว|beef/i },
+    ],
+};
+
+const DRILL_SPLIT = /[,;/\n、]|และ|กับ/;
+const foldText = (s) => String(s).replace(/เเ/g, 'แ').replace(/\s+/g, ' ').trim();
+
+/** หมวดของคำตอบหนึ่งช่อง — [{key,label,danger}] ไม่ว่างเสมอสำหรับคำตอบที่ไม่ว่าง */
+export function categorize(catKey, answer) {
+    const rules = DRILL_CATEGORIES[catKey] || [];
+    const out = new Map();
+    const parts = foldText(answer).split(DRILL_SPLIT).map(s => s.trim()).filter(hasVal);
+    for (const part of (parts.length ? parts : [foldText(answer)])) {
+        const hits = rules.filter(r => r.re.test(part));
+        if (hits.length) hits.forEach(r => out.set(r.label, { key: r.label, label: r.label, danger: !!r.danger }));
+        else {
+            const key = part.toLowerCase();
+            if (!out.has(key)) out.set(key, { key, label: part, danger: false });
+        }
+    }
+    return [...out.values()];
+}
+
 // key ต้องตรงกับ key ของการ์ดใน computeMetrics
 const DRILL_SPECS = {
     finance: {
@@ -915,24 +982,24 @@ const DRILL_SPECS = {
     firstaid: {
         disease: {
             title: 'คนที่มีโรคประจำตัว', unit: 'person',
-            suffix: '_Chronic_Disease', test: hasVal,
+            suffix: '_Chronic_Disease', test: hasVal, cats: 'disease',
             contextLabel: 'ตอบว่าไม่มีโรคประจำตัว',
         },
         medAllergy: {
             title: 'คนที่แพ้ยา', unit: 'person',
-            suffix: '_Medicine_Allergy', test: hasVal,
+            suffix: '_Medicine_Allergy', test: hasVal, cats: 'medAllergy',
             contextLabel: 'ตอบว่าไม่แพ้ยา',
         },
     },
     food: {
         foodAllergy: {
             title: 'คนที่แพ้อาหาร', unit: 'person',
-            suffix: '_Food_Allergy', test: hasVal,
+            suffix: '_Food_Allergy', test: hasVal, cats: 'foodAllergy',
             contextLabel: 'ตอบว่าไม่แพ้อาหาร',
         },
         diet: {
             title: 'คนที่ขออาหารพิเศษ', unit: 'person',
-            suffix: '_Diet_Request', test: specialDiet,
+            suffix: '_Diet_Request', test: specialDiet, cats: 'diet',
             contextLabel: 'ตอบว่าอาหารทั่วไป',
             // ฝ่ายอาหารต้องรู้ชื่อคนที่กิน "ทั่วไป" ด้วย (เป็นยอดที่ใช้สั่งอาหารจริง)
             // ที่อื่นไม่เปิด: รายชื่อคนที่ตอบว่า "ไม่มีโรคประจำตัว" ไม่มีประโยชน์
@@ -948,9 +1015,11 @@ const DRILL_SPECS = {
  * และต้องเป็น "แถวดิบ" ไม่ใช่ผลของ projectRows() ซึ่งสลับ/ยุบ/ตัดคอลัมน์
  *
  * @return {null|{title:string, unit:'team'|'person', groupBy:string, total:number,
- *   groups:Array<{label:string, count:number, items:Array<{rowIndex:number,
+ *   items:Array (ทุกรายการ ไม่ซ้ำ เรียงตามรหัสทีม),
+ *   groups:Array<{label:string, danger:boolean, count:number, items:Array<{rowIndex:number,
  *     teamId:string, teamName:string, school:string, person?:string, role?:string,
- *     detail:string}>}>,
+ *     detail:string, cats?:Array, danger?:boolean}>}>,
+ *   unit:'person' — item ชิ้นเดียวกันอยู่ได้หลายกลุ่ม ผลรวม count ของกลุ่มจึง ≥ total
  *   context:null|{label:string, count:number, items:Array}}}
  *   context.items ว่างเสมอ ยกเว้นการ์ดที่ตั้ง contextItems ไว้ (ตอนนี้มีแค่อาหารพิเศษ)
  *   null = ไม่มีการเจาะดูของการ์ดนี้ หรือฝ่ายนี้ไม่ได้รับคอลัมน์ที่ต้องใช้
@@ -969,6 +1038,8 @@ export function drilldown(dept, payload, rows, key) {
     });
 
     const groups = new Map();
+    const catMeta = new Map();                  // key → {label, danger} (unit:'person' เท่านั้น)
+    const allItems = [];                        // คนไม่ซ้ำ (unit:'person' เท่านั้น)
     const contextItems = [];
     let contextCount = 0;
     const push = (label, item) => {
@@ -998,10 +1069,19 @@ export function drilldown(dept, payload, rows, key) {
                     role: PERSON_LABELS[p],
                     detail: v,
                 });
-                // จัดกลุ่มด้วยคำที่ยุบ "เเ" (สระเอสองตัว) เป็น "แ" และช่องว่างซ้ำ
-                // ให้ "ภูมิเเพ้" รวมกับ "ภูมิแพ้" — detail ยังเป็นข้อความเดิม
-                if (spec.test(v)) push(v.replace(/เเ/g, 'แ').replace(/\s+/g, ' '), item());
-                else if (v !== '') {
+                // จัดกลุ่มตามหมวด (categorize) — 1 คนอยู่ได้หลายหมวด จึงเก็บ item
+                // ก้อนเดียวกันไว้ใน allItems อีกชุดเพื่อนับยอดรวมแบบคนไม่ซ้ำ
+                // detail ยังเป็นข้อความเดิมเสมอ หน้าจอต้องแสดงมันทุกแถว
+                if (spec.test(v)) {
+                    const it = item();
+                    it.cats = categorize(spec.cats, v);
+                    it.danger = it.cats.some(c => c.danger);
+                    allItems.push(it);
+                    for (const c of it.cats) {
+                        push(c.key, it);
+                        catMeta.set(c.key, c);
+                    }
+                } else if (v !== '') {
                     contextCount++;
                     if (spec.contextItems) contextItems.push(item());
                 }
@@ -1009,18 +1089,24 @@ export function drilldown(dept, payload, rows, key) {
         });
     }
 
+    const byTeam = (a, b) => String(a.teamId).localeCompare(String(b.teamId));
     const sorted = [...groups.entries()]
-        .map(([label, items]) => ({
-            label, count: items.length,
-            items: items.sort((a, b) => String(a.teamId).localeCompare(String(b.teamId))),
+        .map(([key, items]) => ({
+            label: catMeta.get(key)?.label ?? key,
+            danger: !!catMeta.get(key)?.danger,
+            count: items.length,
+            items: items.sort(byTeam),
         }))
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'th'));
 
     return {
         title: spec.title,
         unit: spec.unit,
-        groupBy: spec.unit === 'team' ? 'โรงเรียน' : 'คำตอบ',
-        total: sorted.reduce((s, g) => s + g.count, 0),
+        groupBy: spec.unit === 'team' ? 'โรงเรียน' : 'หมวด',
+        // unit:'person' นับคนไม่ซ้ำ ไม่ใช่ผลรวมของหมวด (1 คนอยู่ได้หลายหมวด)
+        // ยอดนี้ต้องเท่ากับตัวเลขบนการ์ดเสมอ
+        total: spec.unit === 'person' ? allItems.length : sorted.reduce((s, g) => s + g.count, 0),
+        items: spec.unit === 'person' ? allItems.sort(byTeam) : sorted.flatMap(g => g.items),
         groups: sorted,
         // items มีเฉพาะการ์ดที่ตั้ง contextItems ไว้ — total ยังนับจาก groups เท่านั้น
         // ยอดรวมของหน้าต่างจึงยังตรงกับการ์ดเหมือนเดิม
