@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R1 Backup Exam (Staff) — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background: #f8faff; color: #1e293b; }
+        .nav-gradient { background: linear-gradient(to right, #0f1f4b, #1e3a8a); }
+        button:disabled { opacity: .5; cursor: not-allowed; }
+    </style>
+</head>
+
+<body class="min-h-screen">
+    <nav class="nav-gradient text-white p-4 shadow-lg">
+        <div class="max-w-[1100px] mx-auto flex items-center gap-3">
+            <a href="../index.html" class="opacity-70 hover:opacity-100">&larr;</a>
+            <span class="font-bold">R1 Backup Exam — Staff</span>
+            <span id="staffName" class="ml-auto text-xs opacity-80"></span>
+        </div>
+    </nav>
+
+    <div id="fixtureBanner" hidden class="bg-amber-100 text-amber-900 text-center text-sm py-1">
+        FIXTURE MODE — ข้อมูลปลอม ไม่เชื่อมต่อ Firebase
+    </div>
+
+    <main id="app" hidden class="max-w-[1100px] mx-auto p-4 space-y-6">
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4">
+            <h2 class="font-bold mb-3">1. อัปโหลดข้อสอบ + ควบคุมเวลา</h2>
+            <p class="text-xs text-slate-500 mb-3">ไฟล์ข้อสอบต้องไม่มีเฉลย — ระบบปฏิเสธไฟล์ที่มีฟิลด์นอกเหนือจากที่กำหนด</p>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="border border-slate-200 rounded-lg p-3 space-y-2">
+                    <div class="font-bold">Part 1 (mcq) — <span id="state-mcq">-</span></div>
+                    <div id="times-mcq" class="text-xs text-slate-500"></div>
+                    <div id="q-mcq" class="text-xs"></div>
+                    <input type="file" id="file-mcq" accept=".json,application/json" class="text-xs block">
+                    <button id="upload-mcq" class="text-xs bg-blue-600 text-white rounded px-2 py-1">อัปโหลดข้อสอบ</button>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button id="start-mcq" class="bg-emerald-600 text-white rounded px-3 py-1 text-sm">เริ่ม (45 นาที)</button>
+                        <input id="ext-mcq" type="number" min="1" max="180" value="5" class="w-16 border rounded px-1 py-1 text-sm">
+                        <button id="extend-mcq" class="bg-sky-600 text-white rounded px-3 py-1 text-sm">ขยายเวลา (นาที)</button>
+                        <button id="end-mcq" class="bg-red-600 text-white rounded px-3 py-1 text-sm">จบทันที</button>
+                    </div>
+                </div>
+                <div class="border border-slate-200 rounded-lg p-3 space-y-2">
+                    <div class="font-bold">Part 2 (unseen) — <span id="state-unseen">-</span></div>
+                    <div id="times-unseen" class="text-xs text-slate-500"></div>
+                    <div id="q-unseen" class="text-xs"></div>
+                    <input type="file" id="file-unseen" accept=".json,application/json" class="text-xs block">
+                    <button id="upload-unseen" class="text-xs bg-blue-600 text-white rounded px-2 py-1">อัปโหลดข้อสอบ</button>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button id="start-unseen" class="bg-emerald-600 text-white rounded px-3 py-1 text-sm">เริ่ม (45 นาที)</button>
+                        <input id="ext-unseen" type="number" min="1" max="180" value="5" class="w-16 border rounded px-1 py-1 text-sm">
+                        <button id="extend-unseen" class="bg-sky-600 text-white rounded px-3 py-1 text-sm">ขยายเวลา (นาที)</button>
+                        <button id="end-unseen" class="bg-red-600 text-white rounded px-3 py-1 text-sm">จบทันที</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4">
+            <div class="flex items-center gap-3 mb-2 flex-wrap">
+                <h2 class="font-bold">2. ติดตามสด</h2>
+                <span id="monitorSummary" class="text-xs text-slate-500"></span>
+                <input id="monitorFilter" placeholder="กรอง username" class="ml-auto border rounded px-2 py-1 text-sm">
+            </div>
+            <div class="overflow-auto max-h-[420px]">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-slate-100 text-left">
+                        <tr>
+                            <th class="px-2 py-1">Username</th><th class="px-2 py-1">จับจอง</th>
+                            <th class="px-2 py-1">ตอบ Part 1</th><th class="px-2 py-1">ตอบ Part 2</th>
+                            <th class="px-2 py-1">ส่ง P1</th><th class="px-2 py-1">ส่ง P2</th>
+                            <th class="px-2 py-1">Blur</th><th class="px-2 py-1"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="monitorBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <h2 class="font-bold">3. ตรวจคะแนน + ส่งออก TSV (Moodle format)</h2>
+            <p class="text-xs text-slate-500">เฉลยอ่านจากไฟล์ในเครื่อง เก็บในหน่วยความจำเบราว์เซอร์เท่านั้น ไม่เขียนลงที่ใด รีเฟรชหน้าแล้วหาย
+                รูปแบบไฟล์: <code>{"key": {"m01": "C", "m22s1": "T", "u1a1": "F", ...}}</code> ครบ 21 + 28 + 24 ข้อ</p>
+            <div class="flex items-center gap-2 flex-wrap">
+                <input type="file" id="keyFile" accept=".json,application/json" class="text-xs">
+                <button id="keyLoad" class="text-xs bg-blue-600 text-white rounded px-2 py-1">โหลดเฉลย</button>
+                <button id="fixtureKeyBtn" hidden class="text-xs bg-amber-500 text-white rounded px-2 py-1">ใช้เฉลยปลอม</button>
+                <span id="keyStatus" class="text-xs text-emerald-700"></span>
+            </div>
+            <button id="exportBtn" disabled class="bg-emerald-600 text-white rounded px-4 py-1.5 text-sm">คำนวณคะแนน + สร้าง TSV</button>
+            <pre id="exportWarn" class="text-xs text-amber-700 whitespace-pre-wrap"></pre>
+            <div id="exports" class="space-y-3"></div>
+        </section>
+    </main>
+
+    <div id="toast" hidden></div>
+
+    <script type="module">
+        import { initStaffPage } from '../js/r1-backup-staff-app.js';
+
+        const fixture = new URLSearchParams(location.search).get('fixture') === '1';
+        const show = () => { document.getElementById('app').hidden = false; };
+
+        if (fixture) {
+            // ข้อมูลปลอมล้วน ไม่แตะ Firebase
+            initStaffPage({ fixture: true }).then(show);
+        } else {
+            const { auth } = await import('../js/firebase-config.js');
+            const { onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+            const { requireStaff } = await import('../js/staff-guard.js');
+            let started = false;
+            onAuthStateChanged(auth, async (user) => {
+                if (!(await requireStaff(user))) return;
+                document.getElementById('staffName').textContent = user.displayName || user.email;
+                if (started) return;      // token refresh ไม่ต้องโหลดซ้ำ
+                started = true;
+                await initStaffPage({ fixture: false });
+                show();
+            });
+        }
+    </script>
+</body>
+
+</html>

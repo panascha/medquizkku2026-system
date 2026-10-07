@@ -43,5 +43,12 @@ Inline markup allowed: `<b> <i> <sub> <sup>`. `imageUrl` only if it starts with 
 `r1-backup-exam.html?fixture=1&mins=1&u=mq2026-001-1` (`mins` default 45, min 0.2). Local only; never automatic.
 Serve with `python -m http.server 5502` from this folder.
 
+## Staff page (`pages/r1-backup-staff.html`)
+Whitelist-gated (`requireStaff`). Upload questions (whitelist sanitiser refuses any unknown field, so no key), per-part start/extend/end, live monitor, Release Seat (clears `uid` AND `claimedAt`: rules only allow writing `claimedAt` while absent), grade + Moodle TSV export (tabs `From KKUEXAM` = `Grade/112.00`, `From UNSEEN 1/2/3` = `Grade/8.00`, `-1` usernames only). Control writes use client-estimated server time (`.info/serverTimeOffset`).
+Answer key file: `{"key": {"m01": "C", "m22s1": "T", "u1a1": "F", ...}}`, complete (21 SBA + 28 MTF + 24 Unseen statements); held in browser memory only.
+Unsubmitted students export as `In progress` with `-` for Completed/Time taken and a score from their autosaved answers.
+Fixture: `pages/r1-backup-staff.html?fixture=1` (fake tree and key, no Firebase).
+Test: `node --test tests/r1-backup-staff-engine.test.mjs`.
+
 ## Tests
 `node --test tests/r1-backup-engine.test.mjs` (engine only; `node --test tests/` fails on Node 22).
