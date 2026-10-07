@@ -1,0 +1,1283 @@
+[
+ {
+  "file": "chip_navy_a.svg",
+  "category": "chip",
+  "width": 264,
+  "height": 68,
+  "kb": 1,
+  "sources": [
+   "0/1.svg#26",
+   "0/2.svg#26",
+   "0/3.svg#25",
+   "1/8.svg#26",
+   "1/9.svg#26",
+   "1/10.svg#25"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "chip_navy_b.svg",
+  "category": "chip",
+  "width": 196,
+  "height": 68,
+  "kb": 2,
+  "sources": [
+   "0/1.svg#6",
+   "0/2.svg#6",
+   "0/3.svg#7",
+   "1/8.svg#6",
+   "1/9.svg#6",
+   "1/10.svg#7"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "chip_red_a.svg",
+  "category": "chip",
+  "width": 194,
+  "height": 62,
+  "kb": 1,
+  "sources": [
+   "0/1.svg#17",
+   "0/2.svg#17",
+   "0/3.svg#16",
+   "1/8.svg#17",
+   "1/9.svg#17",
+   "1/10.svg#16"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "chip_red_b.svg",
+  "category": "chip",
+  "width": 148,
+  "height": 64,
+  "kb": 2,
+  "sources": [
+   "0/1.svg#16",
+   "0/2.svg#16",
+   "1/8.svg#16",
+   "1/9.svg#16"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "chip_red_c.svg",
+  "category": "chip",
+  "width": 148,
+  "height": 58,
+  "kb": 2,
+  "sources": [
+   "0/3.svg#14",
+   "1/10.svg#14"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "deco_brown_arc.svg",
+  "category": "deco",
+  "width": 43.0,
+  "height": 44,
+  "kb": 52,
+  "sources": [
+   "1/2.svg#26"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "deco_cream_bar.svg",
+  "category": "deco",
+  "width": 302,
+  "height": 130,
+  "kb": 2,
+  "sources": [
+   "0/1.svg#54",
+   "0/2.svg#54",
+   "0/3.svg#51",
+   "1/8.svg#54",
+   "1/9.svg#54",
+   "1/10.svg#51"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "deco_dark_triangle.svg",
+  "category": "deco",
+  "width": 133.0,
+  "height": 157.5,
+  "kb": 9,
+  "sources": [
+   "2/4.svg#5"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "deco_gold_arrow.svg",
+  "category": "deco",
+  "width": 58,
+  "height": 32,
+  "kb": 2,
+  "sources": [
+   "1/6.svg#34"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "deco_gold_bar.svg",
+  "category": "deco",
+  "width": 810.0,
+  "height": 161.5,
+  "kb": 12,
+  "sources": [
+   "2/3.svg#8"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "deco_gold_disc.svg",
+  "category": "deco",
+  "width": 650,
+  "height": 652,
+  "kb": 508,
+  "sources": [
+   "0/1.svg#4",
+   "0/2.svg#4",
+   "0/3.svg#4",
+   "1/8.svg#4",
+   "1/9.svg#4",
+   "1/10.svg#4"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "deco_gold_fade.svg",
+  "category": "deco",
+  "width": 810.0,
+  "height": 1012.5,
+  "kb": 14,
+  "sources": [
+   "1/1.svg#12",
+   "1/2.svg#14",
+   "1/3.svg#8"
+  ],
+  "dupes": 3
+ },
+ {
+  "file": "deco_gold_line_a.svg",
+  "category": "deco",
+  "width": 532,
+  "height": 220,
+  "kb": 124,
+  "sources": [
+   "2/2.svg#14",
+   "2/2.svg#13",
+   "2/2.svg#12",
+   "2/2.svg#17",
+   "3/1.svg#6",
+   "3/2.svg#5"
+  ],
+  "dupes": 9
+ },
+ {
+  "file": "deco_gold_line_b.svg",
+  "category": "deco",
+  "width": 352,
+  "height": 332,
+  "kb": 1049,
+  "sources": [
+   "2/1.svg#26"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "deco_gold_rays.svg",
+  "category": "deco",
+  "width": 810.0,
+  "height": 1012.5,
+  "kb": 3968,
+  "sources": [
+   "3/5.svg#0"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "deco_red_scribble.svg",
+  "category": "deco",
+  "width": 254,
+  "height": 70,
+  "kb": 23,
+  "sources": [
+   "1/2.svg#37",
+   "1/2.svg#11"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "deco_sunburst.svg",
+  "category": "deco",
+  "width": 650,
+  "height": 634,
+  "kb": 139,
+  "sources": [
+   "0/1.svg#5",
+   "0/2.svg#5",
+   "0/3.svg#5",
+   "1/8.svg#5",
+   "1/9.svg#5",
+   "1/10.svg#5"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "deco_teal_band.svg",
+  "category": "deco",
+  "width": 810.0,
+  "height": 386,
+  "kb": 1,
+  "sources": [
+   "0/1.svg#38",
+   "0/2.svg#38",
+   "0/3.svg#15",
+   "1/8.svg#38",
+   "1/9.svg#38",
+   "1/10.svg#15"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "deco_teal_panel.svg",
+  "category": "deco",
+  "width": 810.0,
+  "height": 268,
+  "kb": 7,
+  "sources": [
+   "0/1.svg#39",
+   "0/2.svg#39",
+   "1/8.svg#39",
+   "1/9.svg#39"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "fig_anubis_panel.svg",
+  "category": "fig",
+  "width": 233.0,
+  "height": 179,
+  "kb": 129,
+  "sources": [
+   "1/2.svg#3"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fig_anubis_silhouette.svg",
+  "category": "fig",
+  "width": 561,
+  "height": 1012.5,
+  "kb": 17,
+  "sources": [
+   "2/4.svg#1"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fig_anubis_staff_silhouette.svg",
+  "category": "fig",
+  "width": 443,
+  "height": 669.5,
+  "kb": 46,
+  "sources": [
+   "2/5.svg#2"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fig_kneeling_gold.svg",
+  "category": "fig",
+  "width": 414,
+  "height": 515.5,
+  "kb": 28,
+  "sources": [
+   "2/7.svg#3"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fig_kneeling_red_line.svg",
+  "category": "fig",
+  "width": 414,
+  "height": 515.5,
+  "kb": 156,
+  "sources": [
+   "2/7.svg#5",
+   "2/1.svg#3",
+   "2/2.svg#3",
+   "2/3.svg#3"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "fig_line_art.svg",
+  "category": "fig",
+  "width": 297,
+  "height": 476,
+  "kb": 522,
+  "sources": [
+   "0/1.svg#3",
+   "0/2.svg#3",
+   "0/3.svg#3",
+   "1/8.svg#3",
+   "1/9.svg#3",
+   "1/10.svg#3"
+  ],
+  "dupes": 12
+ },
+ {
+  "file": "fig_nefertiti_gold_line.svg",
+  "category": "fig",
+  "width": 553.0,
+  "height": 507.5,
+  "kb": 171,
+  "sources": [
+   "2/4.svg#6"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fig_nefertiti_silhouette.svg",
+  "category": "fig",
+  "width": 553.0,
+  "height": 507.5,
+  "kb": 31,
+  "sources": [
+   "2/4.svg#4"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fig_thoth_silhouette.svg",
+  "category": "fig",
+  "width": 285.0,
+  "height": 695.5,
+  "kb": 125,
+  "sources": [
+   "2/6.svg#0"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "frame_torn_white_a.svg",
+  "category": "frame",
+  "width": 496,
+  "height": 341,
+  "kb": 94,
+  "sources": [
+   "1/2.svg#10"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "frame_torn_white_b.svg",
+  "category": "frame",
+  "width": 375,
+  "height": 416,
+  "kb": 79,
+  "sources": [
+   "1/1.svg#5",
+   "1/3.svg#5",
+   "1/4.svg#3",
+   "1/คิวอาร์.svg#3",
+   "1/6.svg#3",
+   "1/คิวอาร์ (2).svg#3"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "frame_torn_white_c.svg",
+  "category": "frame",
+  "width": 413,
+  "height": 361.5,
+  "kb": 78,
+  "sources": [
+   "1/1.svg#7"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fx_flare_a.svg",
+  "category": "fx",
+  "width": 810.0,
+  "height": 1012.5,
+  "kb": 381,
+  "sources": [
+   "2/4.svg#2"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fx_flare_b.svg",
+  "category": "fx",
+  "width": 799.0,
+  "height": 1012.5,
+  "kb": 382,
+  "sources": [
+   "2/5.svg#5"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fx_flare_c.svg",
+  "category": "fx",
+  "width": 665.0,
+  "height": 1012.5,
+  "kb": 229,
+  "sources": [
+   "2/7.svg#1"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "fx_flare_d.svg",
+  "category": "fx",
+  "width": 132,
+  "height": 173,
+  "kb": 23,
+  "sources": [
+   "2/2.svg#360"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "hiero_color_a.svg",
+  "category": "hiero",
+  "width": 353,
+  "height": 374,
+  "kb": 347,
+  "sources": [
+   "1/1.svg#4",
+   "1/3.svg#4",
+   "1/4.svg#2",
+   "1/คิวอาร์.svg#2",
+   "1/6.svg#2",
+   "1/คิวอาร์ (2).svg#2"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "hiero_color_b.svg",
+  "category": "hiero",
+  "width": 391,
+  "height": 333.5,
+  "kb": 373,
+  "sources": [
+   "1/1.svg#6"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "hiero_panel_a.svg",
+  "category": "hiero",
+  "width": 227.0,
+  "height": 297.5,
+  "kb": 166,
+  "sources": [
+   "1/2.svg#6"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "hiero_panel_b.svg",
+  "category": "hiero",
+  "width": 568,
+  "height": 303.5,
+  "kb": 349,
+  "sources": [
+   "1/2.svg#5"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "hiero_panel_c.svg",
+  "category": "hiero",
+  "width": 513.0,
+  "height": 317.5,
+  "kb": 314,
+  "sources": [
+   "1/1.svg#2",
+   "1/6.svg#6",
+   "1/คิวอาร์ (2).svg#6",
+   "1/3.svg#2"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "hiero_panel_d.svg",
+  "category": "hiero",
+  "width": 341,
+  "height": 303.5,
+  "kb": 196,
+  "sources": [
+   "1/3.svg#3"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "hiero_papyrus_art.svg",
+  "category": "hiero",
+  "width": 231,
+  "height": 273,
+  "kb": 106,
+  "sources": [
+   "1/1.svg#11"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "hiero_papyrus_frag.svg",
+  "category": "hiero",
+  "width": 448,
+  "height": 325,
+  "kb": 491,
+  "sources": [
+   "1/2.svg#9"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "icon_eye_horus_dark.svg",
+  "category": "icon",
+  "width": 297,
+  "height": 212,
+  "kb": 23,
+  "sources": [
+   "2/7.svg#11"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "icon_eye_horus_gray.svg",
+  "category": "icon",
+  "width": 337.0,
+  "height": 286,
+  "kb": 27,
+  "sources": [
+   "2/5.svg#3"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "logo_medquiz.svg",
+  "category": "logo",
+  "width": 110,
+  "height": 86,
+  "kb": 22,
+  "sources": [
+   "1/1.svg#18"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "logo_medquiz_gold.svg",
+  "category": "logo",
+  "width": 48,
+  "height": 38,
+  "kb": 13,
+  "sources": [
+   "0/1.svg#42",
+   "0/2.svg#42",
+   "0/3.svg#38",
+   "1/8.svg#42",
+   "1/9.svg#42",
+   "1/10.svg#38"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "obj_ankh.svg",
+  "category": "obj",
+  "width": 134,
+  "height": 228,
+  "kb": 37,
+  "sources": [
+   "2/2.svg#359"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_anubis_head.svg",
+  "category": "obj",
+  "width": 275,
+  "height": 359.5,
+  "kb": 60,
+  "sources": [
+   "2/6.svg#7"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_anubis_lying.svg",
+  "category": "obj",
+  "width": 503,
+  "height": 407.5,
+  "kb": 137,
+  "sources": [
+   "3/1.svg#7",
+   "3/2.svg#8",
+   "3/3.svg#7",
+   "3/4.svg#7"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "obj_bastet_statue.svg",
+  "category": "obj",
+  "width": 350,
+  "height": 736,
+  "kb": 181,
+  "sources": [
+   "2/5.svg#7"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_blue_urn.svg",
+  "category": "obj",
+  "width": 228,
+  "height": 262,
+  "kb": 69,
+  "sources": [
+   "2/2.svg#19"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_coins_a.svg",
+  "category": "obj",
+  "width": 650,
+  "height": 147.5,
+  "kb": 108,
+  "sources": [
+   "2/2.svg#21",
+   "2/6.svg#364"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "obj_coins_b.svg",
+  "category": "obj",
+  "width": 644,
+  "height": 83.5,
+  "kb": 107,
+  "sources": [
+   "2/2.svg#24"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_coins_pile.svg",
+  "category": "obj",
+  "width": 471,
+  "height": 434,
+  "kb": 61,
+  "sources": [
+   "2/2.svg#25"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_coins_strip_a.svg",
+  "category": "obj",
+  "width": 513.0,
+  "height": 89.5,
+  "kb": 77,
+  "sources": [
+   "2/2.svg#22",
+   "3/2.svg#16",
+   "3/1.svg#14",
+   "1/1.svg#10"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "obj_coins_strip_b.svg",
+  "category": "obj",
+  "width": 429,
+  "height": 97.5,
+  "kb": 60,
+  "sources": [
+   "2/2.svg#20",
+   "1/3.svg#6"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "obj_magnifier.svg",
+  "category": "obj",
+  "width": 299,
+  "height": 391.5,
+  "kb": 55,
+  "sources": [
+   "1/1.svg#45"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_megaphone_a.svg",
+  "category": "obj",
+  "width": 153,
+  "height": 167.5,
+  "kb": 1590,
+  "sources": [
+   "0/1.svg#46",
+   "0/2.svg#46",
+   "1/8.svg#46",
+   "1/9.svg#46"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "obj_megaphone_b.svg",
+  "category": "obj",
+  "width": 171,
+  "height": 147.5,
+  "kb": 1591,
+  "sources": [
+   "0/3.svg#43",
+   "1/10.svg#43"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "obj_microphone.svg",
+  "category": "obj",
+  "width": 158,
+  "height": 238,
+  "kb": 81,
+  "sources": [
+   "0/1.svg#49",
+   "0/2.svg#49",
+   "0/3.svg#46",
+   "1/8.svg#49",
+   "1/9.svg#49",
+   "1/10.svg#46"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "obj_pharaoh_headdress.svg",
+  "category": "obj",
+  "width": 290,
+  "height": 410,
+  "kb": 85,
+  "sources": [
+   "0/3.svg#40",
+   "1/10.svg#40"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "obj_pharaoh_mask_bw.svg",
+  "category": "obj",
+  "width": 258,
+  "height": 364,
+  "kb": 150,
+  "sources": [
+   "1/4.svg#7",
+   "1/คิวอาร์.svg#7",
+   "1/6.svg#8",
+   "1/คิวอาร์ (2).svg#8"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "obj_pharaoh_mask_color.svg",
+  "category": "obj",
+  "width": 308,
+  "height": 283.5,
+  "kb": 125,
+  "sources": [
+   "1/1.svg#9"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_pharaoh_mask_lying.svg",
+  "category": "obj",
+  "width": 810.0,
+  "height": 565.5,
+  "kb": 412,
+  "sources": [
+   "2/1.svg#6"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "obj_pyramid_gem.svg",
+  "category": "obj",
+  "width": 309.0,
+  "height": 282,
+  "kb": 49,
+  "sources": [
+   "3/1.svg#9",
+   "3/2.svg#10",
+   "3/3.svg#9",
+   "3/4.svg#9"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "obj_scarab.svg",
+  "category": "obj",
+  "width": 144,
+  "height": 136,
+  "kb": 44,
+  "sources": [
+   "2/2.svg#23"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "orn_corner_a.svg",
+  "category": "orn",
+  "width": 140,
+  "height": 140,
+  "kb": 2,
+  "sources": [
+   "3/1.svg#3",
+   "3/2.svg#2",
+   "3/3.svg#3",
+   "3/4.svg#2",
+   "3/5.svg#1"
+  ],
+  "dupes": 5
+ },
+ {
+  "file": "orn_corner_b.svg",
+  "category": "orn",
+  "width": 140,
+  "height": 140,
+  "kb": 11,
+  "sources": [
+   "3/1.svg#5",
+   "3/2.svg#4",
+   "3/3.svg#5",
+   "3/4.svg#4"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "orn_corner_c.svg",
+  "category": "orn",
+  "width": 140,
+  "height": 140,
+  "kb": 11,
+  "sources": [
+   "3/1.svg#10",
+   "3/2.svg#11",
+   "3/3.svg#10",
+   "3/4.svg#10"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "orn_corner_d.svg",
+  "category": "orn",
+  "width": 140,
+  "height": 140,
+  "kb": 2,
+  "sources": [
+   "3/5.svg#3"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "orn_corner_outline.svg",
+  "category": "orn",
+  "width": 140,
+  "height": 140,
+  "kb": 2,
+  "sources": [
+   "3/1.svg#4",
+   "3/2.svg#3",
+   "3/3.svg#4",
+   "3/4.svg#3",
+   "3/5.svg#2",
+   "3/5.svg#4"
+  ],
+  "dupes": 6
+ },
+ {
+  "file": "paper_label.svg",
+  "category": "paper",
+  "width": 771,
+  "height": 428,
+  "kb": 80,
+  "sources": [
+   "2/7.svg#2"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "paper_papyrus_a.svg",
+  "category": "paper",
+  "width": 595.0,
+  "height": 568,
+  "kb": 578,
+  "sources": [
+   "2/5.svg#8"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "paper_papyrus_b.svg",
+  "category": "paper",
+  "width": 607,
+  "height": 452,
+  "kb": 265,
+  "sources": [
+   "2/6.svg#5"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "paper_stamp.svg",
+  "category": "paper",
+  "width": 184,
+  "height": 232,
+  "kb": 12,
+  "sources": [
+   "1/4.svg#12",
+   "1/คิวอาร์.svg#12",
+   "1/6.svg#13",
+   "1/คิวอาร์ (2).svg#13"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "paper_tablet_a.svg",
+  "category": "paper",
+  "width": 580,
+  "height": 412,
+  "kb": 347,
+  "sources": [
+   "2/5.svg#6"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "paper_tablet_stone.svg",
+  "category": "paper",
+  "width": 568,
+  "height": 404,
+  "kb": 250,
+  "sources": [
+   "2/6.svg#4"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "paper_torn_gray.svg",
+  "category": "paper",
+  "width": 652,
+  "height": 572,
+  "kb": 609,
+  "sources": [
+   "1/4.svg#15",
+   "1/คิวอาร์.svg#15"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "paper_white_a.svg",
+  "category": "paper",
+  "width": 545.0,
+  "height": 850,
+  "kb": 61,
+  "sources": [
+   "1/4.svg#4",
+   "1/คิวอาร์.svg#4",
+   "1/6.svg#4",
+   "1/คิวอาร์ (2).svg#4"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "paper_white_b.svg",
+  "category": "paper",
+  "width": 545.0,
+  "height": 695,
+  "kb": 61,
+  "sources": [
+   "1/1.svg#13"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "paper_white_tilt_a.svg",
+  "category": "paper",
+  "width": 393,
+  "height": 339.5,
+  "kb": 29,
+  "sources": [
+   "1/1.svg#8"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "paper_white_tilt_b.svg",
+  "category": "paper",
+  "width": 328,
+  "height": 405.5,
+  "kb": 32,
+  "sources": [
+   "1/4.svg#6",
+   "1/คิวอาร์.svg#6",
+   "1/6.svg#7",
+   "1/คิวอาร์ (2).svg#7"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "photo_pyramids.svg",
+  "category": "photo",
+  "width": 535.0,
+  "height": 517,
+  "kb": 162,
+  "sources": [
+   "1/1.svg#14"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "photo_pyramids_sunset.svg",
+  "category": "photo",
+  "width": 160,
+  "height": 206,
+  "kb": 20,
+  "sources": [
+   "1/4.svg#13",
+   "1/คิวอาร์.svg#13",
+   "1/6.svg#14",
+   "1/คิวอาร์ (2).svg#14"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "photo_sphinx.svg",
+  "category": "photo",
+  "width": 535.0,
+  "height": 662,
+  "kb": 483,
+  "sources": [
+   "1/4.svg#5",
+   "1/คิวอาร์.svg#5",
+   "1/6.svg#5",
+   "1/คิวอาร์ (2).svg#5"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "scroll_a.svg",
+  "category": "scroll",
+  "width": 759.0,
+  "height": 808,
+  "kb": 377,
+  "sources": [
+   "1/1.svg#16"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_b.svg",
+  "category": "scroll",
+  "width": 810.0,
+  "height": 748,
+  "kb": 392,
+  "sources": [
+   "1/2.svg#15"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_c.svg",
+  "category": "scroll",
+  "width": 749,
+  "height": 808,
+  "kb": 377,
+  "sources": [
+   "1/3.svg#14"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_d.svg",
+  "category": "scroll",
+  "width": 810.0,
+  "height": 690,
+  "kb": 358,
+  "sources": [
+   "3/3.svg#2"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_e.svg",
+  "category": "scroll",
+  "width": 810.0,
+  "height": 658,
+  "kb": 170,
+  "sources": [
+   "3/4.svg#6"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_f.svg",
+  "category": "scroll",
+  "width": 792,
+  "height": 580,
+  "kb": 349,
+  "sources": [
+   "3/1.svg#2"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_g.svg",
+  "category": "scroll",
+  "width": 650,
+  "height": 526,
+  "kb": 297,
+  "sources": [
+   "1/6.svg#16",
+   "1/คิวอาร์ (2).svg#16"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "scroll_h.svg",
+  "category": "scroll",
+  "width": 602,
+  "height": 480,
+  "kb": 214,
+  "sources": [
+   "3/2.svg#6"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_i.svg",
+  "category": "scroll",
+  "width": 660,
+  "height": 302,
+  "kb": 133,
+  "sources": [
+   "2/6.svg#6"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_rolled.svg",
+  "category": "scroll",
+  "width": 596,
+  "height": 320,
+  "kb": 210,
+  "sources": [
+   "3/2.svg#7"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "scroll_wide.svg",
+  "category": "scroll",
+  "width": 777,
+  "height": 482,
+  "kb": 260,
+  "sources": [
+   "2/4.svg#3"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "tex_dark_hiero.svg",
+  "category": "tex",
+  "width": 805,
+  "height": 464,
+  "kb": 528,
+  "sources": [
+   "2/1.svg#0",
+   "2/2.svg#0",
+   "2/3.svg#0",
+   "1/1.svg#1",
+   "1/2.svg#1",
+   "1/3.svg#1"
+  ],
+  "dupes": 9
+ },
+ {
+  "file": "tex_papyrus.svg",
+  "category": "tex",
+  "width": 810.0,
+  "height": 461,
+  "kb": 512,
+  "sources": [
+   "1/4.svg#1",
+   "1/คิวอาร์.svg#1",
+   "1/6.svg#1",
+   "1/คิวอาร์ (2).svg#1"
+  ],
+  "dupes": 4
+ },
+ {
+  "file": "tex_papyrus_strip.svg",
+  "category": "tex",
+  "width": 202,
+  "height": 248,
+  "kb": 30,
+  "sources": [
+   "1/3.svg#7",
+   "1/4.svg#10",
+   "1/คิวอาร์.svg#10",
+   "1/6.svg#11",
+   "1/คิวอาร์ (2).svg#11"
+  ],
+  "dupes": 5
+ },
+ {
+  "file": "tex_stone_a.svg",
+  "category": "tex",
+  "width": 810.0,
+  "height": 555.5,
+  "kb": 400,
+  "sources": [
+   "1/3.svg#0"
+  ],
+  "dupes": 1
+ },
+ {
+  "file": "tex_stone_b.svg",
+  "category": "tex",
+  "width": 810.0,
+  "height": 433.5,
+  "kb": 400,
+  "sources": [
+   "1/1.svg#0",
+   "1/2.svg#0"
+  ],
+  "dupes": 2
+ },
+ {
+  "file": "tex_stone_c.svg",
+  "category": "tex",
+  "width": 810.0,
+  "height": 433.5,
+  "kb": 523,
+  "sources": [
+   "1/4.svg#0",
+   "1/คิวอาร์.svg#0",
+   "1/6.svg#0",
+   "1/คิวอาร์ (2).svg#0"
+  ],
+  "dupes": 4
+ }
+]
