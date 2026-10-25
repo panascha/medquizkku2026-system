@@ -7,4 +7,4 @@ const override = (() => {
         return v && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(v) ? v : null;
     } catch (e) { return null; }
 })();
-export const API_BASE = (override || 'https://r1-backup.REPLACE_BEFORE_DEPLOY.workers.dev').replace(/\/+$/, '');
+export const API_BASE = (override || 'https://r1-backup.medquizkku2026.workers.dev').replace(/\/+$/, '');

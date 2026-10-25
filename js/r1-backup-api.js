@@ -5,7 +5,7 @@
 import { API_BASE } from './r1-backup-config.js';
 import { makeClock } from './r1-backup-engine.js';
 
-const CONTROL_POLL_MS = 30000;
+const CONTROL_POLL_MS = 60000;
 const CHECKPOINT_MS = 10000;
 
 let username = null;
@@ -78,7 +78,7 @@ export async function startServerClock() {
 export const getServerNow = () => clock.serverNowAtSync + (performance.now() - clock.monoAtSync);
 export const getClock = () => clock;
 
-/** Polls /api/control every 30 s; cb gets {mcq:{startAt,endAt}?, unseen:{…}?}. A failed poll keeps the last value. Returns stop(). */
+/** Polls /api/control every 60 s; cb gets {mcq:{startAt,endAt}?, unseen:{…}?}. A failed poll keeps the last value. Returns stop(). */
 export function watchControl(cb) {
     const poll = async () => {
         try {

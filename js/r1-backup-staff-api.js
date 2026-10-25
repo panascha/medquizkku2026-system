@@ -5,7 +5,7 @@
 import { API_BASE } from './r1-backup-config.js';
 
 const TOKEN_KEY = 'r1bk:admin-token';
-const POLL_MS = 5000;
+const POLL_MS = 60000;
 
 let offset = 0; // serverNow - Date.now(), refreshed from the `now` of every response
 let token = null;
@@ -66,7 +66,7 @@ export async function startServerClock() { await fetchRoot(); }
 
 export const getServerNow = () => Date.now() + offset;
 
-/** cb(root) now and every 5 s; returns a stop function. A failed poll calls onError and keeps polling. */
+/** cb(root) now and every 60 s; returns a stop function. A failed poll calls onError and keeps polling. */
 export function watchRoot(cb, onError) {
     let stopped = false;
     let timer = null;

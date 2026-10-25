@@ -13,7 +13,7 @@
 5. แก้ `ALLOWED_ORIGINS` ใน `wrangler.toml` ให้เป็น origin ของหน้าพอร์ทัลที่ deploy จริง (คั่นด้วย comma)
 6. Deploy: `npx wrangler deploy` จดค่า URL `https://r1-backup.<subdomain>.workers.dev`
 7. แก้ `API_BASE` ใน `js/r1-backup-config.js` เป็น URL ข้างบน (ไม่มี `/` ท้าย) แล้ว deploy พอร์ทัล
-8. **ตรวจแพ็กเกจ Workers Paid**: แพ็กเกจฟรีจำกัด 100,000 request/วัน แต่นักเรียน 300 คน x 90 นาที ใช้ประมาณ 210,000 request จึงเกินโควตา ต้องอัปเกรดเป็น Workers Paid ($5/เดือน) ก่อนวันสอบ
+8. **ใช้แพ็กเกจฟรี (ตัดสินใจ 2026-10-26)**: โควตาฟรีคือ 100,000 request/วัน และ D1 อ่านได้ 5 ล้านแถว/วัน รีเซ็ตเวลา 07:00 น. ตามเวลาไทย นักเรียนตรวจสถานะทุก 60 วินาที หน้า staff รีเฟรชทุก 60 วินาที **เปิดหน้า staff monitor ได้แค่ 1 แท็บ** เพราะเปิดเพิ่มหนึ่งแท็บจะใช้โควตาการอ่าน D1 เพิ่มอีกเท่าหนึ่ง และห้ามรัน load test กับบัญชีนี้ในวันสอบ
 9. สร้างไฟล์โจทย์ใหม่ด้วย origin จริง (รันที่ root โปรเจกต์ ซึ่งอยู่นอก git): `python -I tools/build_r1_backup_json.py --base https://r1-backup.<subdomain>.workers.dev` ต้องรายงานจำนวน 23 SBA + 5 MTF x 4 ข้อย่อย + 24 ข้อย่อย Unseen ถ้าไม่ตรงให้หยุดและแจ้ง ไฟล์ผลลัพธ์ (`mcq.json`, `unseen.json`, `key.json`, `images/`) อยู่นอก repo ห้าม commit ห้ามแสดงเนื้อหาโจทย์/เฉลย
 10. `key.json` รูปแบบ `{"key": {...}}` ต้องครบ 23 SBA + 20 MTF + 24 Unseen ค่า SBA = A-E, MTF/Unseen = T หรือ F เท่านั้น ตัวอย่างค่าปลอม (FAKE): `{ "key": { "m01": "C", "m24s1": "T", "u1a1": "F" } }`
 11. เตรียมรหัส `ADMIN_TOKEN` ให้ staff ที่จะใช้หน้า `pages/r1-backup-staff.html` (หน้านี้ไม่ใช้ล็อกอิน Google ใช้รหัสนี้อย่างเดียว ส่งผ่านช่องทางส่วนตัว)

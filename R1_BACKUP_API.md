@@ -73,9 +73,9 @@ Admin, `Authorization: Bearer <ADMIN_TOKEN>`:
 CORS: allow only origins in `ALLOWED_ORIGINS`; preflight for `X-Seat-Token` / `Authorization`.
 
 ## Client behaviour
-- Student: localStorage autosave stays as is (outbox in `r1bk:v1:` keys). Outbox flushes as ONE `/api/submit` delta every 10 s and on `online` event, not per click. `watchControl` = poll `/api/control` every 30 s plus `now` piggybacked on every response. `fetchQuestions` keeps the jittered retry on 403.
+- Student: localStorage autosave stays as is (outbox in `r1bk:v1:` keys). Outbox flushes as ONE `/api/submit` delta every 10 s and on `online` event, not per click. `watchControl` = poll `/api/control` every 60 s plus `now` piggybacked on every response. `fetchQuestions` keeps the jittered retry on 403.
 - Seat token saved in the session key; resume sends it to `/api/claim`. `ensureAnon`/`UID_MISMATCH`/`STAFF_SESSION` branches in `r1-backup-app.js` replaced by token resume; 409 shows the existing "ที่นั่งนี้ถูกใช้งานแล้ว" message.
-- Staff page: no Firebase, no `requireStaff`. Admin token typed once, kept in sessionStorage. `watchRoot` = poll `/api/admin/tree` every 5 s.
+- Staff page: no Firebase, no `requireStaff`. Admin token typed once, kept in sessionStorage. `watchRoot` = poll `/api/admin/tree` every 60 s.
 
 ## Free-tier budget (check before 1 Nov)
 Workers free = 100k requests/day; D1 free = 100k row writes/day. 300 clients x 90 min: control poll @30 s ~ 54k + checkpoints @10 s ~ 160k requests -> **exceeds free Workers quota**. Use Workers Paid ($5/month) for exam day, or raise checkpoint interval. Writes are delta-only (~20-30k rows), fine.
