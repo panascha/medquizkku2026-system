@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R2 Spot Dashboard — MedQuiz KKU 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background: #f8faff; color: #1e293b; }
+        .nav-gradient { background: linear-gradient(to right, #0f1f4b, #1e3a8a); }
+        button:disabled, input:disabled { opacity: .5; cursor: not-allowed; }
+        #heat { display: grid; gap: 1px; }
+    </style>
+</head>
+
+<body class="min-h-screen">
+    <nav class="nav-gradient text-white p-4 shadow-lg">
+        <div class="max-w-[1300px] mx-auto flex items-center gap-3">
+            <a href="../index.html" class="opacity-70 hover:opacity-100">&larr;</a>
+            <span class="font-bold">R2 Spot Dashboard</span>
+            <span id="staffName" class="ml-auto text-xs opacity-80"></span>
+        </div>
+    </nav>
+
+    <div id="fixtureBanner" hidden class="bg-amber-100 text-amber-900 text-center text-sm py-1">
+        FIXTURE MODE — ข้อมูลปลอม ไม่เชื่อมต่อ Firebase / OnSite (เพิ่ม &amp;complete=1 เพื่อให้ตรวจครบ 1400)
+    </div>
+
+    <main id="app" hidden class="max-w-[1300px] mx-auto p-4 space-y-4">
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <h2 class="font-bold">1. ตั้งค่า</h2>
+            <p id="adminNote" hidden class="text-sm text-amber-800">คุณไม่ได้อยู่ใน admins — ดูข้อมูลได้อย่างเดียว</p>
+            <div class="flex items-center gap-3 flex-wrap">
+                <button id="btnLoadTeams" class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">โหลด 40 ทีมจาก OnSite</button>
+                <span id="teamsInfo" class="text-sm text-slate-600"></span>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <label class="text-sm">อัปโหลดข้อสอบ (JSON)
+                    <input id="fileQ" type="file" accept="application/json,.json" class="block text-sm mt-1">
+                </label>
+            </div>
+            <div class="flex items-center gap-3">
+                <span>การตรวจ:</span><span id="gradingState" class="font-bold"></span>
+                <button id="btnToggle" class="bg-slate-800 text-white rounded-lg px-4 py-2 text-sm font-bold"></button>
+            </div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4">
+            <div class="flex items-baseline gap-3 mb-2">
+                <h2 class="font-bold">2. ความคืบหน้า</h2>
+                <span id="progText" class="text-2xl font-bold"></span>
+            </div>
+            <div class="w-full h-3 bg-slate-200 rounded-full overflow-hidden"><div id="progBar" class="h-3 bg-emerald-500" style="width:0"></div></div>
+            <h3 class="font-bold text-sm mt-3 mb-1">ข้อที่ตรวจช้า</h3>
+            <div id="lag" class="text-sm"></div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
+            <h2 class="font-bold mb-2">3. Heatmap ข้อ × ทีม</h2>
+            <div id="heat" class="min-w-[700px]"></div>
+            <p class="text-xs text-slate-500 mt-2">เขียว = 1, แดง = 0, เทา = ยังไม่ตรวจ</p>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <h2 class="font-bold">4. อันดับ</h2>
+            <div id="tieBox" hidden class="bg-amber-50 border border-amber-300 rounded-lg p-3 space-y-2">
+                <div class="font-bold text-amber-900">คะแนนเท่ากันคร่อมอันดับ 8/9 — ประธานต้องเลือก</div>
+                <div id="tieInfo" class="text-sm"></div>
+                <div class="flex items-center gap-3">
+                    <button id="btnTie" disabled class="bg-amber-700 text-white rounded-lg px-4 py-2 text-sm font-bold">บันทึกผลตัดสิน (tieDecision)</button>
+                    <span id="tieSaved" class="text-xs text-slate-600"></span>
+                </div>
+            </div>
+            <table class="w-full text-sm">
+                <thead><tr class="text-left text-slate-500"><th class="px-2">#</th><th class="px-2">ทีม</th><th class="px-2">ชื่อ</th><th class="px-2 text-right">คะแนน</th><th class="px-2"></th></tr></thead>
+                <tbody id="board"></tbody>
+            </table>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+            <h2 class="font-bold">5. ส่งผลเข้าชีต OnSite</h2>
+            <button id="btnPush" disabled class="bg-red-700 text-white rounded-lg px-6 py-3 font-bold">Push</button>
+            <div id="pushWhy" class="text-sm text-slate-600"></div>
+        </section>
+    </main>
+
+    <div id="toast" hidden></div>
+
+    <script type="module">
+        import { initDashboardPage } from '../js/spot-dashboard-app.js';
+
+        const params = new URLSearchParams(location.search);
+        const fixture = params.get('fixture') === '1';
+        const show = () => { document.getElementById('app').hidden = false; };
+
+        if (fixture) {
+            // ข้อมูลปลอมล้วน ไม่แตะ Firebase
+            initDashboardPage({ fixture: true, complete: params.get('complete') === '1' }).then(show);
+        } else {
+            const { auth } = await import('../js/firebase-config.js');
+            const { onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+            const { requireStaff } = await import('../js/staff-guard.js');
+            let started = false;
+            onAuthStateChanged(auth, async (user) => {
+                if (!(await requireStaff(user))) return;
+                document.getElementById('staffName').textContent = user.displayName || user.email;
+                if (started) return;
+                started = true;
+                await initDashboardPage({ fixture: false, user });
+                show();
+            });
+        }
+    </script>
+</body>
+
+</html>
