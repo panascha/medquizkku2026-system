@@ -5,7 +5,7 @@ const FAKE = 'ข้อสอบจำลอง (ไม่ใช่ข้อส�
 
 function buildMcq() {
     const items = {};
-    for (let n = 1; n <= 21; n++) {
+    for (let n = 1; n <= 23; n++) {
         const id = 'm' + String(n).padStart(2, '0');
         items[id] = {
             no: n,
@@ -14,7 +14,7 @@ function buildMcq() {
             options: { A: 'ตัวเลือกปลอม A', B: 'ตัวเลือกปลอม B', C: 'ตัวเลือกปลอม C', D: 'ตัวเลือกปลอม D', E: 'ตัวเลือกปลอม E' }
         };
     }
-    for (let n = 22; n <= 28; n++) {
+    for (let n = 24; n <= 28; n++) {
         const statements = {};
         for (let s = 1; s <= 4; s++) statements[`m${n}s${s}`] = { no: s, text: `ข้อความปลอม ${n}.${s}` };
         items['m' + n] = { no: n, type: 'mtf', stem: `${FAKE} ข้อ ${n}: ตัดสินว่าจริงหรือเท็จ (ข้อมูลปลอม)`, statements };

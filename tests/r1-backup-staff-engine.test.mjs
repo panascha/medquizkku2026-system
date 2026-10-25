@@ -41,7 +41,7 @@ test('sanitizeQuestions refuses answer-key fields at every level', () => {
     let q = clone(); q.answerKey = {}; assert.throws(() => sanitizeQuestions('mcq', q), /ไม่อนุญาต/);
     q = clone(); q.items.m01.answer = 'A'; assert.throws(() => sanitizeQuestions('mcq', q), /answer/);
     q = clone(); q.items.m01.correct = 'A'; assert.throws(() => sanitizeQuestions('mcq', q), /correct/);
-    q = clone(); q.items.m22.statements.m22s1.isTrue = true; assert.throws(() => sanitizeQuestions('mcq', q), /isTrue/);
+    q = clone(); q.items.m24.statements.m24s1.isTrue = true; assert.throws(() => sanitizeQuestions('mcq', q), /isTrue/);
     const u = JSON.parse(JSON.stringify(FIXTURE_QUESTIONS.unseen));
     u.articles.u1.sections.u1a.statements.u1a1.key = 'T';
     assert.throws(() => sanitizeQuestions('unseen', u), /key/);
@@ -86,7 +86,7 @@ test('monitorRows + release seat clears uid and claimedAt', () => {
     assert.equal(rows.some((r) => r.username.startsWith('_')), false);
     const r = rows.find((x) => x.username === 'mq2026-001-1');
     assert.equal(r.claimed, true);
-    assert.equal(r.answeredMcq, 49);
+    assert.equal(r.answeredMcq, 43);
     assert.equal(r.answeredUnseen, 24);
     assert.equal(r.submittedMcq, true);
     assert.equal(rows.find((x) => x.username === 'mq2026-005-2').submittedMcq, false);
@@ -96,7 +96,7 @@ test('monitorRows + release seat clears uid and claimedAt', () => {
 });
 
 test('parseAnswerKey completeness and values', () => {
-    assert.equal(Object.keys(key).length, 21 + 28 + 24);
+    assert.equal(Object.keys(key).length, 23 + 20 + 24);
     const k = buildFixtureKey();
     delete k.key.m01;
     assert.throws(() => parseAnswerKey(k), /ไม่ครบ/);
@@ -104,7 +104,7 @@ test('parseAnswerKey completeness and values', () => {
     assert.throws(() => parseAnswerKey(bad), /A-E/);
     const unk = buildFixtureKey(); unk.key.zz = 'A';
     assert.throws(() => parseAnswerKey(unk), /ไม่รู้จัก/);
-    assert.equal(Object.keys(parseAnswerKey(buildFixtureKey().key)).length, 73); // flat map accepted
+    assert.equal(Object.keys(parseAnswerKey(buildFixtureKey().key)).length, 67); // flat map accepted
 });
 
 test('scoreMcq: SBA 4, MTF 1, max 112', () => {
@@ -114,7 +114,7 @@ test('scoreMcq: SBA 4, MTF 1, max 112', () => {
     assert.equal(scoreMcq(key, {}), 0);
     assert.equal(scoreMcq(key, { m01: 'A' }), 4);
     assert.equal(scoreMcq(key, { m01: 'B' }), 0);
-    assert.equal(scoreMcq(key, { m22s1: 'T', m22s2: 'F' }), 1);
+    assert.equal(scoreMcq(key, { m24s1: 'T', m24s2: 'F' }), 1);
     assert.equal(scoreMcq(key, { u1a1: 'T' }), 0); // unseen ids never count in MCQ
     assert.equal(scoreMcq(key, null), 0);
 });

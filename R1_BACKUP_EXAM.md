@@ -7,7 +7,7 @@ Public zero-auth page `r1-backup-exam.html` for the KKUEXAM-outage fallback. Sea
 2. RTDB rules: **merge** the single `r1_backup_exam` key from `r1_backup_exam.rules.json` under your existing `rules` object. Pasting it as the whole ruleset replaces everything. Any ancestor `.read`/`.write: true` (check the root) cascades and defeats these rules. Check in Rules Playground; rules are untested in-repo.
 3. RTDB plan: Spark caps at 100 simultaneous connections. 300 students + staff need Blaze. Check before exam day.
 4. Anonymous sign-in creation is rate-limited per IP (documented ~100/hr). 300 students behind one lab NAT may be blocked. Mitigation: run a rehearsal where students open the page and claim seats beforehand (anon uid persists in IndexedDB), spread over hours / networks, or raise the limit via Identity Platform.
-5. Item-order assumption: Part 1 = 21 SBA (`m01`-`m21`) then 7 MTF (`m22`-`m28`, statements `m22s1`-`m28s4`). Confirm against the real KKUEXAM order.
+5. Item-order assumption: Part 1 = 23 SBA (`m01`-`m23`) then 5 MTF (`m24`-`m28`, statements `m24s1`-`m28s4`). Confirm against the real KKUEXAM order.
 
 ## Behaviour notes
 - Members 2/3: Part 2 is read-only ("ส่งโดยหัวหน้าทีม (-1)"). Only `-1` writes Part 2.
@@ -20,7 +20,7 @@ Public zero-auth page `r1-backup-exam.html` for the KKUEXAM-outage fallback. Sea
 - `_control/{mcq|unseen}` = `{startAt, endAt}` (ms epoch). Staff write.
 - `_questions/{mcq|unseen}` = question JSON (below). Readable by students only after `startAt`. Never store an answer key here.
 - `{username}` (`mq2026-NNN-M`, NNN 001-100, M 1-3): `uid`, `claimedAt`, `answers/{qid}`, `flags/{itemId}`, `submitted/{part}`, `blurCount`.
-- ids: SBA `m01`-`m21` (A-E); MTF item `m22`-`m28`, statements `m22s1`-`m28s4` (T/F); Part 2 sections `u1a`..`u3b`, statements `u1a1`..`u3b4` (T/F).
+- ids: SBA `m01`-`m23` (A-E); MTF item `m24`-`m28`, statements `m24s1`-`m28s4` (T/F); Part 2 sections `u1a`..`u3b`, statements `u1a1`..`u3b4` (T/F).
 
 ### Upload JSON shape
 ```json
@@ -28,8 +28,8 @@ Public zero-auth page `r1-backup-exam.html` for the KKUEXAM-outage fallback. Sea
   "items": {
     "m01": { "no": 1, "type": "sba", "stem": "...", "imageUrl": "https://... (optional)",
              "options": { "A": "...", "B": "..." } },
-    "m22": { "no": 22, "type": "mtf", "stem": "...",
-             "statements": { "m22s1": { "no": 1, "text": "..." } } } } }
+    "m24": { "no": 24, "type": "mtf", "stem": "...",
+             "statements": { "m24s1": { "no": 1, "text": "..." } } } } }
 ```
 ```json
 { "version": 1, "part": "unseen", "title": "...",
@@ -45,7 +45,7 @@ Serve with `python -m http.server 5502` from this folder.
 
 ## Staff page (`pages/r1-backup-staff.html`)
 Whitelist-gated (`requireStaff`). Upload questions (whitelist sanitiser refuses any unknown field, so no key), per-part start/extend/end, live monitor, Release Seat (clears `uid` AND `claimedAt`: rules only allow writing `claimedAt` while absent), grade + Moodle TSV export (tabs `From KKUEXAM` = `Grade/112.00`, `From UNSEEN 1/2/3` = `Grade/8.00`, `-1` usernames only). Control writes use client-estimated server time (`.info/serverTimeOffset`).
-Answer key file: `{"key": {"m01": "C", "m22s1": "T", "u1a1": "F", ...}}`, complete (21 SBA + 28 MTF + 24 Unseen statements); held in browser memory only.
+Answer key file: `{"key": {"m01": "C", "m24s1": "T", "u1a1": "F", ...}}`, complete (23 SBA + 20 MTF + 24 Unseen statements); held in browser memory only.
 Unsubmitted students export as `In progress` with `-` for Completed/Time taken and a score from their autosaved answers.
 Fixture: `pages/r1-backup-staff.html?fixture=1` (fake tree and key, no Firebase).
 Test: `node --test tests/r1-backup-staff-engine.test.mjs`.

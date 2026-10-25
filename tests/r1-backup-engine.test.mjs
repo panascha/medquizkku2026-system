@@ -55,9 +55,9 @@ test('mergeAnswers local wins, reports local-only/different', () => {
 test('normalizeQuestions on fixture', () => {
     const mcq = normalizeQuestions('mcq', FIXTURE_QUESTIONS.mcq);
     assert.equal(mcq.items.length, 28);
-    assert.equal(mcq.items.filter((i) => i.type === 'sba').length, 21);
+    assert.equal(mcq.items.filter((i) => i.type === 'sba').length, 23);
     const mtf = mcq.items.filter((i) => i.type === 'mtf');
-    assert.equal(mtf.length, 7);
+    assert.equal(mtf.length, 5);
     mtf.forEach((i) => assert.equal(i.statements.length, 4));
     assert.deepEqual(mcq.items.map((i) => i.no), Array.from({ length: 28 }, (_, i) => i + 1));
     assert.equal(mcq.items[0].options.length, 5);
@@ -78,11 +78,11 @@ test('normalizeQuestions drops answer-key fields', () => {
 test('itemStatus + buildNavigator', () => {
     const mcq = normalizeQuestions('mcq', FIXTURE_QUESTIONS.mcq);
     const sba = mcq.items[0];
-    const mtf = mcq.items[21];
+    const mtf = mcq.items[23];
     assert.equal(itemStatus(sba, {}), 'unanswered');
     assert.equal(itemStatus(sba, { m01: 'A' }), 'answered');
-    assert.equal(itemStatus(mtf, { m22s1: 'T' }), 'partial');
-    assert.equal(itemStatus(mtf, { m22s1: 'T', m22s2: 'F', m22s3: 'T', m22s4: 'F' }), 'answered');
+    assert.equal(itemStatus(mtf, { m24s1: 'T' }), 'partial');
+    assert.equal(itemStatus(mtf, { m24s1: 'T', m24s2: 'F', m24s3: 'T', m24s4: 'F' }), 'answered');
     const nav = buildNavigator('mcq', mcq, { m01: 'A' }, { m03: true });
     assert.equal(nav.length, 28);
     assert.equal(nav[0].status, 'answered');
@@ -94,7 +94,7 @@ test('itemStatus + buildNavigator', () => {
 test('answerFromKey', () => {
     const mcq = normalizeQuestions('mcq', FIXTURE_QUESTIONS.mcq);
     const sba = mcq.items[0];
-    const mtf = mcq.items[21];
+    const mtf = mcq.items[23];
     assert.deepEqual(answerFromKey(sba, '2'), { type: 'answer', qid: 'm01', value: 'B' });
     assert.deepEqual(answerFromKey(sba, 'e'), { type: 'answer', qid: 'm01', value: 'E' });
     assert.equal(answerFromKey(sba, 'Enter'), null);
@@ -102,8 +102,8 @@ test('answerFromKey', () => {
     assert.deepEqual(answerFromKey(sba, 'm'), { type: 'flag' });
     assert.deepEqual(answerFromKey(sba, 'ArrowRight'), { type: 'nav', dir: 1 });
     assert.deepEqual(answerFromKey(mtf, '3'), { type: 'focus', index: 2 });
-    assert.deepEqual(answerFromKey(mtf, 'T', 1), { type: 'answer', qid: 'm22s2', value: 'T' });
-    assert.deepEqual(answerFromKey(mtf, 'f', 3), { type: 'answer', qid: 'm22s4', value: 'F' });
+    assert.deepEqual(answerFromKey(mtf, 'T', 1), { type: 'answer', qid: 'm24s2', value: 'T' });
+    assert.deepEqual(answerFromKey(mtf, 'f', 3), { type: 'answer', qid: 'm24s4', value: 'F' });
     assert.equal(answerFromKey(mtf, 'a', 0), null);
     assert.equal(answerFromKey(mtf, 'Enter', 0), null);
 });

@@ -17,12 +17,12 @@ test('unseen seat only -1', () => {
 
 test('partOfQid / unknown qids', () => {
   assert.equal(R.partOfQid('m01'), 'mcq');
-  assert.equal(R.partOfQid('m21'), 'mcq');
-  assert.equal(R.partOfQid('m22s1'), 'mcq');
+  assert.equal(R.partOfQid('m23'), 'mcq');
+  assert.equal(R.partOfQid('m24s1'), 'mcq');
   assert.equal(R.partOfQid('m28s4'), 'mcq');
   assert.equal(R.partOfQid('u1a1'), 'unseen');
   assert.equal(R.partOfQid('u3b4'), 'unseen');
-  for (const q of ['m22', 'm29s1', 'u4a1', 'm00', 'm01s1', 'u1c1', '', null]) assert.equal(R.partOfQid(q), null, String(q));
+  for (const q of ['m24', 'm22s1', 'm29s1', 'u4a1', 'm00', 'm01s1', 'u1c1', '', null]) assert.equal(R.partOfQid(q), null, String(q));
 });
 
 test('validateAnswer', () => {
@@ -30,21 +30,21 @@ test('validateAnswer', () => {
   assert.ok(!R.validateAnswer('m01', 'F').ok);
   assert.ok(!R.validateAnswer('m01', 'T').ok);
   assert.ok(!R.validateAnswer('m01', 'a').ok);
-  assert.ok(R.validateAnswer('m22s1', 'T').ok);
+  assert.ok(R.validateAnswer('m24s1', 'T').ok);
   assert.ok(R.validateAnswer('m28s4', 'F').ok);
-  assert.ok(!R.validateAnswer('m22s1', 'A').ok);
+  assert.ok(!R.validateAnswer('m24s1', 'A').ok);
   assert.ok(R.validateAnswer('u1a1', 'T').ok);
   assert.ok(!R.validateAnswer('u3b4', 'E').ok);
   assert.deepEqual(R.validateAnswer('m01', null), { ok: true, delete: true });
   assert.ok(R.validateAnswer('u1a1', null).delete);
-  assert.ok(!R.validateAnswer('m22', 'A').ok);
-  assert.ok(!R.validateAnswer('m22', null).ok);
+  assert.ok(!R.validateAnswer('m24', 'A').ok);
+  assert.ok(!R.validateAnswer('m24', null).ok);
   assert.ok(!R.validateAnswer('m01', 1).ok);
   assert.ok(!R.validateAnswer('m01', true).ok);
 });
 
 test('flag ids', () => {
-  for (const i of ['m01', 'm21', 'm22', 'm28', 'u1a', 'u3b']) assert.ok(R.validateFlagId(i), i);
+  for (const i of ['m01', 'm23', 'm24', 'm28', 'u1a', 'u3b']) assert.ok(R.validateFlagId(i), i);
   for (const i of ['m00', 'm29', 'u4a', 'u1c', 'm22s1', 'u1a1', '']) assert.ok(!R.validateFlagId(i), i);
   assert.equal(R.partOfFlag('m28'), 'mcq');
   assert.equal(R.partOfFlag('u2b'), 'unseen');

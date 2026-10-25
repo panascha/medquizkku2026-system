@@ -9,10 +9,10 @@
 3. RTDB Rules: **merge** key `r1_backup_exam` จาก `r1_backup_exam.rules.json` เข้าไปใน `rules` เดิม (ห้ามวางทับทั้งไฟล์ และห้ามมี `.read/.write: true` ที่ root เพราะจะทะลุ rules ทั้งหมด) แล้วทดสอบใน Rules Playground
 4. เตรียมไฟล์ 3 ไฟล์ **นอก repo** (ห้าม commit โจทย์/เฉลย):
    - `mcq.json` และ `unseen.json` รูปแบบตาม `R1_BACKUP_EXAM.md` (หัวข้อ Upload JSON shape)
-   - `key.json` เฉลย รูปแบบ `{"key": {...}}` ต้องครบ 21 SBA + 28 MTF + 24 Unseen
+   - `key.json` เฉลย รูปแบบ `{"key": {...}}` ต้องครบ 23 SBA + 20 MTF + 24 Unseen
 5. ตัวอย่างค่าปลอม (FAKE) ของ key:
    ```json
-   { "key": { "m01": "C", "m02": "A", "m22s1": "T", "m22s2": "F", "u1a1": "F", "u1a2": "T" } }
+   { "key": { "m01": "C", "m02": "A", "m24s1": "T", "m24s2": "F", "u1a1": "F", "u1a2": "T" } }
    ```
    ค่า SBA = A-E, MTF/Unseen = T หรือ F เท่านั้น
 6. Whitelist: staff ที่จะใช้หน้า `pages/r1-backup-staff.html` ต้องอยู่ใน `staff_whitelist`

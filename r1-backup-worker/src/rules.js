@@ -1,8 +1,8 @@
 // Pure rules ported from r1_backup_exam.rules.json. No I/O, no Date.now: `now` is passed in.
 
 export const USERNAME_RE = /^mq2026-(00[1-9]|0[1-9][0-9]|100)-[123]$/;
-const SBA_RE = /^m(0[1-9]|1[0-9]|2[01])$/;
-const MTF_RE = /^m(2[2-8])s[1-4]$/;
+const SBA_RE = /^m(0[1-9]|1[0-9]|2[0-3])$/;
+const MTF_RE = /^m(2[4-8])s[1-4]$/;
 const UNSEEN_Q_RE = /^u[1-3][ab][1-4]$/;
 const MCQ_FLAG_RE = /^m(0[1-9]|1[0-9]|2[0-8])$/;
 const UNSEEN_FLAG_RE = /^u[1-3][ab]$/;

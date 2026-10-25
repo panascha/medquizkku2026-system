@@ -5,8 +5,8 @@
 export const STORAGE_PREFIX = 'r1bk:v1:';
 
 export const ID_RE = {
-    SBA: /^m(0[1-9]|1[0-9]|2[01])$/,
-    MTF_STMT: /^m(2[2-8])s[1-4]$/,
+    SBA: /^m(0[1-9]|1[0-9]|2[0-3])$/,
+    MTF_STMT: /^m(2[4-8])s[1-4]$/,
     UNSEEN_STMT: /^u[1-3][ab][1-4]$/,
     FLAG: /^m(0[1-9]|1[0-9]|2[0-8])$|^u[1-3][ab]$/
 };

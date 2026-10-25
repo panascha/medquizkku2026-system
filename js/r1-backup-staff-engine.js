@@ -69,7 +69,7 @@ export function sanitizeQuestions(part, raw) {
             const it = items[id];
             const p = `items.${id}`;
             const isSba = ID_RE.SBA.test(id);
-            const isMtf = /^m(2[2-8])$/.test(id);
+            const isMtf = /^m(2[4-8])$/.test(id);
             if (!isSba && !isMtf) throw new Error(`${p}: id ไม่ถูกต้อง`);
             onlyKeys(it, ALLOWED.item, p);
             if (it.type !== (isSba ? 'sba' : 'mtf')) throw new Error(`${p}.type ไม่ตรงกับ id`);
@@ -190,8 +190,8 @@ const KEY_RE = {
 };
 
 /**
- * Answer key file: { "key": { "m01": "C", "m22s1": "T", ..., "u1a1": "F", ... } } (or the flat map itself).
- * Must be complete: 21 SBA + 28 MTF statements (112 marks) and 24 Unseen statements (3 x 8).
+ * Answer key file: { "key": { "m01": "C", "m24s1": "T", ..., "u1a1": "F", ... } } (or the flat map itself).
+ * Must be complete: 23 SBA + 20 MTF statements (112 marks) and 24 Unseen statements (3 x 8).
  * Returns the flat map. Lives in browser memory only.
  */
 export function parseAnswerKey(raw) {
@@ -213,8 +213,8 @@ export function parseAnswerKey(raw) {
     const sba = ids.filter((i) => ID_RE.SBA.test(i)).length;
     const mtf = ids.filter((i) => ID_RE.MTF_STMT.test(i)).length;
     const uns = ids.filter((i) => ID_RE.UNSEEN_STMT.test(i)).length;
-    if (sba !== 21 || mtf !== 28 || uns !== 24) {
-        throw new Error(`เฉลยไม่ครบ: SBA ${sba}/21, MTF ${mtf}/28, Unseen ${uns}/24`);
+    if (sba !== 23 || mtf !== 20 || uns !== 24) {
+        throw new Error(`เฉลยไม่ครบ: SBA ${sba}/23, MTF ${mtf}/20, Unseen ${uns}/24`);
     }
     return out;
 }

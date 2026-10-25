@@ -47,11 +47,11 @@ if (opt.clients < 1 || opt.clients > 300) die('--clients must be 1..300 (seat us
 if (opt.thinkMax < opt.thinkMin) die('--think-max < --think-min');
 
 // ---------- seats / ids ----------
-// Same id contract as R1_BACKUP_EXAM.md: m01-m21 (A-E), m22s1..m28s4 (T/F), u1a1..u3b4 (T/F, member -1 only).
+// Same id contract as R1_BACKUP_EXAM.md: m01-m23 (A-E), m24s1..m28s4 (T/F), u1a1..u3b4 (T/F, member -1 only).
 function seatUsername(i) { return `mq2026-${pad3(Math.floor(i / 3) + 1)}-${(i % 3) + 1}`; }
 const MCQ_IDS = [];
-for (let n = 1; n <= 21; n++) MCQ_IDS.push({ id: 'm' + pad3(n).slice(1), v: 'ABCDE' });
-for (let n = 22; n <= 28; n++) for (let s = 1; s <= 4; s++) MCQ_IDS.push({ id: `m${n}s${s}`, v: 'TF' });
+for (let n = 1; n <= 23; n++) MCQ_IDS.push({ id: 'm' + pad3(n).slice(1), v: 'ABCDE' });
+for (let n = 24; n <= 28; n++) for (let s = 1; s <= 4; s++) MCQ_IDS.push({ id: `m${n}s${s}`, v: 'TF' });
 const UNSEEN_IDS = [];
 for (const a of [1, 2, 3]) for (const b of ['a', 'b']) for (let s = 1; s <= 4; s++) UNSEEN_IDS.push({ id: `u${a}${b}${s}`, v: 'TF' });
 const pick = (s) => s[Math.floor(Math.random() * s.length)];
@@ -150,13 +150,13 @@ function stubTransport() {
 // ---------- fake data for seed + stub ----------
 function fakeQuestions() {
     const items = {};
-    for (let n = 1; n <= 21; n++) {
+    for (let n = 1; n <= 23; n++) {
         items['m' + pad3(n).slice(1)] = {
             no: n, type: 'sba', stem: `FAKE stem ${n}. ` + 'Lorem ipsum dolor sit amet. '.repeat(12),
             options: { A: 'FAKE option A', B: 'FAKE option B', C: 'FAKE option C', D: 'FAKE option D', E: 'FAKE option E' },
         };
     }
-    for (let n = 22; n <= 28; n++) {
+    for (let n = 24; n <= 28; n++) {
         const statements = {};
         for (let s = 1; s <= 4; s++) statements[`m${n}s${s}`] = { no: s, text: `FAKE statement ${s}. ` + 'Lorem ipsum. '.repeat(6) };
         items['m' + n] = { no: n, type: 'mtf', stem: `FAKE stem ${n}. ` + 'Lorem ipsum dolor sit amet. '.repeat(10), statements };

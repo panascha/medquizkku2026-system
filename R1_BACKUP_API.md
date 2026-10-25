@@ -40,7 +40,7 @@ Token stored as SHA-256 hex only. Release Seat deletes the `seats` row (answers 
 
 ## Validation (port of rules.json, enforced server-side)
 - username `^mq2026-(00[1-9]|0[1-9][0-9]|100)-[123]$`. Optional roster: var `ROSTER` (comma list of usernames, no PII) if 2-member teams must be rejected; empty = regex only.
-- answers: SBA `m01`-`m21` value `A`-`E`; MTF `m22s1`-`m28s4` and Unseen `u1a1`-`u3b4` value `T`/`F`; `null` deletes.
+- answers: SBA `m01`-`m23` value `A`-`E`; MTF `m24s1`-`m28s4` and Unseen `u1a1`-`u3b4` value `T`/`F`; `null` deletes.
 - flags: `m01`-`m28`, `u1a`-`u3b`.
 - Unseen writes (answers/flags/submit) only for `-1` seats.
 - Writes for a part only when `startAt <= now <= endAt + GRACE_MS` (GRACE_MS default 5000, absorbs flush latency; old RTDB rule was exact `endAt` — assumption, confirm) and that part not yet submitted.
@@ -83,4 +83,4 @@ Workers free = 100k requests/day; D1 free = 100k row writes/day. 300 clients x 9
 ## Ingestion (live exam content: never print stems/keys to chat, docs, or commits)
 Sources (filenames only): `Source MedQuiz 2026/Exam for MedQuiz 2026 CAUTION/Round 1 MTF MCQ/Round 1 KKUEXAM MQ2569 Aiken format.txt` (+ images dir) and `.../Round 1 Unseen/*/EDIT*.html` (+ images).
 Output dir (no git anywhere above it): `Source MedQuiz 2026/Exam for MedQuiz 2026 CAUTION/Round 1 backup json/` -> `mcq.json`, `unseen.json`, `key.json`, `images/`.
-Script prints counts and id lists only. Must hit 21 SBA + 7 MTF x 4 + 24 Unseen statements, else stop and report the mismatch. Images referenced as `https://<worker>/api/img/<name>`, uploaded via the staff page. Unseen has no image field in the current JSON shape: extend `normalizeQuestions` + `sanitizeQuestions` (with tests) only if the sources need images.
+Script prints counts and id lists only. Must hit 23 SBA + 5 MTF x 4 + 24 Unseen statements (mirrors Moodle; 23*4 + 20*1 = 112 raw, /4 = 28), else stop and report the mismatch. Id mapping: Moodle MCQ-section order (8.2 ... 18.1) -> `m01`-`m23`; MTF groups 3.1, 4.2, 5.2, 6.1, 7.1 -> `m24`-`m28` (statements s1-s4); flags `m01`-`m28` unchanged. Images referenced as `https://<worker>/api/img/<name>`, uploaded via the staff page. Unseen has no image field in the current JSON shape: extend `normalizeQuestions` + `sanitizeQuestions` (with tests) only if the sources need images.
