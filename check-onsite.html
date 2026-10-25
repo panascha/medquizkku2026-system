@@ -94,6 +94,18 @@
         .instr-img { margin-top: 1.6cqw; width: 100%; border-radius: 1.4cqw; border: .3cqw solid rgba(245, 215, 122, .5); cursor: zoom-in; display: block; }
         .zoom-hint { font-size: 2.7cqw; color: rgba(245, 215, 122, .7); margin-top: .6cqw; }
 
+        /* Activity-group schedule (R1 failed → A/B/C base rotation), rendered natively */
+        .sched { width: 100%; margin-top: 1.4cqw; border-collapse: collapse; table-layout: fixed; font-size: 2.8cqw; line-height: 1.4; background: rgba(15, 31, 75, .72); border: .25cqw solid rgba(199, 154, 46, .7); }
+        .sched col.c-time { width: 25%; }
+        .sched col.c-base { width: 33%; }
+        .sched th { background: #0f1f4b; color: #f5d77a; font-weight: 800; padding: .9cqw .8cqw; border-bottom: .3cqw solid #c79a2e; text-align: left; }
+        .sched td { padding: .9cqw .8cqw; border-top: .15cqw solid rgba(199, 154, 46, .3); color: #eadcb4; vertical-align: top; overflow-wrap: anywhere; }
+        .sched td.t { color: #f5d77a; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .sched tr.base td { color: #f5e6b8; font-weight: 700; }
+        .sched tr.base td.t { color: #f5d77a; }
+        .sched .sub { display: block; font-size: 2.3cqw; font-weight: 400; color: rgba(234, 220, 180, .75); }
+        .sched-note { margin-top: .9cqw; font-size: 2.6cqw; color: #f5d77a; }
+
         .spin { animation: spin .8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -147,6 +159,26 @@
             round2: { NOT_STARTED: "assets/onsite/not_started.png", PASSED: "assets/onsite/r2_passed.png", FAILED: "assets/onsite/r2_failed.png" }
         };
         const BADGE_ALT = { NOT_STARTED: "ยังไม่ถึงเวลา", PASSED: "ยินดีด้วย", FAILED: "เสียใจด้วย" };
+
+        // Activity-group schedule for R1-failed teams. Source: "ABC inline.jpg"
+        // (2026-10-25) — the "ABC table.jpg" / zip copies wrongly duplicate A as C.
+        const ACTIVITY_BASES = {
+            SKILL:    { name: "Skill Lab",     room: "ห้อง Advanced Skill Lab", where: "ชั้น 1 ตรงข้ามอาคารเรียนรวม" },
+            PARASITE: { name: "Parasite",      room: "ห้อง Lab 5-6",            where: "ชั้น 4 อาคารเรียนรวม" },
+            GROSS:    { name: "Gross Anatomy", room: "ห้อง Gross",              where: "ชั้น 4 อาคารเรียนรวม" }
+        };
+        const ACTIVITY_ROTATION = {
+            A: ["SKILL", "PARASITE", "GROSS"],
+            B: ["PARASITE", "GROSS", "SKILL"],
+            C: ["GROSS", "SKILL", "PARASITE"]
+        };
+        const BASE_SLOTS = ["10:40–11:15", "11:20–11:55", "12:00–12:35"];
+        const AFTER_BASES = [
+            ["12:35–13:20", "รับประทานอาหารกลางวัน", "ห้องมอดินแดง"],
+            ["13:20–13:50", "กิจกรรม MED Talk และรับประทานอาหารว่าง", "ห้องมอดินแดง"],
+            ["14:00–17:00", "การแข่งขันรอบที่ 3 Gameshow", "ห้องมอดินแดง"],
+            ["17:00–17:40", "พิธีปิด", "ห้องมอดินแดง"]
+        ];
 
         function $(id) { return document.getElementById(id); }
 
@@ -295,8 +327,11 @@
 
             const status = meaningful(round.statusText);
             const instr = meaningful(round.instructionText);
+            const schedule = isRound1 ? activityScheduleHtml(round.activityGroup) : "";
             let body = "";
             if (status) body += '<div class="status-text">' + escapeHtml(status) + "</div>";
+            // The native table replaces the sheet's group instruction text/image
+            if (schedule) return '<div class="round-block">' + head + body + schedule + "</div>";
             if (instr) body += '<div class="instr-text">' + escapeHtml(instr) + "</div>";
             if (round.instructionImageUrl) {
                 // onerror: missing/broken schedule image silently falls back to the text above
@@ -305,6 +340,26 @@
                     '<div class="zoom-hint"><i class="fa-solid fa-magnifying-glass-plus"></i> แตะรูปเพื่อขยาย</div>';
             }
             return '<div class="round-block">' + head + body + "</div>";
+        }
+
+        /** Group A/B/C rotation table; "" for any other group value. */
+        function activityScheduleHtml(group) {
+            const order = ACTIVITY_ROTATION[group];
+            if (!order) return "";
+            let rows = order.map(function (key, i) {
+                const b = ACTIVITY_BASES[key];
+                return '<tr class="base"><td class="t">' + BASE_SLOTS[i] + "</td>" +
+                    "<td>ฐานที่ " + (i + 1) + " " + escapeHtml(b.name) + "</td>" +
+                    "<td>" + escapeHtml(b.room) + '<span class="sub">' + escapeHtml(b.where) + "</span></td></tr>";
+            }).join("");
+            rows += AFTER_BASES.map(function (r) {
+                return '<tr><td class="t">' + r[0] + "</td><td>" + escapeHtml(r[1]) + "</td><td>" + escapeHtml(r[2]) + "</td></tr>";
+            }).join("");
+            return '<table class="sched" aria-label="กำหนดการกลุ่ม ' + escapeHtml(group) + '">' +
+                '<colgroup><col class="c-time"><col class="c-base"><col></colgroup>' +
+                "<thead><tr><th>ช่วงเวลา</th><th>ฐานกิจกรรม</th><th>สถานที่/ห้อง</th></tr></thead>" +
+                "<tbody>" + rows + "</tbody></table>" +
+                '<div class="sched-note"><i class="fa-solid fa-award"></i> สามารถติดต่อรับเกียรติบัตรได้ตั้งแต่ 13:00 เป็นต้นไป</div>';
         }
 
         // =====================================================================
