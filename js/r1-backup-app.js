@@ -514,21 +514,18 @@ $('confirmYes').addEventListener('click', async () => {
     if (FIXTURE) { startFixture(); return; }
     $('confirmYes').disabled = true;
     try {
-        sync = await import('./r1-backup-sync.js');
-        const u = await sync.ensureAnon();
+        sync = await import('./r1-backup-api.js');
         const r = await sync.claimSeat(user.username);
         if (r === 'taken') {
             sync = null;
             showError('confirmError', 'ที่นั่งนี้ถูกใช้งานแล้ว กรุณาแจ้งกรรมการ');
             return;
         }
-        store.save(storageKeys(user.username).session,{ username: user.username, uid: u.uid, savedAt: Date.now() });
+        store.save(storageKeys(user.username).session,{ username: user.username, token: sync.getToken(), savedAt: Date.now() });
         await startLive();
     } catch (e) {
         sync = null;
-        showError('confirmError', e && e.message === 'STAFF_SESSION'
-            ? 'ออกจากระบบ staff ก่อน / ใช้โปรไฟล์อื่น'
-            : 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่ (' + (e && (e.code || e.message) || 'error') + ')');
+        showError('confirmError', 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่ (' + (e && (e.code || e.message) || 'error') + ')');
     } finally {
         $('confirmYes').disabled = false;
     }
@@ -543,15 +540,18 @@ async function tryResume() {
     loadLocalState();
     begin(); // render from local state before any network await
     try {
-        sync = await import('./r1-backup-sync.js');
-        const u = await sync.ensureAnon();
-        if (u.uid !== s.uid) throw new Error('UID_MISMATCH');
+        sync = await import('./r1-backup-api.js');
+        if (!s.token) throw new Error('NO_TOKEN');
+        sync.setToken(s.token);
+        let r = null;
+        try { r = await sync.claimSeat(user.username); } catch (e) { /* offline: keep working from local state */ }
+        if (r === 'taken') throw new Error('SEAT_TAKEN');
+        if (r === 'claimed') store.save(storageKeys('').session, { ...s, token: sync.getToken(), savedAt: Date.now() }); // seat was released: new token
     } catch (e) {
         sync = null;
         user = null;
         examShown = false;
-        if (e && e.message === 'STAFF_SESSION') showError('seatError', 'ออกจากระบบ staff ก่อน / ใช้โปรไฟล์อื่น');
-        else store.drop(storageKeys('').session);
+        store.drop(storageKeys('').session);
         return false;
     }
     await startLive(true);
