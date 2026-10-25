@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     parseUsername, canAnswerUnseen, ID_RE, normalizeQuestions, itemStatus, buildNavigator,
-    mergeAnswers, makeClock, remainingMs, formatClock, answerFromKey, storageKeys, STORAGE_PREFIX
+    mergeAnswers, makeClock, remainingMs, formatClock, answerFromKey, storageKeys, STORAGE_PREFIX,
+    RICH_TAGS, IMG_SRC_RE, checkRichHtml
 } from '../js/r1-backup-engine.js';
 import { FIXTURE_QUESTIONS } from '../js/r1-backup-fixture.js';
 
@@ -130,4 +131,23 @@ test('ID_RE sources appear in rules json', () => {
         assert.ok(rules.includes('/' + s + '/'), 'rules missing /' + s + '/');
     });
     JSON.parse(rules);
+});
+
+test('checkRichHtml accepts allowlisted markup and valid img', () => {
+    const img = '<img src="https://r1.example.workers.dev/api/img/u1a_1.png" alt="">';
+    assert.ok(RICH_TAGS.includes('img') && IMG_SRC_RE.test('https://x.dev/api/img/a.png'));
+    assert.equal(checkRichHtml('plain a &lt; b <b>x</b><sub>2</sub><br/><br>'), null);
+    assert.equal(checkRichHtml(`<p>t</p><ul><li>a</li></ul><hr>${img}<img src="https://x.dev/api/img/a.jpg">`), null);
+    assert.equal(checkRichHtml('<table><thead><tr><th colspan="2">h</th></tr></thead><tbody><tr><td rowspan="2">a</td><td>b</td></tr></tbody></table>'), null);
+    assert.equal(checkRichHtml(''), null);
+});
+
+test('checkRichHtml rejects unsafe markup', () => {
+    const bad = [
+        '<script>x</script>', '<iframe src="x"></iframe>', '<b onclick="x">t</b>',
+        '<img src="https://x.dev/api/img/a.png" onerror="x">', '<img src="https://x.dev/api/img/a.png" width="5">',
+        '<img src="javascript:alert(1)">', '<img src="http://x.dev/api/img/a.png">', '<img src="https://x.dev/other/a.png">',
+        '<img>', 'a < b', 'a <3 b', '<td style="x">c</td>', '<td colspan="x">c</td>', '<a href="https://x">l</a>', '</b x>'
+    ];
+    bad.forEach((h) => assert.equal(typeof checkRichHtml(h), 'string', h));
 });

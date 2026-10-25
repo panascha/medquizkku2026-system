@@ -11,6 +11,38 @@ export const ID_RE = {
     FLAG: /^m(0[1-9]|1[0-9]|2[0-8])$|^u[1-3][ab]$/
 };
 
+// Rich markup allowlist (stems, Unseen prompts, statement text). Renderer in r1-backup-app.js is built from RICH_TAGS.
+export const RICH_TAGS = ['b', 'i', 'sub', 'sup', 'strong', 'em', 'br', 'p', 'ul', 'ol', 'li', 'hr',
+    'table', 'thead', 'tbody', 'tr', 'td', 'th', 'img'];
+export const IMG_SRC_RE = /^https:\/\/[^\s"'<>]+\/api\/img\/[A-Za-z0-9._-]{1,80}$/;
+
+const TAG_AT = /<(\/?)([A-Za-z][A-Za-z0-9]*)([^<>]*)>/y;
+const SPAN_ATTR = /^\s+(?:colspan|rowspan)="\d{1,2}"$/;
+const IMG_ATTRS = /^\s+src="([^"]*)"(?:\s+alt="")?\s*\/?$/;
+
+/** null if every '<' in html opens/closes an allowlisted tag with allowed attrs, else an error string. */
+export function checkRichHtml(html) {
+    const s = String(html == null ? '' : html);
+    for (let i = s.indexOf('<'); i !== -1; i = s.indexOf('<', i + 1)) {
+        TAG_AT.lastIndex = i;
+        const m = TAG_AT.exec(s);
+        if (!m) return `'<' ที่ตำแหน่ง ${i} ไม่ใช่แท็กที่ถูกต้อง`;
+        const [, close, name, attrs] = m;
+        const tag = name.toLowerCase();
+        if (!RICH_TAGS.includes(tag)) return `แท็ก <${tag}> ไม่อนุญาต`;
+        if (close) { if (attrs.trim()) return `แท็กปิด </${tag}> มีแอตทริบิวต์`; continue; }
+        if (tag === 'img') {
+            const a = IMG_ATTRS.exec(attrs);
+            if (!a) return 'แท็ก <img> ต้องมี src (และ alt="" เท่านั้น)';
+            if (!IMG_SRC_RE.test(a[1])) return 'src ของ <img> ต้องเป็น https://…/api/img/<ชื่อไฟล์>';
+        } else if (tag === 'td' || tag === 'th') {
+            const parts = attrs.match(/\s+[^\s=]+="[^"]*"/g) || [];
+            if (parts.join('') !== attrs.replace(/\s*\/?$/, '') || !parts.every((p) => SPAN_ATTR.test(p))) return `แท็ก <${tag}> มีแอตทริบิวต์ที่ไม่อนุญาต`;
+        } else if (attrs.replace(/\s*\/?$/, '').trim()) return `แท็ก <${tag}> มีแอตทริบิวต์`;
+    }
+    return null;
+}
+
 /** 'mq2026-007-2' (legacy 'mq007-2' accepted, case-insensitive) → canonical parts; null if invalid. Team 1..100. */
 export function parseUsername(raw) {
     const m = String(raw || '').trim().match(/^mq(?:2026-)?0*(\d{1,3})-([123])$/i);

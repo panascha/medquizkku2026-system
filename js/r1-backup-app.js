@@ -2,7 +2,7 @@
 // Local-first: every change hits localStorage synchronously, then the sync module (live mode only).
 import {
     parseUsername, canAnswerUnseen, storageKeys, normalizeQuestions, buildNavigator,
-    mergeAnswers, makeClock, serverNow, formatClock, answerFromKey, STORAGE_PREFIX
+    mergeAnswers, makeClock, serverNow, formatClock, answerFromKey, STORAGE_PREFIX, RICH_TAGS, IMG_SRC_RE
 } from './r1-backup-engine.js';
 
 const params = new URLSearchParams(location.search);
@@ -60,17 +60,28 @@ function showError(id, msg) {
     el.hidden = !msg;
 }
 
-const ALLOWED = { B: 'b', I: 'i', SUB: 'sub', SUP: 'sup' };
+const RICH_SET = new Set(RICH_TAGS);
 function appendRich(parent, node) {
     node.childNodes.forEach((c) => {
         if (c.nodeType === Node.TEXT_NODE) parent.appendChild(document.createTextNode(c.textContent));
         else if (c.nodeType === Node.ELEMENT_NODE) {
-            const tag = ALLOWED[c.tagName];
-            if (tag) { const el = document.createElement(tag); appendRich(el, c); parent.appendChild(el); } else appendRich(parent, c);
+            const tag = c.tagName.toLowerCase();
+            if (!RICH_SET.has(tag)) { appendRich(parent, c); return; }
+            if (tag === 'img') {
+                const src = c.getAttribute('src') || '';
+                if (IMG_SRC_RE.test(src)) { const im = document.createElement('img'); im.src = src; im.alt = ''; parent.appendChild(im); }
+                return;
+            }
+            const el = document.createElement(tag);
+            if (tag === 'td' || tag === 'th') {
+                ['colspan', 'rowspan'].forEach((a) => { const v = c.getAttribute(a); if (v && /^\d{1,2}$/.test(v)) el.setAttribute(a, v); });
+            }
+            appendRich(el, c);
+            parent.appendChild(el);
         }
     });
 }
-/** textContent-safe: inline <b><i><sub><sup> only, via inert DOMParser doc. */
+/** textContent-safe: RICH_TAGS allowlist only, via inert DOMParser doc. */
 function rich(el, text) {
     el.textContent = '';
     appendRich(el, new DOMParser().parseFromString(String(text == null ? '' : text), 'text/html').body);

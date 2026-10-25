@@ -2,7 +2,7 @@
 // Pure logic for the R1 backup exam STAFF page: upload sanitising, exam control,
 // monitor rows, grading, Moodle TSV export. No DOM, no Firebase — node-testable.
 // Reuses ID_RE / parseUsername from r1-backup-engine.js (same ids as rules + student page).
-import { ID_RE, parseUsername } from './r1-backup-engine.js';
+import { ID_RE, parseUsername, checkRichHtml } from './r1-backup-engine.js';
 
 export const PARTS = ['mcq', 'unseen'];
 export const DEFAULT_MINUTES = 45;
@@ -42,14 +42,21 @@ const num = (v, path) => {
     return v;
 };
 
-function cleanStatements(obj, idRe, path) {
+const rich = (v, path) => {
+    const e = checkRichHtml(str(v, path));
+    if (e) throw new Error(`${path}: markup ไม่อนุญาต — ${e}`);
+    return v;
+};
+
+function cleanStatements(obj, idRe, path, checkRich) {
     if (!obj || typeof obj !== 'object' || Array.isArray(obj) || !Object.keys(obj).length) throw new Error(`${path}: ต้องมี statements`);
     const out = {};
     Object.keys(obj).forEach((id) => {
         if (!idRe.test(id)) throw new Error(`${path}.${id}: id ไม่ถูกต้อง`);
         const s = obj[id];
         onlyKeys(s, ALLOWED.stmt, `${path}.${id}`);
-        out[id] = { no: num(s.no, `${path}.${id}.no`), text: str(s.text, `${path}.${id}.text`) };
+        const tp = `${path}.${id}.text`;
+        out[id] = { no: num(s.no, `${path}.${id}.no`), text: checkRich ? rich(s.text, tp) : str(s.text, tp) };
     });
     return out;
 }
@@ -115,8 +122,8 @@ export function sanitizeQuestions(part, raw) {
                 ca.sections[sid] = {
                     no: num(s.no, `${sp}.no`),
                     label: s.label == null ? '' : str(s.label, `${sp}.label`),
-                    prompt: str(s.prompt, `${sp}.prompt`),
-                    statements: cleanStatements(s.statements, new RegExp(`^${sid}[1-4]$`), `${sp}.statements`)
+                    prompt: rich(s.prompt, `${sp}.prompt`),
+                    statements: cleanStatements(s.statements, new RegExp(`^${sid}[1-4]$`), `${sp}.statements`, true)
                 };
             });
             out.articles[aid] = ca;

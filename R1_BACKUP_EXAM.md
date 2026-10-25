@@ -37,7 +37,7 @@ Public zero-auth page `r1-backup-exam.html` for the KKUEXAM-outage fallback. Sea
     "sections": { "u1a": { "no": 1, "label": "1.1", "prompt": "...",
       "statements": { "u1a1": { "no": 1, "text": "..." } } } } } } }
 ```
-Inline markup allowed: `<b> <i> <sub> <sup>`. `imageUrl` only if it starts with `https://`.
+Inline markup allowed: `<b> <i> <sub> <sup>` (Unseen prompts/statements and stems: allowlist now also `strong em br p ul ol li hr table thead tbody tr td th` and `<img src="https://…/api/img/<name>">`; checked by `checkRichHtml`, no other attrs except numeric td/th colspan/rowspan). `imageUrl` only if it starts with `https://`.
 
 ## Fixture mode (no Firebase, fake data)
 `r1-backup-exam.html?fixture=1&mins=1&u=mq2026-001-1` (`mins` default 45, min 0.2). Local only; never automatic.

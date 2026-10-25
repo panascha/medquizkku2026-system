@@ -182,3 +182,19 @@ test('buildUnseenTsvs: three tabs, -1 usernames only, Grade/8.00', () => {
     });
     assert.deepEqual(notSubmitted, ['mq2026-005-1']);
 });
+
+test('sanitizeQuestions unseen: rich prompt with img+table passes; unsafe markup refused', () => {
+    const mk = () => JSON.parse(JSON.stringify(FIXTURE_QUESTIONS.unseen));
+    const u = mk();
+    const sec = u.articles.u1.sections.u1a;
+    sec.prompt = '<p>x</p><table><tr><td colspan="2">a</td></tr></table><img src="https://r1.example.workers.dev/api/img/u1a_1.png" alt="">';
+    assert.equal(sanitizeQuestions('unseen', u).articles.u1.sections.u1a.prompt, sec.prompt);
+    let q = mk(); q.articles.u1.sections.u1a.prompt = '<script>x</script>';
+    assert.throws(() => sanitizeQuestions('unseen', q), /u1a\.prompt.*markup/);
+    q = mk(); q.articles.u1.sections.u1a.prompt = '<img src="http://x/api/img/a.png">';
+    assert.throws(() => sanitizeQuestions('unseen', q), /prompt/);
+    q = mk(); q.articles.u1.sections.u1a.statements.u1a1.text = 'a <b onclick="x">t</b>';
+    assert.throws(() => sanitizeQuestions('unseen', q), /u1a1\.text/);
+    q = mk(); q.articles.u1.sections.u1a.statements.u1a1.key = 'T';
+    assert.throws(() => sanitizeQuestions('unseen', q), /key/);
+});
