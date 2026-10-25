@@ -1,0 +1,14 @@
+name = "r1-backup"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Add the deployed portal origin before deploy (comma list).
+ALLOWED_ORIGINS = "http://localhost:5502,http://127.0.0.1:5502"
+GRACE_MS = "5000"
+ROSTER = ""
+
+[[d1_databases]]
+binding = "R1DB"
+database_name = "r1-backup"
+database_id = "REPLACE_BEFORE_DEPLOY"
