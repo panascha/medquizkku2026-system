@@ -1,0 +1,65 @@
+{
+  "spot_grading_2026": {
+    "config": {
+      ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/admins').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      "isGradingOpen": { ".validate": "newData.isBoolean()" },
+      "pushedAt": { ".validate": "newData.isNumber()" },
+      "pushedBy": { ".validate": "newData.isString()" }
+    },
+
+    "admins": {
+      ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/admins').child(auth.token.email.toLowerCase().replace('.', '_')).exists()"
+    },
+
+    "teams": {
+      ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/admins').child(auth.token.email.toLowerCase().replace('.', '_')).exists()"
+    },
+
+    "questions": {
+      ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/config/isGradingOpen').val() === true",
+      ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/admins').child(auth.token.email.toLowerCase().replace('.', '_')).exists()"
+    },
+
+    "graders": {
+      ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      "$q": {
+        ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+        ".validate": "$q.matches(/^q(0[1-9]|[12][0-9]|3[0-5])$/)",
+        "email": { ".validate": "newData.isString() && newData.val() === auth.token.email.toLowerCase()" }
+      }
+    },
+
+    "scores": {
+      ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      "$q": {
+        "$team": {
+          ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/config/isGradingOpen').val() === true && $q.matches(/^q(0[1-9]|[12][0-9]|3[0-5])$/) && root.child('spot_grading_2026/teams').child($team).exists()",
+          ".validate": "newData.isNumber() && (newData.val() === 0 || newData.val() === 1)"
+        }
+      }
+    },
+
+    "scoreMeta": {
+      ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      "$q": {
+        "$team": {
+          ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/config/isGradingOpen').val() === true && $q.matches(/^q(0[1-9]|[12][0-9]|3[0-5])$/) && root.child('spot_grading_2026/teams').child($team).exists()",
+          ".validate": "newData.hasChildren(['by','at'])",
+          "by": { ".validate": "newData.isString()" },
+          "at": { ".validate": "newData.isNumber()" }
+        }
+      }
+    },
+
+    "tieDecision": {
+      ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/admins').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
+      ".validate": "newData.hasChildren(['passed','by','at'])"
+    },
+
+    "$other": { ".validate": false }
+  }
+}
