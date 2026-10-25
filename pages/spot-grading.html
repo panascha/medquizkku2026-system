@@ -52,12 +52,14 @@
         <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
             <h2 class="font-bold">2. ให้คะแนน</h2>
             <div class="flex items-center gap-2 flex-wrap">
-                <input id="team" type="text" inputmode="text" autocomplete="off" autofocus disabled
-                    placeholder="เลขทีม เช่น 15 / 015 / MQ015 แล้วกด Enter"
+                <input id="team" type="text" inputmode="text" autocomplete="off" autofocus disabled list="teamList"
+                    placeholder="เลขทีม เช่น 15 / 015 / MQ015 (เลขหลักเดียวกด Enter)"
                     class="border border-slate-300 rounded-lg px-3 py-2 text-lg w-72">
+                <datalist id="teamList"></datalist>
                 <button id="btn0" disabled class="bg-red-600 text-white rounded-lg px-6 py-3 text-lg font-bold">0 ผิด</button>
                 <button id="btn1" disabled class="bg-emerald-600 text-white rounded-lg px-6 py-3 text-lg font-bold">1 ถูก</button>
             </div>
+            <div id="teamPreview" class="text-xl font-bold text-slate-800 min-h-[1.75rem]"></div>
             <div id="teamErr" class="text-sm text-red-600 font-bold"></div>
             <div id="armed" class="text-sm text-blue-700 font-bold"></div>
             <div id="last" hidden class="flex items-center gap-2 text-sm bg-slate-100 rounded-lg px-3 py-2">

@@ -20,12 +20,30 @@ function hasTeam(teamSet, id) {
 }
 
 export function normalizeTeamId(raw, teamSet) {
-    const m = /^(?:mq)?0*(\d{1,3})$/i.exec(String(raw).trim());
+    // " - ชื่อทีม" suffix = a datalist pick ("MQ043 - name")
+    const m = /^(?:mq)?0*(\d{1,3})$/i.exec(String(raw).trim().replace(/\s+-\s.*$/, ''));
     if (!m) return null;
     const n = Number(m[1]);
     if (n < 1 || n > 100) return null;
     const id = 'MQ' + String(n).padStart(3, '0');
     return hasTeam(teamSet, id) ? id : null;
+}
+
+// Arm without Enter only when no further keystroke could mean another team: 2 digits 10–99
+// (not "10" while MQ100 is active), 3 digits, or a datalist pick. 1 digit / "MQ1" → Enter.
+// A wrong early arm is dangerous: the next typed "0"/"1" leaves the input and scores.
+export function autoArmId(raw, teamSet) {
+    const s = String(raw).trim();
+    if (/\s+-\s/.test(s)) return normalizeTeamId(s, teamSet);
+    const m = /^(?:mq)?(\d{2,3})$/i.exec(s);
+    if (!m || /^0\d$/.test(m[1])) return null;
+    const id = normalizeTeamId(m[1], teamSet);
+    if (!id || m[1].length === 3) return id;
+    for (let d = 0; d <= 9; d++) {
+        const n = Number(m[1] + d);
+        if (n <= 100 && hasTeam(teamSet, 'MQ' + String(n).padStart(3, '0'))) return null;
+    }
+    return id;
 }
 
 export function progress(scores, teams, qids = QIDS) {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    QIDS, QID_RE, TEAM_RE, CUT, STALE_MS, normalizeTeamId, progress, totals,
+    QIDS, QID_RE, TEAM_RE, CUT, STALE_MS, normalizeTeamId, autoArmId, progress, totals,
     rankWithCut, laggards, buildPushPayload, lockState
 } from '../js/spot-grading-engine.js';
 
@@ -28,6 +28,18 @@ test('normalizeTeamId', () => {
     assert.equal(normalizeTeamId('41', set), null);
     assert.equal(normalizeTeamId('7', ids(40)), 'MQ007');
     assert.equal(normalizeTeamId('7', { MQ007: true }), 'MQ007');
+    assert.equal(normalizeTeamId('MQ015 - ทีม - เอ', set), 'MQ015');
+});
+
+test('autoArmId: arms only when unambiguous', () => {
+    const set = new Set(ids(40));
+    ['15', '015', 'MQ015', 'mq015', 'MQ15', 'MQ015 - ทีมทดสอบ'].forEach((r) => assert.equal(autoArmId(r, set), 'MQ015'));
+    // 1 digit, "MQ1", "0x" wait for Enter / more digits; unknown team never arms
+    ['5', 'MQ5', '05', 'MQ05', '', '41', '041', 'abc'].forEach((r) => assert.equal(autoArmId(r, set), null));
+    // "10" while MQ100 is active: the next "0" would score MQ010 → wait
+    assert.equal(autoArmId('10', new Set(['MQ010', 'MQ100'])), null);
+    assert.equal(autoArmId('100', new Set(['MQ010', 'MQ100'])), 'MQ100');
+    assert.equal(autoArmId('10', new Set(['MQ010'])), 'MQ010');
 });
 
 test('progress counts, ignores unknown team and non-0/1', () => {

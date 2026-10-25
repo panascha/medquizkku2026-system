@@ -1,7 +1,7 @@
 // js/spot-grading-app.js
 // DOM glue for pages/spot-grading.html. Pure logic lives in spot-grading-engine.js.
 // Live callers must already have passed requireStaff(user). RTDB layout: SPOT_GRADING.md.
-import { QIDS, HEARTBEAT_MS, TEAM_COUNT, normalizeTeamId, lockState } from './spot-grading-engine.js';
+import { QIDS, HEARTBEAT_MS, TEAM_COUNT, normalizeTeamId, autoArmId, lockState } from './spot-grading-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const BASE = 'spot_grading_2026';
@@ -160,6 +160,23 @@ function renderInputState() {
     $('btn1').disabled = !ok || !armed;
     $('btn0').disabled = !ok || !armed;
     $('armed').textContent = armed ? `${armed} พร้อมให้คะแนน (กด 1 = ถูก, 0 = ผิด, Esc = ยกเลิก)` : '';
+    renderPreview();
+}
+
+// armed team, else whatever the typed text resolves to — checked against the paper before 1/0
+function renderPreview() {
+    const id = armed || normalizeTeamId($('team').value, teams);
+    $('teamPreview').textContent = id ? id + (teams[id] && teams[id].name ? ' · ' + teams[id].name : '') : '';
+}
+
+function renderTeamList() {
+    const list = $('teamList');
+    list.textContent = '';
+    teamIds.forEach((t) => {
+        const o = document.createElement('option');
+        o.value = t + (teams[t] && teams[t].name ? ' - ' + teams[t].name : '');
+        list.appendChild(o);
+    });
 }
 
 function renderAll() { renderPicker(); renderLock(); renderKey(); renderStrip(); renderInputState(); renderPending(); }
@@ -244,7 +261,11 @@ function bind() {
     $('team').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); commitTypedTeam(); }
     });
-    $('team').addEventListener('input', () => setError(''));
+    $('team').addEventListener('input', () => {
+        setError('');
+        const id = autoArmId($('team').value, teams);
+        if (id) arm(id); else renderPreview();
+    });
     document.addEventListener('keydown', (e) => {
         if (e.target === $('team') || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
         if (e.key === '1' || e.key === '0') { if (armed) { e.preventDefault(); score(Number(e.key)); } }
@@ -335,6 +356,7 @@ export async function initGraderPage({ fixture, user }) {
     backend.watch('teams', (v) => {
         teams = v || {};
         teamIds = Object.keys(teams).sort();
+        renderTeamList();
         renderAll();
     });
     backend.watch('graders', (v) => { graders = v || {}; renderPicker(); renderLock(); renderInputState(); });
