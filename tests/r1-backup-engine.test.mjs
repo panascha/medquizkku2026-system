@@ -123,14 +123,17 @@ test('every fixture id matches ID_RE', () => {
     });
 });
 
-test('ID_RE sources appear in rules json', () => {
-    const rules = readFileSync(new URL('../r1_backup_exam.rules.json', import.meta.url), 'utf8');
-    const flagParts = ['^m(0[1-9]|1[0-9]|2[0-8])$', '^u[1-3][ab]$'];
-    assert.equal(ID_RE.FLAG.source, flagParts.join('|'));
-    [ID_RE.SBA.source, ID_RE.MTF_STMT.source, ID_RE.UNSEEN_STMT.source, ...flagParts].forEach((s) => {
-        assert.ok(rules.includes('/' + s + '/'), 'rules missing /' + s + '/');
-    });
-    JSON.parse(rules);
+test('ID_RE sources equal the regexes enforced by the Worker (r1-backup-worker/src/rules.js)', () => {
+    const rules = readFileSync(new URL('../r1-backup-worker/src/rules.js', import.meta.url), 'utf8');
+    const decl = (name) => {
+        const m = rules.match(new RegExp('^const ' + name + ' = /(.+)/;$', 'm'));
+        assert.ok(m, 'rules.js missing const ' + name);
+        return m[1];
+    };
+    assert.equal(ID_RE.SBA.source, decl('SBA_RE'));
+    assert.equal(ID_RE.MTF_STMT.source, decl('MTF_RE'));
+    assert.equal(ID_RE.UNSEEN_STMT.source, decl('UNSEEN_Q_RE'));
+    assert.equal(ID_RE.FLAG.source, [decl('MCQ_FLAG_RE'), decl('UNSEEN_FLAG_RE')].join('|'));
 });
 
 test('checkRichHtml accepts allowlisted markup and valid img', () => {

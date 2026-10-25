@@ -1,6 +1,6 @@
 // js/r1-backup-engine.js
-// Pure logic for the R1 backup exam page. No DOM, no Firebase — node-testable.
-// ID_RE sources must equal the regex strings in r1_backup_exam.rules.json (tests enforce this).
+// Pure logic for the R1 backup exam page. No DOM, no network — node-testable.
+// ID_RE sources must equal the regex strings in r1-backup-worker/src/rules.js (tests enforce this).
 
 export const STORAGE_PREFIX = 'r1bk:v1:';
 

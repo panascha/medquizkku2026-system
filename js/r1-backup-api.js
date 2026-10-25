@@ -1,6 +1,6 @@
 // js/r1-backup-api.js
 // Cloudflare Worker side of the R1 backup exam page (contract: R1_BACKUP_API.md). Live mode only.
-// Same exports as r1-backup-sync.js (the Firebase path stays until #27). No Firebase, no Google auth:
+// Same exports as the retired Firebase module r1-backup-sync.js (removed in #27). No Firebase, no Google auth:
 // the seat is guarded by a random token kept in the app's session key.
 import { API_BASE } from './r1-backup-config.js';
 import { makeClock } from './r1-backup-engine.js';
@@ -31,7 +31,7 @@ export function configure({ username: u, store: s, outboxKey: k, onDroppedWrite 
 export const getToken = () => token;
 export const setToken = (t) => { token = t || null; };
 
-/** Kept for export parity with r1-backup-sync.js; there is no anonymous auth on this path. */
+/** Kept for export parity with the retired r1-backup-sync.js; there is no anonymous auth on this path. */
 export async function ensureAnon() { return {}; }
 
 function syncClock(body, t0, t1) {

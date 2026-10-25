@@ -1,6 +1,6 @@
 // js/r1-backup-staff-api.js
 // Cloudflare Worker side of the R1 backup STAFF page (contract: R1_BACKUP_API.md). Live mode only.
-// Same exports as r1-backup-staff-sync.js (the Firebase path stays until #27) plus admin-token, image and export helpers.
+// Same exports as the retired Firebase module r1-backup-staff-sync.js (removed in #27) plus admin-token, image and export helpers.
 // No Firebase, no requireStaff: every call carries the admin token typed by staff (kept in sessionStorage).
 import { API_BASE } from './r1-backup-config.js';
 

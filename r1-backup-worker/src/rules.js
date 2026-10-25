@@ -1,4 +1,4 @@
-// Pure rules ported from r1_backup_exam.rules.json. No I/O, no Date.now: `now` is passed in.
+// Pure rules ported from the retired RTDB rules (r1_backup_exam.rules.json, removed in #27). No I/O, no Date.now: `now` is passed in.
 
 export const USERNAME_RE = /^mq2026-(00[1-9]|0[1-9][0-9]|100)-[123]$/;
 const SBA_RE = /^m(0[1-9]|1[0-9]|2[0-3])$/;
