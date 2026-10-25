@@ -69,11 +69,38 @@ async function upload(part) {
     if (!f) { toast('เลือกไฟล์ JSON ก่อน', true); return; }
     try {
         const clean = sanitizeQuestions(part, await readJsonFile(f));
-        if (!confirm(`อัปโหลดข้อสอบ ${part} (${f.name}) ไปยัง RTDB? ของเดิมจะถูกแทนที่`)) return;
+        if (!confirm(`อัปโหลดข้อสอบ ${part} (${f.name}) ไปยังเซิร์ฟเวอร์? ของเดิมจะถูกแทนที่`)) return;
         await backend.writeQuestions(part, clean);
         toast(`อัปโหลด ${part} สำเร็จ`);
     } catch (e) {
         toast(`ปฏิเสธไฟล์ ${part}: ${e.message || e}`, true);
+    }
+}
+
+// ── image upload + raw export (worker backend only) ──
+async function uploadImg() {
+    const f = $('imgFile').files[0];
+    const part = $('imgPart').value;
+    if (!f) { toast('เลือกรูปก่อน', true); return; }
+    try {
+        await backend.uploadImage(part, f.name, f);
+        $('imgUrl').textContent = backend.imageUrl(f.name);
+        toast(`อัปโหลดรูป ${f.name} สำเร็จ`);
+    } catch (e) {
+        toast(`อัปโหลดรูปไม่สำเร็จ: ${e.message || e}`, true);
+    }
+}
+
+async function downloadRaw() {
+    try {
+        const text = await backend.fetchExportText();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], { type: 'application/json;charset=utf-8' }));
+        a.download = 'r1-backup-export.json';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) {
+        toast(`ส่งออกไม่สำเร็จ: ${e.message || e}`, true);
     }
 }
 
@@ -197,6 +224,8 @@ function bind() {
         $(`upload-${p}`).onclick = () => upload(p);
     });
     $('monitorFilter').oninput = renderMonitor;
+    $('imgUpload').onclick = uploadImg;
+    $('rawExport').onclick = downloadRaw;
     $('keyLoad').onclick = loadKey;
     $('exportBtn').onclick = exportAll;
     setInterval(renderControl, 1000);
@@ -211,11 +240,14 @@ function fixtureBackend(fx) {
         watchRoot: (cb) => { listeners.push(cb); cb(JSON.parse(JSON.stringify(tree))); },
         writeControl: async (p, ctl) => { tree._control = { ...(tree._control || {}), [p]: ctl }; emit(); },
         writeQuestions: async (p, clean) => { tree._questions = { ...(tree._questions || {}), [p]: clean }; emit(); },
-        releaseSeat: async (u) => { delete tree[u].uid; delete tree[u].claimedAt; emit(); }
+        releaseSeat: async (u) => { delete tree[u].uid; delete tree[u].claimedAt; emit(); },
+        uploadImage: async () => {},
+        imageUrl: (n) => `https://fixture.invalid/api/img/${n}`,
+        fetchExportText: async () => JSON.stringify(tree)
     };
 }
 
-/** mode: { fixture: bool }. Live callers must already have passed requireStaff(user). */
+/** mode: { fixture: bool }. Live callers must already hold a valid admin token (see pages/r1-backup-staff.html). */
 export async function initStaffPage({ fixture }) {
     if (fixture) {
         const fx = await import('./r1-backup-staff-fixture.js');
@@ -228,10 +260,10 @@ export async function initStaffPage({ fixture }) {
             $('exportBtn').disabled = false;
         };
     } else {
-        const sync = await import('./r1-backup-staff-sync.js');
-        await sync.startServerClock();
-        backend = sync;
+        const api = await import('./r1-backup-staff-api.js');
+        await api.startServerClock();
+        backend = api;
     }
     bind();
-    backend.watchRoot((v) => { root = v; refresh(); }, (e) => toast(`อ่าน RTDB ไม่ได้: ${e && e.message}`, true));
+    backend.watchRoot((v) => { root = v; refresh(); }, (e) => toast(`อ่านข้อมูลจากเซิร์ฟเวอร์ไม่ได้: ${e && e.message}`, true));
 }

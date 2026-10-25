@@ -20,12 +20,21 @@
             <a href="../index.html" class="opacity-70 hover:opacity-100">&larr;</a>
             <span class="font-bold">R1 Backup Exam — Staff</span>
             <span id="staffName" class="ml-auto text-xs opacity-80"></span>
+            <button id="tokenLogout" hidden class="text-xs bg-white/20 rounded px-2 py-1">ออกจากระบบ</button>
         </div>
     </nav>
 
     <div id="fixtureBanner" hidden class="bg-amber-100 text-amber-900 text-center text-sm py-1">
-        FIXTURE MODE — ข้อมูลปลอม ไม่เชื่อมต่อ Firebase
+        FIXTURE MODE — ข้อมูลปลอม ไม่เชื่อมต่อเซิร์ฟเวอร์
     </div>
+
+    <section id="gate" hidden class="max-w-[420px] mx-auto p-4 mt-10 bg-white border border-slate-200 rounded-xl space-y-3">
+        <h2 class="font-bold">ใส่ admin token</h2>
+        <p class="text-xs text-slate-500">เก็บใน sessionStorage ของแท็บนี้เท่านั้น ปิดแท็บแล้วหาย</p>
+        <input id="tokenInput" type="password" autocomplete="off" class="w-full border rounded px-2 py-1 text-sm">
+        <button id="tokenGo" class="bg-blue-600 text-white rounded px-4 py-1.5 text-sm">เข้าสู่ระบบ</button>
+        <div id="tokenErr" class="text-xs text-red-600"></div>
+    </section>
 
     <main id="app" hidden class="max-w-[1100px] mx-auto p-4 space-y-6">
 
@@ -60,6 +69,18 @@
                     </div>
                 </div>
             </div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+            <h2 class="font-bold">1b. รูปประกอบข้อสอบ + ส่งออกข้อมูลดิบ</h2>
+            <p class="text-xs text-slate-500">PNG/JPEG ไม่เกิน 1 MB — ใส่ URL ที่ได้ในฟิลด์ imageUrl ของไฟล์ข้อสอบ</p>
+            <div class="flex items-center gap-2 flex-wrap">
+                <select id="imgPart" class="border rounded px-1 py-1 text-sm"><option value="mcq">mcq</option><option value="unseen">unseen</option></select>
+                <input type="file" id="imgFile" accept="image/png,image/jpeg" class="text-xs">
+                <button id="imgUpload" class="text-xs bg-blue-600 text-white rounded px-2 py-1">อัปโหลดรูป</button>
+                <button id="rawExport" class="text-xs bg-slate-700 text-white rounded px-2 py-1 ml-auto">ดาวน์โหลดข้อมูลดิบ (JSON)</button>
+            </div>
+            <div id="imgUrl" class="text-xs font-mono break-all text-slate-600"></div>
         </section>
 
         <section class="bg-white border border-slate-200 rounded-xl p-4">
@@ -111,18 +132,30 @@
             // ข้อมูลปลอมล้วน ไม่แตะ Firebase
             initStaffPage({ fixture: true }).then(show);
         } else {
-            const { auth } = await import('../js/firebase-config.js');
-            const { onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
-            const { requireStaff } = await import('../js/staff-guard.js');
+            const api = await import('../js/r1-backup-staff-api.js');
+            const $ = (id) => document.getElementById(id);
             let started = false;
-            onAuthStateChanged(auth, async (user) => {
-                if (!(await requireStaff(user))) return;
-                document.getElementById('staffName').textContent = user.displayName || user.email;
-                if (started) return;      // token refresh ไม่ต้องโหลดซ้ำ
+            const enter = async (t) => {
+                api.setAdminToken(t);
+                try {
+                    await api.verifyToken();
+                } catch (e) {
+                    if (e.status === 401) api.setAdminToken(null);
+                    $('tokenErr').textContent = e.status === 401 ? 'token ไม่ถูกต้อง' : `เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: ${e.message}`;
+                    $('gate').hidden = false;
+                    return;
+                }
+                $('gate').hidden = true;
+                $('tokenLogout').hidden = false;
+                if (started) return;
                 started = true;
                 await initStaffPage({ fixture: false });
                 show();
-            });
+            };
+            $('tokenGo').onclick = () => enter($('tokenInput').value.trim());
+            $('tokenInput').onkeydown = (e) => { if (e.key === 'Enter') $('tokenGo').click(); };
+            $('tokenLogout').onclick = () => { api.setAdminToken(null); location.reload(); };
+            if (api.getAdminToken()) enter(api.getAdminToken()); else $('gate').hidden = false;
         }
     </script>
 </body>
