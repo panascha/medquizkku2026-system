@@ -6,7 +6,7 @@ import {
     parseDelimited, analyzeExport, chipText, buildIngestPayload,
     classifyError, preflightRows, canDecide, DEFAULT_ALLOWED,
     filterTeams, rotationState, roomsForSlot, phaseOf, countGradedCells, buildGameshowSetup,
-    ROT, GROUPS, SPOT_CELLS,
+    buildRanksPayload, awardSummaryLines, ROT, GROUPS, SPOT_CELLS,
 } from './onsite-hub-engine.js';
 
 // Same deployment URL as spot-dashboard-app.js / check-onsite*.html (update in place, never a new URL).
@@ -291,7 +291,9 @@ async function loadStatus() {
 
 async function loadTeams() {
     try { teams = (await call('getAllOnSiteTeams', {})).teams || []; } catch (e) { return; }   // ping badge tracks hubStatus
-    renderGameshow(); renderRoster(); renderSpot();
+    const fin = new Set(finalistIds());
+    picks = picks.map((v) => (fin.has(v) ? v : ''));   // drop picks that are no longer finalists
+    renderGameshow(); renderAwards(); renderRoster(); renderSpot();
 }
 
 // ── Step 2 live rotation (same numbers as check-onsite-staff.html) ─────────────────────
@@ -342,6 +344,39 @@ function renderGameshow() {
     $('btnGsCopy').disabled = !g.ok; $('btnGsDownload').disabled = !g.ok;
 }
 
+// ── Step 4 awards: Gameshow places 1-8 -> r3SetRanks, then awardExport ───────────────────
+let picks = Array(8).fill('');
+
+const finalistIds = () => buildGameshowSetup(teams).stations.map((s) => s.teamId);
+
+function renderAwards() {
+    const g = buildGameshowSetup(teams);
+    const taken = new Set(picks.filter(Boolean));
+    $('awardGrid').innerHTML = picks.map((v, i) => `<label class="text-sm block"><span class="font-bold">อันดับ ${i + 1}</span>
+        <select data-place="${i}" class="mt-1 w-full border border-slate-300 rounded-lg px-2 py-1 bg-white">
+            <option value="">— เลือกทีม —</option>
+            ${g.stations.map((s) => `<option value="${esc(s.teamId)}"${s.teamId === v ? ' selected' : ''}${taken.has(s.teamId) && s.teamId !== v ? ' disabled' : ''}>${esc(s.teamId)} ${esc(s.teamName)}</option>`).join('')}
+        </select></label>`).join('');
+    const r = buildRanksPayload(picks, g.stations.map((s) => s.teamId));
+    $('awardWarn').textContent = picks.some(Boolean) || !g.ok ? r.error : '';
+    $('btnRanksSave').disabled = !r.ok;
+    $('btnAwardExport').disabled = !g.ok;
+}
+
+async function doRanksSave(btn) {
+    const r = buildRanksPayload(picks, finalistIds());
+    if (!r.ok) { toast(r.error, true); return; }
+    if (!(await confirmModal('บันทึกอันดับ Game Show', r.ranks.map((x) => `${x.rank}. ${x.teamId}`).join('  ') + ' — เขียนทับคอลัมน์ R3_Rank ในชีต LS_OnSite', null))) return;
+    const res = await run('r3SetRanks', { ranks: r.ranks }, btn);
+    if (res) toast(`บันทึกอันดับแล้ว (${res.written} ทีม)`);
+}
+
+async function doAwardExport(btn) {
+    if (!(await confirmModal('สร้างเกียรติบัตร', 'สร้าง/เขียนทับชีตส่งออกเกียรติบัตรจากข้อมูลล่าสุด — ตรวจว่าบันทึกอันดับ Game Show แล้ว', null))) return;
+    const res = await run('awardExport', {}, btn);
+    if (res) { $('awardResult').textContent = awardSummaryLines(res).join('\n'); $('awardResult').hidden = false; toast('สร้างเกียรติบัตรแล้ว'); }
+}
+
 const gsJson = () => JSON.stringify(buildGameshowSetup(teams).stations, null, 2);
 
 function download(name, text) {
@@ -384,14 +419,18 @@ function renderLinks() {
     set('lnkSheet', LINKS.lsSheet);
 }
 
-function renderAll() { renderInputs(); renderPreview(); }
+function renderAll() { renderInputs(); renderPreview(); renderAwards(); }
 
 function bind() {
     document.querySelectorAll('[data-stepbtn]').forEach((b) => b.addEventListener('click', () => showStep(Number(b.dataset.stepbtn))));
-    const acts = { btnIngest: doIngest, btnPreview: doPreview, btnDecide: doDecide, btnRotStart: doRotationStart, btnRotClear: doRotationClear, btnReset: doReset };
+    const acts = { btnIngest: doIngest, btnPreview: doPreview, btnDecide: doDecide, btnRotStart: doRotationStart, btnRotClear: doRotationClear, btnReset: doReset, btnRanksSave: doRanksSave, btnAwardExport: doAwardExport };
     Object.keys(acts).forEach((id) => {
         const b = $(id); b.dataset.act = '1'; b.dataset.label = b.textContent;
         b.addEventListener('click', () => acts[id](b));
+    });
+    $('awardGrid').addEventListener('change', (e) => {
+        const s = e.target.closest && e.target.closest('select[data-place]');
+        if (s) { picks[Number(s.dataset.place)] = s.value; renderAwards(); }
     });
     $('btnDownloadPv').addEventListener('click', downloadPreview);
     $('btnStatus').addEventListener('click', loadStatus);

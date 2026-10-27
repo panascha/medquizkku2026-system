@@ -49,7 +49,7 @@ export function fixtureSpotScores(qCount) {
 /** opts.r2: simulate R2 pushed (8 finalists, mFilled 40). */
 export function createFixtureBackend(opts = {}) {
     let ingestVersion = 0, previewVersion = -1, decided = false, rotationStartMs = null, ingested = false;
-    let lastMcq = null, lastUnseen = null;
+    let lastMcq = null, lastUnseen = null, r3Ranks = null;
     const tokenOf = () => 'fx-' + ingestVersion + '-' + (decided ? 'd' : 'u');
     return async function call(action, p = {}) {
         switch (action) {
@@ -95,6 +95,17 @@ export function createFixtureBackend(opts = {}) {
             case 'rotationClear':
                 rotationStartMs = null;
                 return { status: 'success' };
+            case 'r3SetRanks': {
+                const fin = fixtureTeams(true, !!opts.r2).filter((t) => t.r2Passed === true).map((t) => t.teamId);
+                const r = Array.isArray(p.ranks) ? p.ranks : [];
+                if (fin.length !== 8) throw new Error('invalid: ผู้เข้ารอบ ' + fin.length + ' ทีม (ต้องมี 8)');
+                if (r.length !== 8 || new Set(r.map((x) => x.teamId)).size !== 8 || new Set(r.map((x) => x.rank)).size !== 8 ||
+                    r.some((x) => !fin.includes(x.teamId) || !Number.isInteger(x.rank) || x.rank < 1 || x.rank > 8)) throw new Error('invalid: ranks ไม่ถูกต้อง');
+                r3Ranks = {}; r.forEach((x) => { r3Ranks[x.teamId] = x.rank; });
+                return { status: 'success', written: 8, ranks: r3Ranks };
+            }
+            case 'awardExport':
+                return { status: 'success', ok: true, message: 'สร้างชีตเกียรติบัตรแล้ว (fixture)', sheet: 'Award_Certificates', recipients: 300, individuals: 0, top40Teams: 40, gameshowTeams: r3Ranks ? 8 : 0, missingSchool: 0, warnings: r3Ranks ? [] : ['ยังไม่ได้บันทึกอันดับ Game Show'] };
             default:
                 throw new Error('Unknown or missing action (POST)');
         }

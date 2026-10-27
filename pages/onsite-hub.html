@@ -132,6 +132,16 @@
                 <a id="lnkGameshow" target="_blank" rel="noopener" class="pointer-events-none opacity-40 bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">Gameshow Admin (ตั้งค่า LAN URL ใน onsite-hub-app.js)</a>
                 <a id="lnkSheet" target="_blank" rel="noopener" class="pointer-events-none opacity-40 border border-slate-300 rounded-lg px-4 py-2 text-sm">ชีต LS_OnSite</a>
             </div>
+            <div class="border-t border-slate-200 pt-3 space-y-2">
+                <h3 class="font-bold">อันดับ Game Show 1–8 / เกียรติบัตร</h3>
+                <div id="awardGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2"></div>
+                <div id="awardWarn" class="text-sm font-bold text-red-700"></div>
+                <div class="flex gap-3 flex-wrap">
+                    <button id="btnRanksSave" disabled class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-40">💾 บันทึกอันดับ Game Show</button>
+                    <button id="btnAwardExport" class="bg-[#E4B43C] text-[#0f1f4b] rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-40">🎓 Generate Award Certificates</button>
+                </div>
+                <pre id="awardResult" class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 whitespace-pre-wrap" hidden></pre>
+            </div>
         </section>
 
         <!-- Step 5 -->

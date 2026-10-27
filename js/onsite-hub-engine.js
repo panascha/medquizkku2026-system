@@ -244,3 +244,29 @@ export function buildGameshowSetup(teams) {
     const ok = fin.length === 8;
     return { ok, count: fin.length, stations, warning: ok ? '' : `พบทีมเข้ารอบ ${fin.length} ทีม (ต้องมี 8) — ปิดการคัดลอก/ดาวน์โหลด` };
 }
+
+/**
+ * Gameshow places 1-8 -> r3SetRanks payload. picks[i] = teamId for place i+1 ('' = unset).
+ * Needs 8 distinct teamIds, all among the 8 R2 finalists. Mirrors the GAS check; GAS stays authoritative.
+ */
+export function buildRanksPayload(picks, finalistIds) {
+    const fin = new Set(finalistIds || []);
+    const p = Array.isArray(picks) ? picks : [];
+    if (fin.size !== 8) return { ok: false, ranks: [], error: `มีผู้เข้ารอบ ${fin.size} ทีม (ต้องมี 8)` };
+    if (p.length !== 8 || p.some((x) => !x)) return { ok: false, ranks: [], error: 'เลือกให้ครบทั้ง 8 อันดับ' };
+    if (new Set(p).size !== 8) return { ok: false, ranks: [], error: 'มีทีมซ้ำในหลายอันดับ' };
+    if (p.some((x) => !fin.has(x))) return { ok: false, ranks: [], error: 'มีทีมที่ไม่ใช่ผู้เข้ารอบ' };
+    return { ok: true, ranks: p.map((teamId, i) => ({ teamId, rank: i + 1 })), error: '' };
+}
+
+/** Display lines from an awardExport response (only fields GAS returned). */
+export function awardSummaryLines(res) {
+    if (!res) return [];
+    const L = [];
+    if (res.message) L.push(String(res.message));
+    if (res.sheet) L.push(`ชีต: ${res.sheet}`);
+    [['recipients', 'ผู้รับเกียรติบัตร'], ['individuals', 'รายบุคคล'], ['top40Teams', 'ทีม Top 40'], ['gameshowTeams', 'ทีม Game Show'], ['missingSchool', 'ไม่มีโรงเรียน']]
+        .forEach(([k, label]) => { if (res[k] != null) L.push(`${label}: ${res[k]}`); });
+    (Array.isArray(res.warnings) ? res.warnings : []).forEach((w) => L.push('⚠ ' + w));
+    return L;
+}

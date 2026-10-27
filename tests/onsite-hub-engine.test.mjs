@@ -171,6 +171,44 @@ test('buildGameshowSetup: != 8 finalists -> ok=false with warning', () => {
     assert.equal(buildGameshowSetup([]).ok, false);
 });
 
+// ── #36 awards ──────────────────────────────────────────────────────────────────────────
+import { buildRanksPayload, awardSummaryLines } from '../js/onsite-hub-engine.js';
+const FIN8 = ['MQ003', 'MQ009', 'MQ012', 'MQ018', 'MQ022', 'MQ027', 'MQ031', 'MQ038'];
+
+test('buildRanksPayload: valid -> ranks 1-8 integers in pick order', () => {
+    const r = buildRanksPayload([...FIN8].reverse(), FIN8);
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.ranks[0], { teamId: 'MQ038', rank: 1 });
+    assert.deepEqual(r.ranks[7], { teamId: 'MQ003', rank: 8 });
+});
+
+test('buildRanksPayload: unset / duplicate / non-finalist / finalist count != 8 rejected', () => {
+    assert.equal(buildRanksPayload(FIN8.slice(0, 7).concat(''), FIN8).ok, false);
+    assert.equal(buildRanksPayload(FIN8.slice(0, 7), FIN8).ok, false);
+    assert.match(buildRanksPayload(FIN8.slice(0, 7).concat('MQ003'), FIN8).error, /ซ้ำ/);
+    assert.match(buildRanksPayload(FIN8.slice(0, 7).concat('MQ001'), FIN8).error, /ไม่ใช่ผู้เข้ารอบ/);
+    assert.equal(buildRanksPayload(FIN8, FIN8.slice(0, 7)).ok, false);
+    assert.equal(buildRanksPayload(null, null).ok, false);
+});
+
+test('awardSummaryLines: message, counts, warnings; empty for null', () => {
+    assert.deepEqual(awardSummaryLines(null), []);
+    const L = awardSummaryLines({ message: 'ok', sheet: 'S', recipients: 5, missingSchool: 0, warnings: ['w1'] });
+    assert.deepEqual(L, ['ok', 'ชีต: S', 'ผู้รับเกียรติบัตร: 5', 'ไม่มีโรงเรียน: 0', '⚠ w1']);
+});
+
+test('fixture backend: r3SetRanks validates + awardExport shape', async () => {
+    const call = createFixtureBackend({ r2: true });
+    const good = FIN8.map((teamId, i) => ({ teamId, rank: i + 1 }));
+    const res = await call('r3SetRanks', { ranks: good });
+    assert.equal(res.written, 8);
+    await assert.rejects(call('r3SetRanks', { ranks: good.slice(0, 7) }), /invalid/);
+    await assert.rejects(call('r3SetRanks', { ranks: good.map((x) => ({ ...x, rank: String(x.rank) })) }), /invalid/);
+    const ex = await call('awardExport', {});
+    assert.equal(ex.ok, true); assert.equal(ex.gameshowTeams, 8);
+    await assert.rejects(createFixtureBackend({})('r3SetRanks', { ranks: good }), /invalid/);
+});
+
 test('fixture backend: getAllOnSiteTeams + hubStatus r2 option', async () => {
     const call = createFixtureBackend({ r2: true });
     assert.equal((await call('getAllOnSiteTeams')).teams.filter((t) => t.r2Passed === true).length, 8);
