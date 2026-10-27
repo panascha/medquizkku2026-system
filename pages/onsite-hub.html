@@ -11,6 +11,8 @@
         body { font-family: 'Sarabun', sans-serif; background: #f8faff; color: #1e293b; }
         .nav-gradient { background: linear-gradient(to right, #0f1f4b, #1e3a8a); }
         button:disabled, input:disabled { opacity: .5; cursor: not-allowed; }
+        /* Tailwind .flex etc. would otherwise beat the hidden attribute (modal showed on load) */
+        [hidden] { display: none !important; }
     </style>
 </head>
 
