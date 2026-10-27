@@ -3,7 +3,7 @@
 // Live callers must already have passed requireStaff(user). RTDB layout + push: SPOT_GRADING.md.
 import {
     QIDS, QID_RE, QUESTION_COUNT, TEAM_COUNT, CUT,
-    progress, totals, rankWithCut, laggards, buildPushPayload
+    progress, totals, rankWithCut, laggards, buildPushPayload, fmtClock, recentActivity
 } from './spot-grading-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,6 +23,8 @@ let config = {};
 let teams = {};            // MQxxx -> { name }
 let teamIds = [];
 let scores = {};           // qNN -> MQxxx -> 0|1
+let scoreMeta = {};        // qNN -> MQxxx -> { by, at }
+const ACTIVITY_LIMIT = 50;
 let tieDecision = null;
 let admins = {};
 let picks = new Set();     // chair's unsaved tie ticks
@@ -96,11 +98,40 @@ function renderHeatmap() {
             const c = document.createElement('div');
             const v = row[t];
             c.className = 'h-3 rounded-sm ' + (v === 1 ? 'bg-emerald-500' : v === 0 ? 'bg-red-500' : 'bg-slate-200');
-            c.title = `${q} · ${t} = ${v === 0 || v === 1 ? v : '-'}`;
+            const m = (scoreMeta[q] || {})[t];
+            c.title = (v === 0 || v === 1)
+                ? `ข้อ ${qi + 1} · ${t} = ${v} | ตรวจโดย: ${(m && m.by) || '-'} (${fmtClock(m && m.at)})`
+                : `${q} · ${t} = -`;
             frag.appendChild(c);
         });
     });
     box.appendChild(frag);
+}
+
+function renderActivity() {
+    const body = $('activity');
+    body.textContent = '';
+    const rows = recentActivity(scoreMeta, scores, ACTIVITY_LIMIT);
+    if (!rows.length) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.className = 'px-2 py-1 text-slate-500';
+        td.textContent = 'ยังไม่มีการตรวจ';
+        tr.appendChild(td);
+        body.appendChild(tr);
+        return;
+    }
+    rows.forEach((r) => {
+        const tr = document.createElement('tr');
+        [fmtClock(r.at), r.q, r.team, String(r.v), r.by].forEach((v, i) => {
+            const td = document.createElement('td');
+            td.className = 'px-2 py-1 ' + (i === 3 ? 'font-bold ' + (r.v === 1 ? 'text-emerald-600' : 'text-red-600') : '');
+            td.textContent = v;
+            tr.appendChild(td);
+        });
+        body.appendChild(tr);
+    });
 }
 
 function renderProgress(d) {
@@ -180,6 +211,7 @@ function renderAll() {
     const d = derive();
     renderSetup();
     renderHeatmap();
+    renderActivity();
     renderProgress(d);
     renderBoard(d);
     renderTie(d);
@@ -354,6 +386,7 @@ export async function initDashboardPage({ fixture, complete, user }) {
     backend.watch('config', (v) => { config = v || {}; renderAll(); });
     backend.watch('teams', (v) => { teams = v || {}; teamIds = Object.keys(teams).sort(); renderAll(); });
     backend.watch('scores', (v) => { scores = v || {}; renderAll(); });
+    backend.watch('scoreMeta', (v) => { scoreMeta = v || {}; renderAll(); });
     backend.watch('tieDecision', (v) => { tieDecision = v; picks = new Set((v && v.passed) || []); picks.forEach((t) => { if (!derive().rk.cutTies.includes(t)) picks.delete(t); }); renderAll(); });
     renderAll();
 }

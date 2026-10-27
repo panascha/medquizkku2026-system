@@ -32,5 +32,9 @@ export function buildFixtureDb(now) {
         q03: { email: 'old.fixture@kku.ac.th', name: 'ครูหมดอายุ', lastActive: now - 10 * 60 * 1000 }
     };
 
-    return { config: { isGradingOpen: true }, teams, questions, graders, scores, scoreMeta: {} };
+    const scoreMeta = { q01: {}, q02: {} };
+    FIXTURE_TEAM_IDS.slice(0, 12).forEach((t, i) => { scoreMeta.q01[t] = { by: 'old.fixture@kku.ac.th', at: now - (60 - i) * 60 * 1000 }; });
+    FIXTURE_TEAM_IDS.slice(0, 5).forEach((t, i) => { scoreMeta.q02[t] = { by: 'other.fixture@kku.ac.th', at: now - (20 - i) * 60 * 1000 }; });
+
+    return { config: { isGradingOpen: true }, teams, questions, graders, scores, scoreMeta };
 }

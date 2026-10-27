@@ -136,3 +136,25 @@ export function lockState(grader, now) {
     if (!grader || !Number.isFinite(grader.lastActive)) return 'free';
     return now - grader.lastActive < STALE_MS ? 'held' : 'stale';
 }
+
+/** ms -> "HH:mm:ss" (local time); '-' if not a finite number. */
+export function fmtClock(ms) {
+    if (typeof ms !== 'number' || !Number.isFinite(ms)) return '-';
+    const d = new Date(ms);
+    return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
+}
+
+/** Newest-first audit rows { q, team, v, by, at } from scoreMeta joined with scores; entries without a 0/1 score or numeric `at` are skipped. */
+export function recentActivity(scoreMeta, scores, limit = 50) {
+    const rows = [];
+    Object.keys(scoreMeta || {}).forEach((q) => {
+        const m = scoreMeta[q] || {};
+        Object.keys(m).forEach((team) => {
+            const e = m[team];
+            const v = scores && scores[q] ? scores[q][team] : undefined;
+            if (e && isCell(v) && typeof e.at === 'number') rows.push({ q, team, v, by: String(e.by || ''), at: e.at });
+        });
+    });
+    rows.sort((a, b) => b.at - a.at || (a.q + a.team < b.q + b.team ? -1 : 1));
+    return rows.slice(0, limit);
+}

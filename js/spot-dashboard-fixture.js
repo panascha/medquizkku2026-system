@@ -15,11 +15,16 @@ export function buildDashboardFixtureDb(now, { complete = false } = {}) {
     db.graders = {};
     db.admins = {};
     db.scores = {};
+    db.scoreMeta = {};
+    const graderEmails = ['grader.a@kku.ac.th', 'grader.b@kku.ac.th', 'grader.c@kku.ac.th'];
     QIDS.forEach((q, qi) => {
         db.scores[q] = {};
+        db.scoreMeta[q] = {};
         FIXTURE_TEAM_IDS.forEach((t, ti) => {
             if (!complete && qi === QIDS.length - 1 && ti >= FIXTURE_TEAM_IDS.length - 5) return;
             db.scores[q][t] = qi < FIXTURE_TARGETS[ti] ? 1 : 0;
+            // one grading action every 2s, later questions newer; ends ~1 min before `now`
+            db.scoreMeta[q][t] = { by: graderEmails[qi % graderEmails.length], at: now - 60000 - (QIDS.length * FIXTURE_TEAM_IDS.length - (qi * FIXTURE_TEAM_IDS.length + ti)) * 2000 };
         });
     });
     return db;

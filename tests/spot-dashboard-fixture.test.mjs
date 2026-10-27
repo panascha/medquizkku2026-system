@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { progress, totals, rankWithCut, buildPushPayload, CUT } from '../js/spot-grading-engine.js';
+import { progress, totals, rankWithCut, buildPushPayload, CUT, recentActivity, fmtClock } from '../js/spot-grading-engine.js';
 import { buildDashboardFixtureDb, fixtureOnSiteTeams, fixtureQuestionsJson } from '../js/spot-dashboard-fixture.js';
 
 const ids = (db) => Object.keys(db.teams).sort();
@@ -34,6 +34,23 @@ test('tieDecision with 7 sure + 1 tied team resolves push; 2 tied teams rejected
     assert.equal(ok.payload.passed.length, 8);
     const bad = buildPushPayload(tot, { passed: [...sure.slice(0, 6), cutTies[0], cutTies[1]] });
     assert.equal(bad.ok, false);
+});
+
+test('fixture scoreMeta: one audit row per graded cell; recentActivity newest-first, capped', () => {
+    const now = 1_700_000_000_000;
+    const db = buildDashboardFixtureDb(now);
+    const nMeta = Object.values(db.scoreMeta).reduce((n, m) => n + Object.keys(m).length, 0);
+    assert.equal(nMeta, 1395);
+    const rows = recentActivity(db.scoreMeta, db.scores, 50);
+    assert.equal(rows.length, 50);
+    assert.ok(rows.every((r, i) => i === 0 || rows[i - 1].at >= r.at));
+    assert.ok(rows.every((r) => r.at < now && /^[^@]+@kku\.ac\.th$/.test(r.by) && (r.v === 0 || r.v === 1)));
+    assert.equal(recentActivity({ q01: { MQ003: { by: 'x', at: 1 } } }, {}, 5).length, 0);
+});
+
+test('fmtClock: HH:mm:ss, dash for non-numbers', () => {
+    assert.match(fmtClock(1_700_000_000_000), /^\d{2}:\d{2}:\d{2}$/);
+    assert.equal(fmtClock(undefined), '-');
 });
 
 test('fixture onsite rows: exactly 40 r1Passed; questions file has 35 entries', () => {

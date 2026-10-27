@@ -64,6 +64,16 @@
             <p class="text-xs text-slate-500 mt-2">เขียว = 1, แดง = 0, เทา = ยังไม่ตรวจ</p>
         </section>
 
+        <section class="bg-white border border-slate-200 rounded-xl p-4">
+            <h2 class="font-bold mb-2">Live Activity Log <span class="text-xs font-normal text-slate-500">(ล่าสุด 50 รายการ)</span></h2>
+            <div class="max-h-72 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead><tr class="text-left text-slate-500"><th class="px-2">เวลา</th><th class="px-2">ข้อ</th><th class="px-2">ทีม</th><th class="px-2">คะแนน</th><th class="px-2">ผู้ตรวจ</th></tr></thead>
+                    <tbody id="activity"></tbody>
+                </table>
+            </div>
+        </section>
+
         <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
             <h2 class="font-bold">4. อันดับ</h2>
             <div id="tieBox" hidden class="bg-amber-50 border border-amber-300 rounded-lg p-3 space-y-2">

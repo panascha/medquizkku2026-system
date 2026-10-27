@@ -1,7 +1,7 @@
 // js/spot-grading-app.js
 // DOM glue for pages/spot-grading.html. Pure logic lives in spot-grading-engine.js.
 // Live callers must already have passed requireStaff(user). RTDB layout: SPOT_GRADING.md.
-import { QIDS, HEARTBEAT_MS, TEAM_COUNT, normalizeTeamId, autoArmId, lockState } from './spot-grading-engine.js';
+import { QIDS, HEARTBEAT_MS, TEAM_COUNT, normalizeTeamId, autoArmId, lockState, fmtClock } from './spot-grading-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const BASE = 'spot_grading_2026';
@@ -17,8 +17,11 @@ let graders = {};
 let curQ = null;
 let curQuestion = null; // loaded question (key/rubric), memory only
 let serverScores = {};  // MQxxx -> 0|1 for curQ
+let serverMeta = {};    // MQxxx -> { by, at } for curQ
 let unsubScores = null;
-let armed = null;       // committed team id, ready for 1/0
+let unsubMeta = null;
+let unlocked = false;   // overwrite confirmed for the armed (already graded) team
+let armed = null;      // committed team id, ready for 1/0
 let last = null;        // { q, team, prev, next }
 let outbox = {};        // `${q}/${team}` -> { q, team, v, by, at }
 const inflight = new Set();
@@ -46,6 +49,18 @@ function scoreOf(team) {
     const k = curQ + '/' + team;
     if (outbox[k]) return outbox[k].v;
     return serverScores[team] === 0 || serverScores[team] === 1 ? serverScores[team] : null;
+}
+
+// who/when graded a team: pending outbox entry is ours, else the server audit row
+function metaOf(team) {
+    const o = outbox[curQ + '/' + team];
+    if (o) return { by: o.by, at: o.at };
+    return serverMeta[team] || null;
+}
+
+function metaText(team) {
+    const m = metaOf(team);
+    return m ? `${m.by || '-'} (${fmtClock(m.at)})` : '';
 }
 
 function enqueue(q, team, v) {
@@ -134,7 +149,7 @@ function renderStrip() {
     teamIds.forEach((t) => {
         const v = curQ ? scoreOf(t) : null;
         const b = document.createElement('button');
-        b.title = t + (teams[t] && teams[t].name ? ' · ' + teams[t].name : '');
+        b.title = t + (teams[t] && teams[t].name ? ' · ' + teams[t].name : '') + (v !== null ? ` | ตรวจโดย: ${metaText(t) || '-'}` : '');
         b.className = 'rounded-md text-xs font-bold py-2 text-white ' +
             (v === 1 ? 'bg-emerald-600' : v === 0 ? 'bg-red-600' : 'bg-slate-300 text-slate-700') +
             (t === armed ? ' ring-4 ring-blue-500' : '');
@@ -154,11 +169,20 @@ function renderLast() {
     $('lastText').textContent = `ข้อ ${Number(last.q.slice(1))} · ${last.team} = ${last.next === null ? 'ลบ' : last.next}`;
 }
 
+const needsUnlock = () => !!armed && !unlocked && scoreOf(armed) !== null;
+
 function renderInputState() {
     const ok = canScore();
+    const locked = needsUnlock();
     $('team').disabled = !ok;
-    $('btn1').disabled = !ok || !armed;
-    $('btn0').disabled = !ok || !armed;
+    $('btn1').disabled = !ok || !armed || locked;
+    $('btn0').disabled = !ok || !armed || locked;
+    const prev = armed ? scoreOf(armed) : null;
+    $('graded').hidden = !armed || prev === null;
+    if (armed && prev !== null) {
+        $('gradedText').textContent = `⚠️ ข้อนี้ตรวจแล้ว! คะแนนเดิม: ${prev} โดย ${(metaOf(armed) || {}).by || '-'} (${fmtClock((metaOf(armed) || {}).at)})`;
+    }
+    $('unlock').hidden = !locked;
     $('armed').textContent = armed ? `${armed} พร้อมให้คะแนน (กด 1 = ถูก, 0 = ผิด, Esc = ยกเลิก)` : '';
     renderPreview();
 }
@@ -186,6 +210,7 @@ function setError(msg) { $('teamErr').textContent = msg || ''; }
 
 function disarm(focus) {
     armed = null;
+    unlocked = false;
     $('team').value = '';
     setError('');
     renderStrip();
@@ -195,6 +220,7 @@ function disarm(focus) {
 
 function arm(team) {
     if (!canScore()) { toast('ยังไม่ได้จองข้อนี้ หรือยังไม่เปิดตรวจ', true); return; }
+    if (armed !== team) unlocked = false;
     armed = team;
     $('team').value = team;
     setError('');
@@ -210,7 +236,7 @@ function commitTypedTeam() {
 }
 
 function score(v) {
-    if (!armed || !canScore()) return;
+    if (!armed || !canScore() || needsUnlock()) return;
     const team = armed;
     last = { q: curQ, team, prev: scoreOf(team), next: v };
     enqueue(curQ, team, v);
@@ -237,11 +263,14 @@ async function pick(q) {
     curQ = q;
     curQuestion = null;
     serverScores = {};
+    serverMeta = {};
     last = null;
     renderLast();
     disarm(false);
     if (unsubScores) unsubScores();
-    unsubScores = backend.watch('scores/' + q, (v) => { serverScores = v || {}; renderStrip(); });
+    if (unsubMeta) unsubMeta();
+    unsubScores = backend.watch('scores/' + q, (v) => { serverScores = v || {}; renderStrip(); renderInputState(); });
+    unsubMeta = backend.watch('scoreMeta/' + q, (v) => { serverMeta = v || {}; renderStrip(); renderInputState(); });
     renderAll();
     backend.get('questions/' + q).then((v) => { if (curQ === q) { curQuestion = v; renderKey(); } })
         .catch(() => { if (curQ === q) toast('อ่านเฉลยไม่ได้ (ยังไม่เปิดตรวจ?)', true); });
@@ -273,6 +302,7 @@ function bind() {
     });
     $('btn1').onclick = () => score(1);
     $('btn0').onclick = () => score(0);
+    $('unlock').onclick = () => { unlocked = true; renderInputState(); };
     $('undo').onclick = undo;
     $('takeover').onclick = takeover;
     setInterval(() => {
@@ -305,7 +335,9 @@ function fixtureBackend(fx) {
         touch: async (q) => { if (tree.graders[q]) tree.graders[q].lastActive = Date.now(); emit(); },
         writeScore: async (e) => {
             tree.scores[e.q] = tree.scores[e.q] || {};
-            if (e.v === null) delete tree.scores[e.q][e.team]; else tree.scores[e.q][e.team] = e.v;
+            tree.scoreMeta[e.q] = tree.scoreMeta[e.q] || {};
+            if (e.v === null) { delete tree.scores[e.q][e.team]; delete tree.scoreMeta[e.q][e.team]; }
+            else { tree.scores[e.q][e.team] = e.v; tree.scoreMeta[e.q][e.team] = { by: e.by.toLowerCase(), at: e.at }; }
             emit();
         }
     };
