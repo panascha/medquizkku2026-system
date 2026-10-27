@@ -21,10 +21,25 @@
         <div class="max-w-[1100px] mx-auto flex items-center gap-3">
             <a href="../index.html" class="opacity-70 hover:opacity-100">&larr;</a>
             <span class="font-bold">On-Site Operations Hub</span>
-            <span id="clock" class="ml-auto text-xs opacity-80"></span>
+            <span id="phaseBadge" class="text-xs font-bold rounded-full px-2 py-0.5" style="background:#F5D77A;color:#0f1f4b">…</span>
+            <span id="pingBadge" class="text-xs rounded-full px-2 py-0.5 bg-white/10">GAS …</span>
+            <button id="btnRoster" class="ml-auto text-xs font-bold rounded-lg px-3 py-1.5" style="background:#E4B43C;color:#0f1f4b">👥 Student Roster (Ctrl+K)</button>
+            <span id="clock" class="text-xs opacity-80"></span>
             <span id="staffName" class="text-xs opacity-80"></span>
         </div>
     </nav>
+
+    <!-- Roster drawer (right slide-over, available from any step) -->
+    <div id="rosterBackdrop" hidden class="fixed inset-0 bg-black/40 z-40"></div>
+    <aside id="rosterDrawer" hidden class="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col">
+        <div class="p-3 border-b border-slate-200 flex items-center gap-2">
+            <input id="rosterSearch" type="search" autocomplete="off" placeholder="ค้นหา MQ / ชื่อทีม / สมาชิก / โรงเรียน"
+                class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            <button id="rosterClose" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" aria-label="ปิด">✕</button>
+        </div>
+        <div id="rosterCount" class="px-3 py-1 text-xs text-slate-500"></div>
+        <div id="rosterList" class="flex-1 overflow-y-auto p-3 space-y-2"></div>
+    </aside>
 
     <div id="fixtureBanner" hidden class="bg-amber-100 text-amber-900 text-center text-sm py-1">
         FIXTURE MODE — ข้อมูลปลอม ไม่เชื่อมต่อ Firebase / OnSite
@@ -57,6 +72,7 @@
                 <label class="flex items-center gap-2 text-sm text-amber-800"><input id="allowAfter" type="checkbox"> เขียนทับหลังตัดสินรอบ 1 แล้ว (allowAfterDecide)</label>
                 <div class="flex items-center gap-3 flex-wrap">
                     <button id="btnIngest" disabled class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">นำเข้า (Ingest)</button>
+                    <button id="btnDownloadGrids" disabled class="border border-slate-300 rounded-lg px-3 py-2 text-sm">💾 ดาวน์โหลดตารางดิบ (JSON)</button>
                     <span id="ingestWhy" class="text-sm text-slate-600"></span>
                 </div>
                 <div id="ingestResult" class="space-y-1"></div>
@@ -83,6 +99,7 @@
         <section data-step="2" hidden class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
             <h2 class="font-bold">2. ควบคุมการหมุนฐาน</h2>
             <p id="rotInfo" class="text-sm"></p>
+            <div id="rotLive" class="border border-slate-200 rounded-lg p-3 space-y-2"></div>
             <div class="flex gap-3 flex-wrap">
                 <button id="btnRotStart" class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">เริ่มหมุนฐานตอนนี้</button>
                 <button id="btnRotClear" class="border border-slate-300 rounded-lg px-4 py-2 text-sm">ล้างเวลาเริ่ม</button>
@@ -92,7 +109,9 @@
 
         <!-- Step 3 -->
         <section data-step="3" hidden class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-            <h2 class="font-bold">3. R2 Spot — ติดตามและ push ผล</h2>
+            <h2 class="font-bold">3. R2 Spot — ติดตาม (อ่านอย่างเดียว)</h2>
+            <p class="text-xs text-slate-500">ตัดสินเสมอ/Push ผลทำที่ Spot Master Dashboard เท่านั้น</p>
+            <div id="spotMonitor" class="border border-slate-200 rounded-lg p-3 space-y-2 text-sm"></div>
             <div class="flex gap-3 flex-wrap">
                 <a href="spot-dashboard.html" class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">Spot Master Dashboard</a>
                 <a href="spot-grading.html" class="border border-slate-300 rounded-lg px-4 py-2 text-sm">Spot กรอกคะแนน</a>
@@ -102,7 +121,13 @@
         <!-- Step 4 -->
         <section data-step="4" hidden class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
             <h2 class="font-bold">4. R3 Game Show / รางวัล</h2>
-            <p class="text-sm text-slate-600">ลิงก์เท่านั้น (ยังไม่มี action บันทึกอันดับ R3 / สร้างไฟล์รางวัลใน hub)</p>
+            <p class="text-sm text-slate-600">Top 8 ผู้เข้ารอบ Game Show เรียงตามเลขทีม → ฐาน 1–8 (ไม่มีรูป / ไม่ push ขึ้น cloud)</p>
+            <div id="gsWarn" class="text-sm font-bold text-red-700"></div>
+            <div id="gsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2"></div>
+            <div class="flex gap-3 flex-wrap">
+                <button id="btnGsCopy" disabled class="border border-slate-300 rounded-lg px-3 py-2 text-sm">📋 Copy Gameshow Setup JSON</button>
+                <button id="btnGsDownload" disabled class="border border-slate-300 rounded-lg px-3 py-2 text-sm">💾 Download gameshow_setup.json</button>
+            </div>
             <div class="flex gap-3 flex-wrap">
                 <a id="lnkGameshow" target="_blank" rel="noopener" class="pointer-events-none opacity-40 bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">Gameshow Admin (ตั้งค่า LAN URL ใน onsite-hub-app.js)</a>
                 <a id="lnkSheet" target="_blank" rel="noopener" class="pointer-events-none opacity-40 border border-slate-300 rounded-lg px-4 py-2 text-sm">ชีต LS_OnSite</a>

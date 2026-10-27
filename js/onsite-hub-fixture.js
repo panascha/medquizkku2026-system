@@ -19,16 +19,46 @@ export function fixtureCsv(kind, rawMax) {
     return lines.join('\n');
 }
 
-export function createFixtureBackend() {
+const FX_FINALISTS = [38, 3, 27, 9, 12, 31, 18, 22];   // deliberately unsorted
+
+/** Fake getAllOnSiteTeams rows (no school: GAS adds it in #35; first 3 get one to exercise rendering). */
+export function fixtureTeams(decided, r2) {
+    return ids.map((id, i) => {
+        const n = i + 1, pass = decided ? n <= 40 : null;
+        const t = {
+            teamId: id, teamName: 'ทีมทดสอบ ' + n, members: [`สมาชิก ${n}-1`, `สมาชิก ${n}-2`, `สมาชิก ${n}-3`],
+            r1Passed: pass, activityGroup: pass === false ? 'ABC'[n % 3] : null,
+            r2Passed: r2 && pass === true ? FX_FINALISTS.includes(n) : null,
+        };
+        if (n <= 3) { t.school = 'โรงเรียนทดสอบ ' + n; t.category = 'โรงเรียน'; }
+        return t;
+    });
+}
+
+/** Fake RTDB scores/{qNN}/{MQxxx}: first `qCount` questions fully graded for 40 teams. */
+export function fixtureSpotScores(qCount) {
+    const out = {};
+    for (let q = 1; q <= qCount; q++) {
+        const row = {};
+        for (let t = 1; t <= 40; t++) row['MQ' + String(t).padStart(3, '0')] = (q + t) % 2;
+        out['q' + String(q).padStart(2, '0')] = row;
+    }
+    return out;
+}
+
+/** opts.r2: simulate R2 pushed (8 finalists, mFilled 40). */
+export function createFixtureBackend(opts = {}) {
     let ingestVersion = 0, previewVersion = -1, decided = false, rotationStartMs = null, ingested = false;
     let lastMcq = null, lastUnseen = null;
     const tokenOf = () => 'fx-' + ingestVersion + '-' + (decided ? 'd' : 'u');
     return async function call(action, p = {}) {
         switch (action) {
+            case 'getAllOnSiteTeams':
+                return { status: 'success', teams: fixtureTeams(decided || !!opts.r2, !!opts.r2), rotationStartMs };
             case 'hubStatus':
                 return {
                     status: 'success', tabs: {}, pasteRows: {}, lsRows: 100, rosterUsernames: 300,
-                    kDecided: decided ? 100 : 0, mFilled: 0, rotationStartMs,
+                    kDecided: decided || opts.r2 ? 100 : 0, mFilled: opts.r2 ? 40 : 0, rotationStartMs,
                     allowedRawMax: { mcq: [28, 112], unseen: [6, 8, 24] }, lastMcq, lastUnseen,
                 };
             case 'r1Ingest': {

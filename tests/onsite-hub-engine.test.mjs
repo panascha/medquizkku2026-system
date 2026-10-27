@@ -104,3 +104,75 @@ test('fixture backend: decide needs preview; stale token after re-ingest rejecte
     assert.equal(d.groups.A, 20);
     await assert.rejects(call('r1Reset', { confirm: 'x' }), /RESET/);
 });
+
+// ── #33 ─────────────────────────────────────────────────────────────────────────────────
+import {
+    filterTeams, rotationState, roomsForSlot, phaseOf, countGradedCells, buildGameshowSetup,
+} from '../js/onsite-hub-engine.js';
+import { fixtureTeams, fixtureSpotScores } from '../js/onsite-hub-fixture.js';
+
+test('filterTeams: id, name, member, school (when present); blank query returns all', () => {
+    const t = fixtureTeams(true, false);
+    assert.equal(filterTeams(t, '').length, 100);
+    assert.deepEqual(filterTeams(t, 'mq007').map((x) => x.teamId), ['MQ007']);
+    assert.equal(filterTeams(t, 'สมาชิก 12-2')[0].teamId, 'MQ012');
+    assert.equal(filterTeams(t, 'ทดสอบ 2').some((x) => x.teamId === 'MQ002'), true);
+    assert.deepEqual(filterTeams(t, 'โรงเรียนทดสอบ 3').map((x) => x.teamId), ['MQ003']);
+    assert.deepEqual(filterTeams(t, 'zzz'), []);
+});
+
+test('rotationState: matches check-onsite-staff (35 min slots, 5 min gap, 3 slots)', () => {
+    const S = 1000000, m = 60000;
+    assert.equal(rotationState(null, S).state, 'unknown');
+    assert.deepEqual(rotationState(S, S + 5 * m), { state: 'active', slot: 0, remainMs: 30 * m });
+    assert.deepEqual(rotationState(S, S + 36 * m), { state: 'changeover', slot: 1, remainMs: 4 * m });
+    assert.deepEqual(rotationState(S, S + 40 * m), { state: 'active', slot: 1, remainMs: 35 * m });
+    assert.equal(rotationState(S, S + 115 * m).state, 'done');   // slot 3 (index 2) ends at 80+35
+    assert.equal(rotationState(S, S + 114 * m).state, 'active');
+});
+
+test('roomsForSlot: A Gross->Para->Skill, B Para->Skill->Gross, C Skill->Gross->Para', () => {
+    assert.deepEqual(roomsForSlot(0), { A: 'Gross Anatomy', B: 'Parasitology', C: 'Skill Lab' });
+    assert.deepEqual(roomsForSlot(1), { A: 'Parasitology', B: 'Skill Lab', C: 'Gross Anatomy' });
+    assert.deepEqual(roomsForSlot(2), { A: 'Skill Lab', B: 'Gross Anatomy', C: 'Parasitology' });
+});
+
+test('phaseOf: none / r1 / rotation / r2', () => {
+    assert.equal(phaseOf(null), 'none');
+    assert.equal(phaseOf({ kDecided: 0, mFilled: 0, rotationStartMs: null }), 'none');
+    assert.equal(phaseOf({ kDecided: 100, mFilled: 0, rotationStartMs: null }), 'r1');
+    assert.equal(phaseOf({ kDecided: 100, mFilled: 0, rotationStartMs: 5 }), 'rotation');
+    assert.equal(phaseOf({ kDecided: 100, mFilled: 40, rotationStartMs: 5 }), 'r2');
+});
+
+test('countGradedCells counts only 0/1 cells', () => {
+    assert.equal(countGradedCells(null), 0);
+    assert.equal(countGradedCells(fixtureSpotScores(35)), 1400);
+    assert.equal(countGradedCells({ q01: { MQ001: 1, MQ002: 0, MQ003: null, MQ004: 'x' } }), 2);
+});
+
+test('buildGameshowSetup: 8 finalists sorted by MQ number -> stations 1-8, school null when absent', () => {
+    const g = buildGameshowSetup(fixtureTeams(true, true));
+    assert.equal(g.ok, true);
+    assert.deepEqual(g.stations.map((s) => s.teamId), ['MQ003', 'MQ009', 'MQ012', 'MQ018', 'MQ022', 'MQ027', 'MQ031', 'MQ038']);
+    assert.deepEqual(g.stations[0], { station: 1, teamId: 'MQ003', teamName: 'ทีมทดสอบ 3', school: 'โรงเรียนทดสอบ 3' });
+    assert.equal(g.stations[1].school, null);
+    assert.deepEqual(Object.keys(g.stations[1]), ['station', 'teamId', 'teamName', 'school']);
+});
+
+test('buildGameshowSetup: != 8 finalists -> ok=false with warning', () => {
+    const t = fixtureTeams(true, true);
+    t.find((x) => x.teamId === 'MQ003').r2Passed = false;
+    let g = buildGameshowSetup(t);
+    assert.equal(g.ok, false); assert.equal(g.count, 7); assert.ok(g.warning);
+    t.find((x) => x.teamId === 'MQ001').r2Passed = true; t.find((x) => x.teamId === 'MQ002').r2Passed = true;
+    g = buildGameshowSetup(t);
+    assert.equal(g.ok, false); assert.equal(g.count, 9);
+    assert.equal(buildGameshowSetup([]).ok, false);
+});
+
+test('fixture backend: getAllOnSiteTeams + hubStatus r2 option', async () => {
+    const call = createFixtureBackend({ r2: true });
+    assert.equal((await call('getAllOnSiteTeams')).teams.filter((t) => t.r2Passed === true).length, 8);
+    assert.equal((await call('hubStatus')).mFilled, 40);
+});

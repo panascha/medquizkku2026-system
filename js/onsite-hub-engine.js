@@ -174,3 +174,73 @@ export function canDecide(state) {
     const s = state || {};
     return !!(s.previewToken && s.previewReady && !s.previewStale);
 }
+
+// ── #33: roster search / rotation / phase / gameshow setup ──────────────────────────────
+
+/** Same constants + rotation math as check-onsite-staff.html (do not diverge). */
+export const ROT = { SLOT_MIN: 35, GAP_MIN: 5, SLOTS: 3 };
+export const BASES = ['Gross Anatomy', 'Parasitology', 'Skill Lab'];
+export const GROUPS = ['A', 'B', 'C'];
+export const SPOT_CELLS = 1400;   // 40 teams x 35 questions
+
+/** Roster search: substring over team id, name, members, school (school optional). */
+export function filterTeams(teams, query) {
+    const q = String(query == null ? '' : query).trim().toLowerCase();
+    const list = Array.isArray(teams) ? teams : [];
+    if (!q) return list;
+    return list.filter((t) => [t.teamId, t.teamName, t.school, ...(t.members || [])]
+        .some((v) => v != null && String(v).toLowerCase().includes(q)));
+}
+
+/** {state:'unknown'|'active'|'changeover'|'done', slot, remainMs}. Mirrors check-onsite-staff rotationState. */
+export function rotationState(startMs, nowMs) {
+    if (!startMs) return { state: 'unknown' };
+    const period = (ROT.SLOT_MIN + ROT.GAP_MIN) * 60000;
+    const elapsed = Math.max(0, nowMs - startMs);
+    const slot = Math.floor(elapsed / period);
+    const within = elapsed - slot * period;
+    if (slot >= ROT.SLOTS || (slot === ROT.SLOTS - 1 && within >= ROT.SLOT_MIN * 60000)) return { state: 'done' };
+    if (within < ROT.SLOT_MIN * 60000) return { state: 'active', slot, remainMs: ROT.SLOT_MIN * 60000 - within };
+    return { state: 'changeover', slot: slot + 1, remainMs: period - within };
+}
+
+/** Room per group for a 0-based slot (same BASES[(g+s)%3] as check-onsite-staff). */
+export function roomsForSlot(slot) {
+    const out = {};
+    GROUPS.forEach((g, i) => { out[g] = BASES[(i + slot) % 3]; });
+    return out;
+}
+
+/** 'none' | 'r1' | 'rotation' | 'r2' from a hubStatus response. */
+export function phaseOf(s) {
+    if (!s) return 'none';
+    if (s.mFilled > 0) return 'r2';
+    if (s.rotationStartMs) return 'rotation';
+    if (s.kDecided > 0) return 'r1';
+    return 'none';
+}
+
+/** Graded cells (value 0 or 1) in RTDB scores/{qNN}/{MQxxx}. */
+export function countGradedCells(scores) {
+    let n = 0;
+    Object.values(scores || {}).forEach((row) => {
+        Object.values(row || {}).forEach((v) => { if (v === 0 || v === 1) n++; });
+    });
+    return n;
+}
+
+const teamNo = (id) => { const m = String(id).match(/(\d+)/); return m ? Number(m[1]) : Infinity; };
+
+/**
+ * Top 8 (r2Passed === true) by MQ number ascending -> stations 1-8.
+ * ok=false when finalist count != 8 (UI disables copy/download). Payload: {station, teamId, teamName, school}.
+ */
+export function buildGameshowSetup(teams) {
+    const fin = (Array.isArray(teams) ? teams : []).filter((t) => t.r2Passed === true)
+        .sort((a, b) => teamNo(a.teamId) - teamNo(b.teamId));
+    const stations = fin.slice(0, 8).map((t, i) => ({
+        station: i + 1, teamId: t.teamId, teamName: t.teamName || '', school: t.school ? t.school : null,
+    }));
+    const ok = fin.length === 8;
+    return { ok, count: fin.length, stations, warning: ok ? '' : `พบทีมเข้ารอบ ${fin.length} ทีม (ต้องมี 8) — ปิดการคัดลอก/ดาวน์โหลด` };
+}

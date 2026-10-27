@@ -5,6 +5,8 @@
 import {
     parseDelimited, analyzeExport, chipText, buildIngestPayload,
     classifyError, preflightRows, canDecide, DEFAULT_ALLOWED,
+    filterTeams, rotationState, roomsForSlot, phaseOf, countGradedCells, buildGameshowSetup,
+    ROT, GROUPS, SPOT_CELLS,
 } from './onsite-hub-engine.js';
 
 // Same deployment URL as spot-dashboard-app.js / check-onsite*.html (update in place, never a new URL).
@@ -29,6 +31,13 @@ const analyses = {};      // id -> analyzeExport result | null
 let pv = { previewToken: null, previewReady: false, previewStale: false, data: null };
 let busy = false;
 const log = [];
+let teams = [];           // getAllOnSiteTeams rows (roster drawer / top 8)
+let hubStatus = null;     // last successful hubStatus
+let spotScores = null;    // RTDB spot_grading_2026/scores (null = not loaded)
+let rosterFocus = null;   // teamId pinned in the drawer
+const PHASE_TEXT = { none: 'ยังไม่ตัดสิน R1', r1: 'R1 ตัดสินแล้ว', rotation: 'กำลังหมุนฐาน', r2: 'R2 push แล้ว' };
+
+const teamLink = (id) => `<button type="button" class="team-link underline text-blue-700" data-team="${esc(id)}">${esc(id)}</button>`;
 
 function toast(msg, bad) {
     const t = $('toast');
@@ -89,7 +98,7 @@ function showStep(n) {
     document.querySelectorAll('[data-step]').forEach((s) => { s.hidden = Number(s.dataset.step) !== n; });
     document.querySelectorAll('[data-stepbtn]').forEach((b) => {
         const on = Number(b.dataset.stepbtn) === n;
-        b.className = 'stepbtn px-3 py-2 rounded-lg text-sm font-bold ' + (on ? 'bg-blue-700 text-white' : 'bg-white border border-slate-300 text-slate-700');
+        b.className = 'stepbtn px-3 py-2 rounded-lg text-sm font-bold ' + (on ? 'bg-[#E4B43C] text-[#0f1f4b]' :'bg-white border border-slate-300 text-slate-700');
     });
 }
 
@@ -157,6 +166,7 @@ function renderInputs() {
     if (!mcqOk && !unOk) why = 'ใส่ MCQ หรือ Unseen ครบ 3 บทความ (ที่ผ่านการตรวจ) อย่างน้อยหนึ่งชุด';
     else if (unCount && unCount !== 3) why = 'Unseen ต้องใส่ครบ 3 บทความ';
     else if (anyBad) why = 'มีช่องที่ข้อมูลไม่ผ่านการตรวจ';
+    $('btnDownloadGrids').disabled = !INPUTS.some((i) => grids[i.id]);
     $('btnIngest').disabled = busy || !!why;
     $('ingestWhy').textContent = why;
 }
@@ -180,7 +190,7 @@ function renderPreview() {
             `<table class="w-full text-sm"><tbody>${rows.map((r) => `<tr class="border-b border-slate-100"><td class="py-1 pr-3 text-slate-600">${esc(r.label)}</td><td class="py-1 font-bold ${col[r.level]}">${esc(r.value)}</td></tr>`).join('')}</tbody></table>` +
             (pv.data.unscoredTeams.length ? `<details class="text-xs mt-1"><summary>ทีมที่ไม่มีคะแนน</summary>${esc(pv.data.unscoredTeams.join(', '))}</details>` : '') +
             `<div class="overflow-x-auto mt-2"><table class="w-full text-xs"><thead><tr class="text-left text-slate-500"><th>#</th><th>ทีม</th><th>รวม</th><th>Unseen</th><th>เวลาส่ง</th></tr></thead><tbody>` +
-            pv.data.top45.map((t) => `<tr class="${t.rank === 40 ? 'border-b-2 border-red-500' : ''}"><td>${t.rank}</td><td>${esc(t.teamId)}</td><td>${esc(t.total)}</td><td>${esc(t.unseen)}</td><td>${t.submit == null ? '—' : esc(t.submit)}</td></tr>`).join('') +
+            pv.data.top45.map((t) => `<tr class="${t.rank === 40 ? 'border-b-2 border-red-500' : ''}"><td>${t.rank}</td><td>${teamLink(t.teamId)}</td><td>${esc(t.total)}</td><td>${esc(t.unseen)}</td><td>${t.submit == null ? '—' : esc(t.submit)}</td></tr>`).join('') +
             '</tbody></table></div>';
     }
     const ok = canDecide(pv);
@@ -250,11 +260,22 @@ async function doReset(btn) {
     }
 }
 
+function setPing(ok) {
+    const el = $('pingBadge'), t = new Date().toLocaleTimeString('th-TH');
+    if (ok) { el.textContent = `GAS ● ${t}`; el.className = 'text-xs rounded-full px-2 py-0.5 bg-emerald-600 text-white'; setPing.okAt = t; }
+    else { el.textContent = `GAS ✗ ล่าสุดสำเร็จ ${setPing.okAt || '—'}`; el.className = 'text-xs rounded-full px-2 py-0.5 bg-red-600 text-white'; }
+}
+
 async function loadStatus() {
     let s;
     try { s = await call('hubStatus', {}); } catch (e) {
+        setPing(false);
         $('statusBox').innerHTML = `<p class="text-sm text-red-700">${esc(classifyError(e.message).text)}</p>`; return;
     }
+    setPing(true);
+    hubStatus = s;
+    $('phaseBadge').textContent = PHASE_TEXT[phaseOf(s)];
+    loadTeams();
     if (s.allowedRawMax) { allowed = s.allowedRawMax; INPUTS.forEach((i) => { if (grids[i.id]) analyses[i.id] = analyzeExport(grids[i.id], i.kind, allowed); }); }
     const chk = (ok, t) => `<li class="${ok ? 'text-emerald-700' : 'text-red-700'}">${ok ? '✓' : '✗'} ${esc(t)}</li>`;
     $('statusBox').innerHTML = '<ul class="text-sm space-y-0.5">' +
@@ -265,6 +286,96 @@ async function loadStatus() {
     const rot = s.rotationStartMs;
     $('rotInfo').dataset.set = rot ? '1' : '';
     $('rotInfo').textContent = rot ? `เริ่มหมุนฐานเมื่อ ${new Date(rot).toLocaleString('th-TH')}` : 'ยังไม่ได้ตั้งเวลาเริ่มหมุนฐาน';
+    renderRotLive(); renderSpot();
+}
+
+async function loadTeams() {
+    try { teams = (await call('getAllOnSiteTeams', {})).teams || []; } catch (e) { return; }   // ping badge tracks hubStatus
+    renderGameshow(); renderRoster(); renderSpot();
+}
+
+// ── Step 2 live rotation (same numbers as check-onsite-staff.html) ─────────────────────
+const mmss = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
+function renderRotLive() {
+    const start = hubStatus && hubStatus.rotationStartMs;
+    const rot = rotationState(start, Date.now());
+    const head = {
+        unknown: 'ยังไม่ได้เริ่มหมุนฐาน',
+        active: `ฐานที่ ${rot.slot + 1}/${ROT.SLOTS} · เหลือ ${mmss(rot.remainMs || 0)}`,
+        changeover: `🔔 เปลี่ยนฐาน (พัก ${ROT.GAP_MIN} นาที) → ฐานที่ ${rot.slot + 1}/${ROT.SLOTS} · อีก ${mmss(rot.remainMs || 0)}`,
+        done: 'จบเดินฐานแล้ว (พักกลางวัน)',
+    }[rot.state];
+    let html = `<div class="font-bold text-lg">${esc(head)}</div>`;
+    if (rot.state === 'active' || rot.state === 'changeover') {
+        const rooms = roomsForSlot(rot.slot);
+        html += `<div class="grid grid-cols-3 gap-2 text-sm">${GROUPS.map((g) => `<div class="border border-slate-200 rounded-lg p-2"><b>กลุ่ม ${g}</b><br>${esc(rooms[g])}</div>`).join('')}</div>` +
+            (rot.state === 'changeover' ? '<div class="text-xs text-slate-500">ห้องด้านบนคือห้องของฐานถัดไป</div>' : '');
+    }
+    $('rotLive').innerHTML = html;
+}
+
+// ── Step 3 read-only Spot monitor ────────────────────────────────────────────────────
+function renderSpot() {
+    const n = spotScores ? countGradedCells(spotScores) : null;
+    const pushed = hubStatus && hubStatus.mFilled > 0;
+    const top = teams.filter((t) => t.r2Passed === true).sort((a, b) => a.teamId.localeCompare(b.teamId));
+    $('spotMonitor').innerHTML =
+        `<div>ตรวจแล้ว <b>${n == null ? '—' : n}</b> / ${SPOT_CELLS} ช่อง</div>` +
+        `<div class="${pushed ? 'text-emerald-700' : 'text-slate-600'}">${pushed ? `ส่งผลเข้าชีตแล้ว (M ${hubStatus.mFilled} ทีม)` : 'ยังไม่ได้ส่งผลเข้าชีต'}</div>` +
+        `<div>Top 8: ${top.length ? top.map((t) => teamLink(t.teamId)).join(', ') : '<span class="text-slate-500">ยังไม่มี</span>'}</div>`;
+}
+
+async function watchSpot(fixture) {
+    if (fixture) { spotScores = (await import('./onsite-hub-fixture.js')).fixtureSpotScores(20); renderSpot(); return; }
+    try {
+        const { db, ref, onValue } = await import('./firebase-config.js');
+        onValue(ref(db, 'spot_grading_2026/scores'), (s) => { spotScores = s.val() || {}; renderSpot(); }, () => {});
+    } catch (e) { /* monitor stays at — */ }
+}
+
+// ── Step 4 gameshow setup ────────────────────────────────────────────────────────────
+function renderGameshow() {
+    const g = buildGameshowSetup(teams);
+    $('gsWarn').textContent = g.ok || !teams.length ? '' : g.warning;
+    $('gsGrid').innerHTML = g.stations.map((s) => `<div class="border border-slate-200 rounded-lg p-2 text-sm"><span class="rounded-full px-2 py-0.5 text-xs font-bold" style="background:#F5D77A;color:#0f1f4b">ฐาน ${s.station}</span> ${teamLink(s.teamId)}<div class="truncate">${esc(s.teamName)}</div><div class="text-xs text-slate-500 truncate">${esc(s.school || '—')}</div></div>`).join('');
+    $('btnGsCopy').disabled = !g.ok; $('btnGsDownload').disabled = !g.ok;
+}
+
+const gsJson = () => JSON.stringify(buildGameshowSetup(teams).stations, null, 2);
+
+function download(name, text) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ── Roster drawer ────────────────────────────────────────────────────────────────────
+function openRoster(teamId) {
+    rosterFocus = teamId || null;
+    $('rosterSearch').value = teamId || '';
+    $('rosterDrawer').hidden = false; $('rosterBackdrop').hidden = false;
+    renderRoster(); $('rosterSearch').focus();
+}
+function closeRoster() { $('rosterDrawer').hidden = true; $('rosterBackdrop').hidden = true; }
+
+function renderRoster() {
+    if ($('rosterDrawer').hidden) return;
+    let list = filterTeams(teams, $('rosterSearch').value);
+    if (rosterFocus && $('rosterSearch').value === rosterFocus) list = teams.filter((t) => t.teamId === rosterFocus);
+    $('rosterCount').textContent = `${list.length} / ${teams.length} ทีม`;
+    const badge = (txt) => `<span class="rounded-full bg-slate-100 px-2 py-0.5">${esc(txt)}</span>`;
+    $('rosterList').innerHTML = list.slice(0, 50).map((t) => {
+        const r1 = t.r1Passed === true ? 'R1 ผ่าน' : t.r1Passed === false ? 'R1 ไม่ผ่าน' : 'R1 ยังไม่ตัดสิน';
+        const r2 = t.r2Passed === true ? 'R2 ผ่าน' : t.r2Passed === false ? 'R2 ไม่ผ่าน' : 'R2 —';
+        return `<article class="border border-slate-200 rounded-lg p-3 text-sm">
+            <div class="flex items-center gap-2"><span class="rounded-full px-2 py-0.5 text-xs font-bold" style="background:#F5D77A;color:#0f1f4b">${esc(t.teamId)}</span><b class="truncate">${esc(t.teamName) || '(ไม่มีชื่อทีม)'}</b></div>
+            ${t.school || t.category ? `<div class="text-xs text-slate-600">${esc([t.school, t.category].filter(Boolean).join(' · '))}</div>` : ''}
+            <ol class="list-decimal list-inside text-slate-700 mt-1">${(t.members || []).map((m) => `<li>${esc(m)}</li>`).join('')}</ol>
+            <div class="mt-2 flex flex-wrap gap-1 text-xs">${badge(r1)}${t.activityGroup ? badge('กลุ่ม ' + t.activityGroup) : ''}${badge(r2)}${t.r2Passed === true ? badge('Gameshow finalist') : ''}</div>
+        </article>`;
+    }).join('') || '<p class="text-sm text-slate-500 text-center py-6">ไม่พบทีม</p>';
 }
 
 function renderLinks() {
@@ -284,13 +395,30 @@ function bind() {
     });
     $('btnDownloadPv').addEventListener('click', downloadPreview);
     $('btnStatus').addEventListener('click', loadStatus);
+    $('btnDownloadGrids').addEventListener('click', () => download('r1-raw-grids.json', JSON.stringify({ mcq: grids.mcq || null, unseen: [grids.u1 || null, grids.u2 || null, grids.u3 || null] }, null, 2)));
+    $('btnGsCopy').addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(gsJson()); toast('คัดลอก JSON แล้ว'); } catch (e) { toast('คัดลอกไม่สำเร็จ — ใช้ปุ่มดาวน์โหลด', true); }
+    });
+    $('btnGsDownload').addEventListener('click', () => download('gameshow_setup.json', gsJson()));
+    $('btnRoster').addEventListener('click', () => openRoster());
+    $('rosterClose').addEventListener('click', closeRoster);
+    $('rosterBackdrop').addEventListener('click', closeRoster);
+    $('rosterSearch').addEventListener('input', () => { rosterFocus = null; renderRoster(); });
+    document.addEventListener('click', (e) => {
+        const b = e.target.closest && e.target.closest('.team-link');
+        if (b) openRoster(b.dataset.team);
+    });
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openRoster(); }
+        else if (e.key === 'Escape' && !$('rosterDrawer').hidden) closeRoster();
+    });
 }
 
 /** fixture: bool. Live: pass user (already through requireStaff). */
 export async function initHubPage({ fixture, user }) {
     if (fixture) {
         const fx = await import('./onsite-hub-fixture.js');
-        const fake = fx.createFixtureBackend();
+        const fake = fx.createFixtureBackend({ r2: new URLSearchParams(location.search).get('r2') === '1' });
         call = fake;
         $('fixtureBanner').hidden = false;
         $('staffName').textContent = fx.FIXTURE_ME.name;
@@ -313,6 +441,8 @@ export async function initHubPage({ fixture, user }) {
     }
     buildInputs(); bind(); renderLinks(); showStep(1); renderAll();
     $('clock').textContent = '';
-    setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('th-TH'); }, 1000);
+    setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('th-TH'); renderRotLive(); }, 1000);
+    setInterval(loadStatus, 30000);   // GAS caches rows ~45 s; also drives ping badge
+    watchSpot(fixture);
     await loadStatus();
 }
