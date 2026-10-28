@@ -3,7 +3,7 @@
 // Live callers must already have passed requireStaff(user). RTDB layout + push: SPOT_GRADING.md.
 import {
     QIDS, QID_RE, QUESTION_COUNT, TEAM_COUNT, CUT,
-    progress, totals, rankWithCut, laggards, buildPushPayload, fmtClock, recentActivity
+    TIE_SUBSET_QIDS, subScore, progress, totals, rankWithCut, laggards, buildPushPayload, fmtClock, recentActivity
 } from './spot-grading-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -158,10 +158,12 @@ function renderBoard(d) {
         const tr = document.createElement('tr');
         const inTop = tieDecision && Array.isArray(tieDecision.passed) && tieDecision.passed.includes(r.team);
         tr.className = tied.has(r.team) ? 'bg-amber-50' : (r.rank <= CUT && !tied.size ? 'bg-emerald-50' : '');
-        const cells = [r.rank, r.team, tName(r.team), r.score + ' / ' + QUESTION_COUNT];
+        const cells = [r.rank, r.team, tName(r.team), r.score + ' / ' + QUESTION_COUNT,
+            tied.has(r.team) ? subScore(scores, r.team) + ' / ' + TIE_SUBSET_QIDS.length : ''];
         cells.forEach((v, i) => {
             const td = document.createElement('td');
-            td.className = 'px-2 py-1 ' + (i === 3 ? 'text-right font-bold' : '');
+            td.className = 'px-2 py-1 ' + (i === 3 ? 'text-right font-bold' : i === 4 ? 'text-right text-amber-800 font-bold' : '');
+            if (i === 4) td.dataset.sub = '1';
             td.textContent = v;
             tr.appendChild(td);
         });

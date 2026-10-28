@@ -77,6 +77,13 @@ export function totals(scores, teams) {
     return out;
 }
 
+// 9 representative discipline items shown beside the total in the 8/9 tie view. Display only: never feeds rankWithCut/buildPushPayload.
+export const TIE_SUBSET_QIDS = ['q06', 'q08', 'q11', 'q12', 'q20', 'q24', 'q26', 'q28', 'q32'];
+
+export function subScore(scores, team, qids = TIE_SUBSET_QIDS) {
+    return qids.reduce((n, q) => n + (scores && scores[q] && scores[q][team] === 1 ? 1 : 0), 0);
+}
+
 export function rankWithCut(tot, cut = CUT) {
     const sorted = Object.keys(tot)
         .map((team) => ({ team, score: tot[team] }))

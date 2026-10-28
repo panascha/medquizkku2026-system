@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     QIDS, QID_RE, TEAM_RE, CUT, STALE_MS, normalizeTeamId, autoArmId, progress, totals,
-    rankWithCut, laggards, buildPushPayload, lockState
+    rankWithCut, laggards, buildPushPayload, lockState, TIE_SUBSET_QIDS, subScore
 } from '../js/spot-grading-engine.js';
 
 const ids = (n) => Array.from({ length: n }, (_, i) => 'MQ' + String(i + 1).padStart(3, '0'));
@@ -136,6 +136,19 @@ test('buildPushPayload', () => {
     assert.equal(buildPushPayload(tot([1.5, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
     assert.equal(buildPushPayload(tot([-1, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
     assert.equal(buildPushPayload(tot([5, 5, 5, 5, 5, 5, 5, CUT])).reason, 'TOO_FEW_TEAMS');
+});
+
+test('subScore: 9 tie-view items only, display-only (no effect on rank/payload)', () => {
+    assert.deepEqual(TIE_SUBSET_QIDS, ['q06', 'q08', 'q11', 'q12', 'q20', 'q24', 'q26', 'q28', 'q32']);
+    assert.ok(TIE_SUBSET_QIDS.every((q) => QID_RE.test(q)));
+    const scores = { q06: { MQ001: 1, MQ002: 0 }, q32: { MQ001: 1 }, q01: { MQ001: 1, MQ002: 1 }, q11: { MQ002: 1 }, q02: { MQ002: 1 } };
+    assert.equal(subScore(scores, 'MQ001'), 2);
+    assert.equal(subScore(scores, 'MQ002'), 1);
+    assert.equal(subScore(scores, 'MQ003'), 0);
+    assert.equal(subScore(undefined, 'MQ001'), 0);
+    assert.equal(subScore(scores, 'MQ001', ['q01']), 1);
+    const t = totals(scores, ['MQ001', 'MQ002']);
+    assert.deepEqual(rankWithCut(t, 1).cutTies, ['MQ001', 'MQ002']);
 });
 
 test('lockState', () => {
