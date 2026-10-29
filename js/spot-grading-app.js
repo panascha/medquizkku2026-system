@@ -208,6 +208,11 @@ function renderAll() { renderPicker(); renderLock(); renderKey(); renderStrip();
 // ── actions ──
 function setError(msg) { $('teamErr').textContent = msg || ''; }
 
+// touch devices: focus() pops the software keyboard over the 0/1 buttons + strip, so only desktop refocuses
+function focusTeam() {
+    if (!matchMedia('(pointer: coarse)').matches) $('team').focus();
+}
+
 function disarm(focus) {
     armed = null;
     unlocked = false;
@@ -215,7 +220,7 @@ function disarm(focus) {
     setError('');
     renderStrip();
     renderInputState();
-    if (focus) $('team').focus();
+    if (focus) focusTeam();
 }
 
 function arm(team) {
@@ -276,14 +281,14 @@ async function pick(q) {
         .catch(() => { if (curQ === q) toast('อ่านเฉลยไม่ได้ (ยังไม่เปิดตรวจ?)', true); });
     const g = graders[q];
     if (!(lockState(g, backend.now()) === 'held' && !mine(g))) await claim(q);
-    if (curQ === q) $('team').focus();
+    if (curQ === q) focusTeam();
 }
 
 async function takeover() {
     const g = graders[curQ];
     if (!g || !confirm(`${g.name || g.email} กำลังตรวจข้อนี้อยู่ — ตรวจแทนหรือไม่?`)) return;
     await claim(curQ);
-    $('team').focus();
+    focusTeam();
 }
 
 function bind() {

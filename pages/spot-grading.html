@@ -11,6 +11,8 @@
         body { font-family: 'Sarabun', sans-serif; background: #f8faff; color: #1e293b; }
         .nav-gradient { background: linear-gradient(to right, #0f1f4b, #1e3a8a); }
         button:disabled, input:disabled { opacity: .5; cursor: not-allowed; }
+        button { touch-action: manipulation; }
+        [hidden] { display: none !important; }
     </style>
 </head>
 
@@ -39,14 +41,18 @@
             </div>
         </section>
 
-        <section class="bg-slate-900 text-white rounded-xl p-4 sticky top-0 z-10">
-            <div class="flex items-baseline gap-3 flex-wrap">
-                <span id="qNo" class="text-2xl font-bold">-</span>
-                <span id="qSubject" class="text-sm opacity-80"></span>
+        <section class="bg-slate-900 text-white rounded-xl px-4 py-2 sticky top-0 z-10 flex gap-4 items-start">
+            <div class="shrink-0">
+                <div id="qNo" class="text-2xl font-bold leading-tight">-</div>
+                <div id="qSubject" class="text-xs opacity-80"></div>
             </div>
-            <div class="mt-1 text-xs opacity-70">เฉลย</div>
-            <div id="qKey" class="text-xl font-bold whitespace-pre-wrap break-words">-</div>
-            <div id="qRubric" class="text-sm opacity-90 whitespace-pre-wrap break-words mt-1"></div>
+            <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2">
+                    <span class="text-xs opacity-70 shrink-0">เฉลย</span>
+                    <div id="qKey" class="min-w-0 text-xl font-bold whitespace-pre-wrap break-words">-</div>
+                </div>
+                <div id="qRubric" class="text-sm opacity-90 whitespace-pre-wrap break-words max-h-24 landscape:max-h-[2.75rem] overflow-y-auto overscroll-contain"></div>
+            </div>
         </section>
 
         <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
@@ -56,8 +62,8 @@
                     placeholder="เลขทีม เช่น 15 / 015 / MQ015 (เลขหลักเดียวกด Enter)"
                     class="border border-slate-300 rounded-lg px-3 py-2 text-lg w-72">
                 <datalist id="teamList"></datalist>
-                <button id="btn0" disabled class="bg-red-600 text-white rounded-lg px-6 py-3 text-lg font-bold">0 ผิด</button>
-                <button id="btn1" disabled class="bg-emerald-600 text-white rounded-lg px-6 py-3 text-lg font-bold">1 ถูก</button>
+                <button id="btn0" disabled class="flex-1 sm:flex-none min-h-[68px] min-w-[140px] bg-red-600 active:bg-red-800 active:scale-95 transition-transform text-white rounded-xl px-8 text-xl font-bold shadow disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:opacity-60 disabled:active:scale-100">0 ผิด</button>
+                <button id="btn1" disabled class="flex-1 sm:flex-none min-h-[68px] min-w-[140px] bg-emerald-600 active:bg-emerald-800 active:scale-95 transition-transform text-white rounded-xl px-8 text-xl font-bold shadow disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:opacity-60 disabled:active:scale-100">1 ถูก</button>
             </div>
             <div id="teamPreview" class="text-xl font-bold text-slate-800 min-h-[1.75rem]"></div>
             <div id="teamErr" class="text-sm text-red-600 font-bold"></div>
