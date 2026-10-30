@@ -18,6 +18,14 @@
         rel="stylesheet">
     <style>
         html, body { height: 100%; }
+        /* --bar = seating-plan banner row above the canvas; --cw keeps both the same width */
+        :root {
+            --bar: 64px;
+            --cw: min(100vw, calc((100vh - var(--bar)) * 768 / 1366));
+        }
+        @supports (height: 100dvh) {
+            :root { --cw: min(100vw, calc((100dvh - var(--bar)) * 768 / 1366)); }
+        }
         body {
             font-family: 'Sarabun', sans-serif;
             background: #120d08;
@@ -29,7 +37,7 @@
            font size scales with the artwork. */
         #canvas {
             position: relative;
-            width: min(100vw, calc(100dvh * 768 / 1366));
+            width: var(--cw);
             aspect-ratio: 768 / 1366;
             margin: 0 auto;
             background: url("assets/onsite/bg.jpg") center / 100% 100% no-repeat;
@@ -37,11 +45,21 @@
             overflow: hidden;
             color: #f5e6b8;
         }
-        @supports not (height: 100dvh) {
-            #canvas { width: min(100vw, calc(100vh * 768 / 1366)); }
-        }
-
         .slot { position: absolute; }
+
+        /* Seating-plan link: navy card, gold border, >= 48px tap target */
+        .seat-link {
+            display: flex; align-items: center; justify-content: center; gap: 10px; text-align: left;
+            min-height: 48px; padding: 6px 14px; box-sizing: border-box; text-decoration: none;
+            background: #0f1f4b; border: 2px solid #c79a2e; border-radius: 99px;
+            color: #f5d77a; font-weight: 800; line-height: 1.25;
+        }
+        .seat-link:active, .seat-link:focus-visible { background: #1a2f6b; outline: 2px solid #f5d77a; outline-offset: 2px; }
+        .seat-link .ico { font-size: 22px; }
+        .seat-link small { display: block; font-size: 12px; font-weight: 600; color: #eadcb4; }
+        #seatBar { width: var(--cw); height: var(--bar); margin: 0 auto; padding: 8px 10px; box-sizing: border-box; }
+        #seatBar .seat-link { height: 100%; font-size: 15px; }
+        .seat-link.in-panel { margin-top: 1.6cqw; font-size: max(3.5cqw, 14px); }
 
         /* ID box: x 29–738, y 51–150; the "ID :" label ends ~x175 */
         #idSlot { left: 23.5%; top: 4.1%; width: 71.5%; height: 6.4%; display: flex; align-items: center; gap: 1.5cqw; }
@@ -118,6 +136,12 @@
 </head>
 
 <body>
+    <div id="seatBar">
+        <a class="seat-link" href="assets/onsite/seating-plan-medquiz2026.pdf" target="_blank" rel="noopener noreferrer">
+            <span class="ico" aria-hidden="true">🗺️</span>
+            <span>ผังที่นั่งสอบ อาคารเรียนรวม (ชั้น 3, 5, 7)<small>Seating Plan (PDF)</small></span>
+        </a>
+    </div>
     <main id="canvas" aria-label="เช็คสถานะวันงาน MedQuiz KKU 2026">
 
         <!-- ID box (doubles as the manual lookup form) -->
@@ -319,6 +343,10 @@
             return t && t !== "-" ? t : "";
         }
 
+        const SEATING_LINK_HTML =
+            '<a class="seat-link in-panel" href="assets/onsite/seating-plan-medquiz2026.pdf" target="_blank" rel="noopener noreferrer">' +
+            '<span class="ico" aria-hidden="true">📍</span><span>ผังที่นั่งสอบ อาคารเรียนรวม (ชั้น 3, 5, 7)<small>Seating Plan (PDF)</small></span></a>';
+
         function roundBlock(title, round, isRound1) {
             if (!round) return "";
             let head = '<div class="round-head">' + title + " " + stateChip(round.imageState);
@@ -330,6 +358,7 @@
             const schedule = isRound1 ? activityScheduleHtml(round.activityGroup) : "";
             let body = "";
             if (status) body += '<div class="status-text">' + escapeHtml(status) + "</div>";
+            if (isRound1) body += SEATING_LINK_HTML;
             // The native table replaces the sheet's group instruction text/image
             if (schedule) return '<div class="round-block">' + head + body + schedule + "</div>";
             if (instr) body += '<div class="instr-text">' + escapeHtml(instr) + "</div>";
