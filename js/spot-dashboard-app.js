@@ -5,6 +5,7 @@ import {
     QIDS, QID_RE, QUESTION_COUNT, TEAM_COUNT, CUT,
     TIE_SUBSET_QIDS, subScore, progress, totals, rankWithCut, laggards, buildPushPayload, fmtClock, recentActivity
 } from './spot-grading-engine.js';
+import { CLEAN_SLATE_PHRASE, cleanSlateUpdate, applyCleanSlate } from './spot-clean-slate.js';
 
 const $ = (id) => document.getElementById(id);
 const BASE = 'spot_grading_2026';
@@ -22,7 +23,7 @@ let isAdmin = false;
 let config = {};
 let teams = {};            // MQxxx -> { name }
 let teamIds = [];
-let scores = {};           // qNN -> MQxxx -> 0|1
+let scores = {};           // qNN -> MQxxx -> 0|0.5|1
 let scoreMeta = {};        // qNN -> MQxxx -> { by, at }
 const ACTIVITY_LIMIT = 50;
 let tieDecision = null;
@@ -71,6 +72,7 @@ function renderSetup() {
     $('btnToggle').textContent = open ? 'ปิดการตรวจ' : 'เปิดการตรวจ';
     $('teamsInfo').textContent = `ทีมในระบบ ${teamIds.length}/${TEAM_COUNT}`;
     ['btnToggle', 'btnLoadTeams', 'fileQ'].forEach((id) => { $(id).disabled = !isAdmin; });
+    $('btnCleanSlate').hidden = !isAdmin;
     $('adminNote').hidden = isAdmin;
 }
 
@@ -97,9 +99,9 @@ function renderHeatmap() {
         teamIds.forEach((t) => {
             const c = document.createElement('div');
             const v = row[t];
-            c.className = 'h-3 rounded-sm ' + (v === 1 ? 'bg-emerald-500' : v === 0 ? 'bg-red-500' : 'bg-slate-200');
+            c.className = 'h-3 rounded-sm ' + (v === 1 ? 'bg-emerald-500' : v === 0.5 ? 'bg-amber-400' : v === 0 ? 'bg-red-500' : 'bg-slate-200');
             const m = (scoreMeta[q] || {})[t];
-            c.title = (v === 0 || v === 1)
+            c.title = (v === 0 || v === 0.5 || v === 1)
                 ? `ข้อ ${qi + 1} · ${t} = ${v} | ตรวจโดย: ${(m && m.by) || '-'} (${fmtClock(m && m.at)})`
                 : `${q} · ${t} = -`;
             frag.appendChild(c);
@@ -126,7 +128,7 @@ function renderActivity() {
         const tr = document.createElement('tr');
         [fmtClock(r.at), r.q, r.team, String(r.v), r.by].forEach((v, i) => {
             const td = document.createElement('td');
-            td.className = 'px-2 py-1 ' + (i === 3 ? 'font-bold ' + (r.v === 1 ? 'text-emerald-600' : 'text-red-600') : '');
+            td.className = 'px-2 py-1 ' + (i === 3 ? 'font-bold ' + (r.v === 1 ? 'text-emerald-600' : r.v === 0.5 ? 'text-amber-600' : 'text-red-600') : '');
             td.textContent = v;
             tr.appendChild(td);
         });
@@ -227,6 +229,25 @@ async function toggleGrading() {
     try { await backend.setPath('config/isGradingOpen', next); } catch (e) { toast('บันทึกไม่สำเร็จ: ' + (e && e.message), true); }
 }
 
+async function cleanSlate() {
+    if (!isAdmin) return;
+    const graded = progress(scores, teamIds).done;
+    if (!confirm(`ล้างข้อมูลคะแนนทดสอบทั้งหมด?\n\nจะลบ: คะแนน (${graded} ช่อง) ผู้ตรวจ ผลตัดสินเสมอ และสถานะ "ส่งผลแล้ว"\nจะปิดการตรวจ\nคงไว้: รายชื่อทีม ข้อสอบ admins\n\nย้อนกลับไม่ได้ — ห้ามกดหลังเริ่มตรวจจริง`)) return;
+    const typed = prompt(`พิมพ์ ${CLEAN_SLATE_PHRASE} เพื่อยืนยัน`);
+    if (typed === null) return;
+    if (typed.trim() !== CLEAN_SLATE_PHRASE) { toast('ข้อความยืนยันไม่ตรง — ยกเลิก', true); return; }
+    $('btnCleanSlate').disabled = true;
+    try {
+        await backend.wipe();
+        picks = new Set();
+        toast('ล้างข้อมูลทดสอบแล้ว — การตรวจปิดอยู่ เปิดเมื่อพร้อมแข่งจริง');
+    } catch (e) {
+        toast('ล้างไม่สำเร็จ: ' + (e && e.message) + ' (ลองใช้ tools/clean_spot_rtdb.mjs)', true);
+    } finally {
+        $('btnCleanSlate').disabled = false;
+    }
+}
+
 async function loadTeams() {
     if (teamIds.length && !confirm('มีรายชื่อทีมอยู่แล้ว — โหลดใหม่และเขียนทับ?')) return;
     $('btnLoadTeams').disabled = true;
@@ -306,6 +327,7 @@ async function doPush() {
 function bind() {
     $('btnToggle').onclick = toggleGrading;
     $('btnLoadTeams').onclick = loadTeams;
+    $('btnCleanSlate').onclick = cleanSlate;
     $('fileQ').onchange = (e) => uploadQuestions(e.target.files[0]);
     $('btnTie').onclick = saveTie;
     $('btnPush').onclick = doPush;
@@ -333,13 +355,14 @@ function fixtureBackend(fx, complete) {
             o[last] = clone(value);
             emit();
         },
+        async wipe() { applyCleanSlate(tree); emit(); },
         fetchOnSiteTeams: async () => fx.fixtureOnSiteTeams(),
         pushResults: async () => ({ status: 'success', fixture: true })
     };
 }
 
 async function liveBackend() {
-    const { db, ref, onValue, set, auth } = await import('./firebase-config.js');
+    const { db, ref, onValue, set, update, auth } = await import('./firebase-config.js');
     let offset = 0;
     onValue(ref(db, '.info/serverTimeOffset'), (s) => { offset = s.val() || 0; });
     const r = (p) => ref(db, BASE + '/' + p);
@@ -349,6 +372,7 @@ async function liveBackend() {
             onValue(r(path), (s) => cb(s.val()), (e) => toast(`อ่าน ${path} ไม่ได้: ${e && e.message}`, true));
         },
         setPath: (path, value) => set(r(path), value),
+        wipe: () => update(ref(db, BASE), cleanSlateUpdate()),   // one atomic multi-path write
         async fetchOnSiteTeams() {
             const idToken = await auth.currentUser.getIdToken();
             const res = await fetch(`${ONSITE_API}?action=getAllOnSiteTeams&idToken=${encodeURIComponent(idToken)}`);

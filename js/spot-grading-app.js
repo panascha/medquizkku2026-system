@@ -1,7 +1,7 @@
 // js/spot-grading-app.js
 // DOM glue for pages/spot-grading.html. Pure logic lives in spot-grading-engine.js.
 // Live callers must already have passed requireStaff(user). RTDB layout: SPOT_GRADING.md.
-import { QIDS, HEARTBEAT_MS, TEAM_COUNT, normalizeTeamId, autoArmId, lockState, fmtClock } from './spot-grading-engine.js';
+import { QIDS, HEARTBEAT_MS, TEAM_COUNT, normalizeTeamId, autoArmId, lockState, fmtClock, halfAllowed } from './spot-grading-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const BASE = 'spot_grading_2026';
@@ -48,7 +48,8 @@ const canScore = () => !!curQ && config.isGradingOpen === true && mine(graders[c
 function scoreOf(team) {
     const k = curQ + '/' + team;
     if (outbox[k]) return outbox[k].v;
-    return serverScores[team] === 0 || serverScores[team] === 1 ? serverScores[team] : null;
+    const s = serverScores[team];
+    return s === 0 || s === 0.5 || s === 1 ? s : null;
 }
 
 // who/when graded a team: pending outbox entry is ours, else the server audit row
@@ -151,15 +152,17 @@ function renderStrip() {
         const b = document.createElement('button');
         b.title = t + (teams[t] && teams[t].name ? ' · ' + teams[t].name : '') + (v !== null ? ` | ตรวจโดย: ${metaText(t) || '-'}` : '');
         b.className = 'rounded-md text-xs font-bold py-2 text-white ' +
-            (v === 1 ? 'bg-emerald-600' : v === 0 ? 'bg-red-600' : 'bg-slate-300 text-slate-700') +
+            (v === 1 ? 'bg-emerald-600' : v === 0.5 ? 'bg-amber-500' : v === 0 ? 'bg-red-600' : 'bg-slate-300 text-slate-700') +
             (t === armed ? ' ring-4 ring-blue-500' : '');
         b.textContent = t.slice(2);
         b.onclick = () => arm(t);
         strip.appendChild(b);
     });
-    let g = 0, r = 0;
-    teamIds.forEach((t) => { const v = curQ ? scoreOf(t) : null; if (v === 1) g++; else if (v === 0) r++; });
-    $('stripSum').textContent = curQ ? `ตรวจแล้ว ${g + r}/${teamIds.length} (ถูก ${g} · ผิด ${r})` : '';
+    let g = 0, h = 0, r = 0;
+    teamIds.forEach((t) => { const v = curQ ? scoreOf(t) : null; if (v === 1) g++; else if (v === 0.5) h++; else if (v === 0) r++; });
+    $('stripSum').textContent = curQ
+        ? `ตรวจแล้ว ${g + h + r}/${teamIds.length} (ถูก ${g} · ` + (halfAllowed(curQ) ? `ครึ่ง ${h} · ` : '') + `ผิด ${r})`
+        : '';
 }
 
 function renderLast() {
@@ -177,13 +180,16 @@ function renderInputState() {
     $('team').disabled = !ok;
     $('btn1').disabled = !ok || !armed || locked;
     $('btn0').disabled = !ok || !armed || locked;
+    $('btnHalf').disabled = !ok || !armed || locked || !halfAllowed(curQ);
     const prev = armed ? scoreOf(armed) : null;
     $('graded').hidden = !armed || prev === null;
     if (armed && prev !== null) {
         $('gradedText').textContent = `⚠️ ข้อนี้ตรวจแล้ว! คะแนนเดิม: ${prev} โดย ${(metaOf(armed) || {}).by || '-'} (${fmtClock((metaOf(armed) || {}).at)})`;
     }
     $('unlock').hidden = !locked;
-    $('armed').textContent = armed ? `${armed} พร้อมให้คะแนน (กด 1 = ถูก, 0 = ผิด, Esc = ยกเลิก)` : '';
+    $('armed').textContent = armed
+        ? `${armed} พร้อมให้คะแนน (กด 1 = ถูก, ` + (halfAllowed(curQ) ? '5 / . / / = ครึ่ง, ' : '') + '0 = ผิด, Esc = ยกเลิก)'
+        : '';
     renderPreview();
 }
 
@@ -242,6 +248,7 @@ function commitTypedTeam() {
 
 function score(v) {
     if (!armed || !canScore() || needsUnlock()) return;
+    if (v === 0.5 && !halfAllowed(curQ)) return;
     const team = armed;
     last = { q: curQ, team, prev: scoreOf(team), next: v };
     enqueue(curQ, team, v);
@@ -303,10 +310,12 @@ function bind() {
     document.addEventListener('keydown', (e) => {
         if (e.target === $('team') || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
         if (e.key === '1' || e.key === '0') { if (armed) { e.preventDefault(); score(Number(e.key)); } }
+        else if (e.key === '5' || e.key === '.' || e.key === '/') { if (armed) { e.preventDefault(); if (halfAllowed(curQ)) score(0.5); } }
         else if (e.key === 'Escape' && armed) disarm(true);
     });
     $('btn1').onclick = () => score(1);
     $('btn0').onclick = () => score(0);
+    $('btnHalf').onclick = () => { if (halfAllowed(curQ)) score(0.5); };
     $('unlock').onclick = () => { unlocked = true; renderInputState(); };
     $('undo').onclick = undo;
     $('takeover').onclick = takeover;

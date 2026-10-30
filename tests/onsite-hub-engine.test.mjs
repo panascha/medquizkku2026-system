@@ -145,7 +145,8 @@ test('phaseOf: none / r1 / rotation / r2', () => {
     assert.equal(phaseOf({ kDecided: 100, mFilled: 40, rotationStartMs: 5 }), 'r2');
 });
 
-test('countGradedCells counts only 0/1 cells', () => {
+test('countGradedCells counts only 0/0.5/1 cells', () => {
+    assert.equal(countGradedCells({ q01: { MQ001: 0.5, MQ002: 0.25, MQ003: 2 } }), 1);
     assert.equal(countGradedCells(null), 0);
     assert.equal(countGradedCells(fixtureSpotScores(35)), 1400);
     assert.equal(countGradedCells({ q01: { MQ001: 1, MQ002: 0, MQ003: null, MQ004: 'x' } }), 2);

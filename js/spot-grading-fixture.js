@@ -24,7 +24,7 @@ export function buildFixtureDb(now) {
     });
 
     const scores = { q01: {}, q02: {} };
-    FIXTURE_TEAM_IDS.slice(0, 12).forEach((t, i) => { scores.q01[t] = i % 3 === 0 ? 0 : 1; });
+    FIXTURE_TEAM_IDS.slice(0, 12).forEach((t, i) => { scores.q01[t] = i % 3 === 0 ? 0 : i % 3 === 1 ? 0.5 : 1; });
     FIXTURE_TEAM_IDS.slice(0, 5).forEach((t) => { scores.q02[t] = 1; });
 
     const graders = {

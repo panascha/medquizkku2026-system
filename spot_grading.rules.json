@@ -24,6 +24,7 @@
     },
 
     "graders": {
+      ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/admins').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
       ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
       "$q": {
         ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
@@ -33,16 +34,18 @@
     },
 
     "scores": {
+      ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/admins').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
       ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
       "$q": {
         "$team": {
           ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/config/isGradingOpen').val() === true && $q.matches(/^q(0[1-9]|[12][0-9]|3[0-5])$/) && root.child('spot_grading_2026/teams').child($team).exists()",
-          ".validate": "newData.isNumber() && (newData.val() === 0 || newData.val() === 1)"
+          ".validate": "newData.isNumber() && (newData.val() === 0 || newData.val() === 1 || (newData.val() === 0.5 && $q.matches(/^q(0[1-9]|[12][0-9]|30)$/)))"
         }
       }
     },
 
     "scoreMeta": {
+      ".write": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists() && root.child('spot_grading_2026/admins').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
       ".read": "auth != null && auth.token.email != null && auth.token.email_verified === true && auth.token.email.matches(/.*@(kku[.]ac[.]th|kkumail[.]com)$/) && root.child('staff_whitelist').child(auth.token.email.toLowerCase().replace('.', '_')).exists()",
       "$q": {
         "$team": {

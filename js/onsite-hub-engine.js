@@ -220,11 +220,11 @@ export function phaseOf(s) {
     return 'none';
 }
 
-/** Graded cells (value 0 or 1) in RTDB scores/{qNN}/{MQxxx}. */
+/** Graded cells (value 0, 0.5 or 1) in RTDB scores/{qNN}/{MQxxx}. */
 export function countGradedCells(scores) {
     let n = 0;
     Object.values(scores || {}).forEach((row) => {
-        Object.values(row || {}).forEach((v) => { if (v === 0 || v === 1) n++; });
+        Object.values(row || {}).forEach((v) => { if (v === 0 || v === 0.5 || v === 1) n++; });
     });
     return n;
 }

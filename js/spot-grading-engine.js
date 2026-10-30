@@ -11,7 +11,14 @@ export const QIDS = Array.from({ length: QUESTION_COUNT }, (_, i) => 'q' + Strin
 export const QID_RE = /^q(0[1-9]|[12][0-9]|3[0-5])$/;
 export const TEAM_RE = /^MQ(00[1-9]|0[1-9][0-9]|100)$/;
 
-const isCell = (v) => v === 0 || v === 1;
+const isCell = (v) => v === 0 || v === 0.5 || v === 1;
+
+// q01-q30 may score 0.5; q31-q35 are 0/1 only (academic team, 2026-10-30).
+export const HALF_MAX_Q = 30;
+export const halfAllowed = (qid) => {
+    const m = /^q(\d{2})$/.exec(qid);
+    return !!m && Number(m[1]) >= 1 && Number(m[1]) <= HALF_MAX_Q;
+};
 
 function hasTeam(teamSet, id) {
     if (teamSet instanceof Set) return teamSet.has(id);
@@ -71,7 +78,7 @@ export function totals(scores, teams) {
         Object.keys(row).forEach((t) => {
             if (teams && !hasTeam(teams, t)) return;
             if (!(t in out)) out[t] = 0;
-            if (row[t] === 1) out[t]++;
+            if (isCell(row[t])) out[t] += row[t];
         });
     });
     return out;
@@ -81,7 +88,7 @@ export function totals(scores, teams) {
 export const TIE_SUBSET_QIDS = ['q06', 'q08', 'q11', 'q12', 'q20', 'q24', 'q26', 'q28', 'q32'];
 
 export function subScore(scores, team, qids = TIE_SUBSET_QIDS) {
-    return qids.reduce((n, q) => n + (scores && scores[q] && scores[q][team] === 1 ? 1 : 0), 0);
+    return qids.reduce((n, q) => n + (scores && scores[q] && isCell(scores[q][team]) ? scores[q][team] : 0), 0);
 }
 
 export function rankWithCut(tot, cut = CUT) {
@@ -115,7 +122,7 @@ export function laggards(prog, { minGap = 3 } = {}) {
 
 export function buildPushPayload(tot, tieDecision, cut = CUT) {
     const teams = Object.keys(tot || {});
-    if (!teams.every((t) => Number.isInteger(tot[t]) && tot[t] >= 0 && tot[t] <= QUESTION_COUNT)) {
+    if (!teams.every((t) => Number.isFinite(tot[t]) && (tot[t] * 2) % 1 === 0 && tot[t] >= 0 && tot[t] <= QUESTION_COUNT)) {
         return { ok: false, reason: 'BAD_SCORE' };
     }
     if (teams.length <= cut) return { ok: false, reason: 'TOO_FEW_TEAMS' };

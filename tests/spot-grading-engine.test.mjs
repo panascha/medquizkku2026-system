@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     QIDS, QID_RE, TEAM_RE, CUT, STALE_MS, normalizeTeamId, autoArmId, progress, totals,
-    rankWithCut, laggards, buildPushPayload, lockState, TIE_SUBSET_QIDS, subScore
+    rankWithCut, laggards, buildPushPayload, lockState, TIE_SUBSET_QIDS, subScore, halfAllowed, HALF_MAX_Q
 } from '../js/spot-grading-engine.js';
 
 const ids = (n) => Array.from({ length: n }, (_, i) => 'MQ' + String(i + 1).padStart(3, '0'));
@@ -133,7 +133,10 @@ test('buildPushPayload', () => {
     assert.deepEqual(r.payload.passed, [...base, 'MQ009']);
 
     assert.equal(buildPushPayload(tot([36, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
-    assert.equal(buildPushPayload(tot([1.5, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
+    assert.equal(buildPushPayload(tot([1.3, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
+    assert.equal(buildPushPayload(tot([0.25, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
+    assert.equal(buildPushPayload(tot([NaN, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
+    assert.equal(buildPushPayload(tot([35.5, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
     assert.equal(buildPushPayload(tot([-1, 1, 1, 1, 1, 1, 1, 1, 1])).reason, 'BAD_SCORE');
     assert.equal(buildPushPayload(tot([5, 5, 5, 5, 5, 5, 5, CUT])).reason, 'TOO_FEW_TEAMS');
 });
@@ -149,6 +152,50 @@ test('subScore: 9 tie-view items only, display-only (no effect on rank/payload)'
     assert.equal(subScore(scores, 'MQ001', ['q01']), 1);
     const t = totals(scores, ['MQ001', 'MQ002']);
     assert.deepEqual(rankWithCut(t, 1).cutTies, ['MQ001', 'MQ002']);
+});
+
+test('half points: progress/totals/subScore/payload/rank', () => {
+    const teams = ids(3);
+    // 0.5 counts as graded; 2 and "0.5" do not
+    const scores = { q01: { MQ001: 0.5, MQ002: 1, MQ003: 2 }, q02: { MQ001: 0.5, MQ002: '0.5' }, q31: { MQ001: 1 } };
+    const p = progress(scores, teams, ['q01', 'q02', 'q31']);
+    assert.deepEqual(p.perTeam, { MQ001: 3, MQ002: 1, MQ003: 0 });
+    assert.equal(p.done, 4);
+    // totals sums halves; non-cell values are ignored
+    assert.deepEqual(totals(scores, teams), { MQ001: 2, MQ002: 1, MQ003: 0 });
+    assert.deepEqual(totals({ q01: { MQ001: 0.5 }, q02: { MQ001: 0.5 }, q03: { MQ001: 0.5 } }, ['MQ001']), { MQ001: 1.5 });
+    // tie-view sub-score sums halves too (q06 + q32)
+    assert.equal(subScore({ q06: { MQ001: 0.5 }, q08: { MQ001: 0.5 }, q32: { MQ001: 1 }, q11: { MQ001: 2 } }, 'MQ001'), 2);
+    // fractional totals rank and tie correctly
+    const r = rankWithCut({ MQ001: 28.5, MQ002: 28.5, MQ003: 28, MQ004: 27.5 }, 1);
+    assert.deepEqual(r.ranked.map((x) => x.rank), [1, 1, 3, 4]);
+    assert.deepEqual(r.cutTies, ['MQ001', 'MQ002']);
+    // payload accepts half totals incl. bounds, passes them through
+    const t = tot([30.5, 29.5, 28.5, 27.5, 26.5, 25.5, 24.5, 23.5, 12, 0.5]);
+    const res = buildPushPayload(t);
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.payload.scores, t);
+    assert.deepEqual(res.payload.passed, ids(8));
+    assert.equal(buildPushPayload(tot([35, 6, 5, 4, 3, 2, 1, 0.5, 0])).ok, true);
+    // tie at the cut with fractional score resolves via tieDecision
+    const tie = tot([30, 29, 28, 27, 26, 25, 24, 20.5, 20.5, 20.5, 5]);
+    assert.equal(buildPushPayload(tie).reason, 'TIE_UNRESOLVED');
+    assert.equal(buildPushPayload(tie, { passed: [...ids(7), 'MQ009'] }).ok, true);
+});
+
+test('halfAllowed: q01-q30 only', () => {
+    assert.equal(HALF_MAX_Q, 30);
+    QIDS.slice(0, 30).forEach((q) => assert.equal(halfAllowed(q), true, q));
+    QIDS.slice(30).forEach((q) => assert.equal(halfAllowed(q), false, q));
+    ['q00', 'q36', '', null, undefined, 'Q01'].forEach((q) => assert.equal(halfAllowed(q), false));
+});
+
+test('rules json: 0.5 allowed only on q01-q30', () => {
+    const root = JSON.parse(readFileSync(new URL('../spot_grading.rules.json', import.meta.url), 'utf8')).spot_grading_2026;
+    const v = root.scores.$q.$team['.validate'];
+    assert.ok(v.includes('newData.val() === 0.5'));
+    assert.ok(v.includes('/^q(0[1-9]|[12][0-9]|30)$/'));
+    assert.ok(v.includes('newData.val() === 0 ') && v.includes('newData.val() === 1'));
 });
 
 test('lockState', () => {

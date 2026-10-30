@@ -23,6 +23,8 @@ export function buildDashboardFixtureDb(now, { complete = false } = {}) {
         FIXTURE_TEAM_IDS.forEach((t, ti) => {
             if (!complete && qi === QIDS.length - 1 && ti >= FIXTURE_TEAM_IDS.length - 5) return;
             db.scores[q][t] = qi < FIXTURE_TARGETS[ti] ? 1 : 0;
+            // half-point demo: two 0.5s swap a 1 and a 0 (q01..q30 only), so team totals stay on target
+            if (ti >= 12 && ti % 4 === 0 && (qi === 0 || qi === FIXTURE_TARGETS[ti])) db.scores[q][t] = 0.5;
             // one grading action every 2s, later questions newer; ends ~1 min before `now`
             db.scoreMeta[q][t] = { by: graderEmails[qi % graderEmails.length], at: now - 60000 - (QIDS.length * FIXTURE_TEAM_IDS.length - (qi * FIXTURE_TEAM_IDS.length + ti)) * 2000 };
         });
