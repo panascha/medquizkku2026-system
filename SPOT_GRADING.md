@@ -5,7 +5,7 @@ Status: CONTRACT, not built (2026-10-25). Event 1 Nov 2569: Spot ends 12:00, gra
 ## Decisions (user-confirmed 2026-10-25)
 - **Portal replaces the academic team's Spot sheet for score entry.** OnSite `SPOT_EXPORT` ("หน้าแรก") is not written with scores. The academic team must be told this (owner: user).
 - **Tie at the 8/9 cut: no auto rule.** `setRound2Results()` sorts by score only, and no official R2 tie-break exists in any source. The dashboard flags every team tied across the cut and blocks Push until the chair picks.
-- **Scores are 0/1 only.** No partial credit.
+- **Scores per item: q01-q30 = 0, 0.5 or 1; q31-q35 = 0 or 1** (academic team, 2026-10-30). Totals can be x.5 (still 0-35); the RTDB rules reject 0.5 on q31-q35.
 - Firebase RTDB + Google login (`@kku.ac.th`/`@kkumail.com`) + `requireStaff()` (`js/staff-guard.js`), the same as the other portal pages. Look matches `checking.html` / `check-onsite-staff.html` (Tailwind CDN + Sarabun + Font Awesome), so no new design direction is needed.
 
 ## Corrections to the original proposal
@@ -21,7 +21,7 @@ admins/{escapedEmail}: true         # chair + IT, set by hand in console
 teams/{MQxxx}: { name, r1Rank }     # exactly 40, loaded from OnSite getAllOnSiteTeams (K = TRUE)
 questions/{q01..q35}: { no, subject, type: "MCQ"|"SAQ", key, rubric }
 graders/{qNN}: { email, name, lastActive }   # advisory lock, heartbeat 20 s, stale after 60 s
-scores/{qNN}/{MQxxx}: 0 | 1
+scores/{qNN}/{MQxxx}: 0 | 0.5 | 1   (0.5 only q01-q30; q31-q35 are 0 | 1)
 scoreMeta/{qNN}/{MQxxx}: { by: email, at: ms }   # audit, written with the score in one update()
 tieDecision: { passed: [8 MQ ids], by, at }
 ```
@@ -52,7 +52,7 @@ Payload `{action, idToken, scores: {MQxxx: int}, passed: [8 ids], overwrite?: bo
 - `requireWhitelistedStaff_` plus the caller's email in script property `SPOT_ADMINS` (comma list).
 - Validates:
   - score keys are exactly the K = TRUE set (40);
-  - each score is an integer 0-35;
+  - each score is a multiple of 0.5 in 0-35;
   - `passed` has 8 distinct IDs from that set;
   - the lowest score in `passed` >= the highest score outside it;
   - M is not already filled unless `overwrite`.
