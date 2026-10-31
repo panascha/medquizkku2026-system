@@ -51,11 +51,12 @@
 ## 3. หลังหมดเวลา: ตรวจคะแนน, TSV, นำเข้า OnSite
 
 1. ในหน้า staff โหลด `key.json` (อยู่ในหน่วยความจำของเบราว์เซอร์เท่านั้น ปิดแท็บแล้วหาย; เฉลยไม่เคยถูกส่งไป Worker)
-2. ตรวจรายชื่อ `In progress` (ไม่ได้กดส่ง) ว่าจะนับคะแนนจากคำตอบที่ auto-save ไว้หรือไม่ ตามที่คณะกรรมการตัดสิน
-3. กด "คำนวณคะแนน + สร้าง TSV" จะได้ TSV 4 ชุด (เฉพาะ username `-1` สำหรับ Unseen):
-   - `From KKUEXAM` (หัวตาราง `Grade/112.00`)
-   - `From UNSEEN 1`, `From UNSEEN 2`, `From UNSEEN 3` (หัวตาราง `Grade/8.00`)
-4. วางลงแท็บชื่อตรงกันใน Sheet ของ OnSite (วางที่ A1 ทับของเดิมทั้งแท็บ)
+2. ตรวจรายชื่อ `In progress` (ไม่ได้กดส่ง) ว่าจะนับคะแนนจากคำตอบที่ auto-save ไว้หรือไม่ ตามที่คณะกรรมการตัดสิน ถ้าไม่นับ ให้ติ๊ก "ไม่นับคะแนนผู้ที่ไม่กดส่ง (In progress = -)" ก่อนกดคำนวณ: แถวนั้นจะได้ Grade และทุก Q เป็น `-` (เหมือน KKUEXAM จริง) และ OnSite import จะข้ามแถวนั้น ไม่ติ๊ก (ค่าเริ่มต้น) = นับคะแนนจากคำตอบที่บันทึกไว้
+3. กด "คำนวณคะแนน + สร้าง TSV" จะได้ 4 ชุด (เฉพาะ username `-1` สำหรับ Unseen) รูปแบบเดียวกับ Grades export ของ KKUEXAM (ตัวอย่าง 2025: `Setup KKUEXAM/STEP_03_Add_Quiz/format from 2025.csv`): `Surname, First name, Username, Email address, State, Started on, Completed, Time taken, Grade/NN.00, Q. 1 …` และแถว `Overall average` ท้ายตาราง ชื่อ/อีเมลเว้นว่าง
+   - `From KKUEXAM` (หัวตาราง `Grade/112.00`, คอลัมน์ Q. 1–28 ข้อละ /4.00)
+   - `From UNSEEN 1`, `From UNSEEN 2`, `From UNSEEN 3` (หัวตาราง `Grade/8.00`, คอลัมน์ Q. 1–8 ข้อละ /1.00)
+   - คอลัมน์ Q. เรียงตาม id ของระบบสำรอง (m01–m23, m24–m28; a1–a4, b1–b4) ไม่รับประกันว่าตรงกับเลขข้อใน KKUEXAM ห้ามเทียบทีละคอลัมน์กับ export จริง ตัว import ใช้แค่ Username / State / Completed / Time taken / Grade
+4. ปุ่ม "คัดลอก" ได้ TSV สำหรับวางลงแท็บชื่อตรงกันใน Sheet ของ OnSite (วางที่ A1 ทับของเดิมทั้งแท็บ) หรือ "ดาวน์โหลด .csv (Moodle)" แล้วลากไฟล์ใส่หน้า `pages/onsite-hub.html` ขั้น 1.1
 5. รันเมนู OnSite: `importKKUEXAMScores()` แล้ว `importUnseenScores()` (ดู `www/appscript clasp/MedQuiz 2026 OnSite/MANUAL.md`) ถ้า `Grade/NN` ไม่ตรงค่าที่รองรับ import จะยกเลิกทั้งหมด ให้แก้ที่ต้นทาง ห้ามแก้ตัวเลขให้ผ่าน
 
 ## 4. ตรวจหลังจบ และ Rollback

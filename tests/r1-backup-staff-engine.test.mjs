@@ -147,40 +147,96 @@ function parseTsv(tsv) {
     return { header: lines[0], rows: lines.slice(1) };
 }
 
-test('buildMcqTsv matches the importer header contract', () => {
+// Column names of the KKUEXAM 2025 quiz Grades export (Setup KKUEXAM/STEP_03_Add_Quiz/format from 2025.csv).
+const MOODLE_LEAD = ['Surname', 'First name', 'Username', 'Email address', 'State', 'Started on', 'Completed', 'Time taken'];
+const COL = { user: 2, state: 4, started: 5, completed: 6, taken: 7, grade: 8 };
+const qHeaders = (n, max) => Array.from({ length: n }, (_, i) => `Q. ${i + 1} /${max}`);
+
+test('buildMcqTsv: Moodle Grades export layout, per-slot marks sum to Grade', () => {
     const root = buildFixtureDb(NOW);
-    const { tsv, count, notSubmitted } = buildMcqTsv(root, key, root._control);
-    const { header, rows } = parseTsv(tsv);
-    assert.deepEqual(header, ['Username', 'State', 'Completed', 'Time taken', MCQ_HEADER]);
-    assert.equal(header.findIndex((h) => /^Grade\/[\d.]+$/.test(h)), 4);
+    const { tsv, csv, count, notSubmitted } = buildMcqTsv(root, key, root._control);
+    const { header, rows: all } = parseTsv(tsv);
+    assert.deepEqual(header, [...MOODLE_LEAD, MCQ_HEADER, ...qHeaders(28, '4.00')]);
+    const avg = all[all.length - 1];
+    const rows = all.slice(0, -1);
+    assert.equal(avg[0], 'Overall average');
     assert.equal(count, 17); // 6 teams x 3 members minus never-claimed
     assert.equal(rows.length, 17);
-    rows.forEach((r) => assert.ok(parseUsernameGas(r[0])));
-    const r1 = rows.find((r) => r[0] === 'mq2026-001-1');
-    assert.equal(r1[1], 'Finished');
-    assert.ok(gasParseDate(r1[2]));
-    assert.equal(gasParseDuration(r1[3]), 21 * 60 + 51);
-    assert.equal(r1[4], String(scoreMcq(key, root['mq2026-001-1'].answers).toFixed(2)));
-    const open = rows.find((r) => r[0] === 'mq2026-005-2');
-    assert.deepEqual(open.slice(1, 4), ['In progress', '-', '-']);
+    rows.forEach((r) => { assert.equal(r.length, header.length); assert.ok(parseUsernameGas(r[COL.user])); });
+    const r1 = rows.find((r) => r[COL.user] === 'mq2026-001-1');
+    assert.equal(r1[COL.state], 'Finished');
+    assert.ok(gasParseDate(r1[COL.started]));
+    assert.ok(gasParseDate(r1[COL.completed]));
+    assert.equal(gasParseDuration(r1[COL.taken]), 21 * 60 + 51);
+    assert.equal(r1[COL.grade], String(scoreMcq(key, root['mq2026-001-1'].answers).toFixed(2)));
+    const qSum = r1.slice(COL.grade + 1).filter((v) => v !== '-').reduce((s, v) => s + Number(v), 0);
+    assert.equal(qSum.toFixed(2), r1[COL.grade]);
+    const open = rows.find((r) => r[COL.user] === 'mq2026-005-2');
+    assert.deepEqual([open[COL.state], open[COL.completed], open[COL.taken]], ['In progress', '-', '-']);
     assert.deepEqual(notSubmitted, ['mq2026-005-2']);
-    assert.equal(rows.some((r) => r[0] === 'mq2026-006-3'), false);
+    assert.equal(rows.some((r) => r[COL.user] === 'mq2026-006-3'), false);
+    assert.ok(csv.startsWith('﻿Surname,First name,Username,Email address,State,Started on,Completed,Time taken,Grade/112.00,Q. 1 /4.00,'));
+    assert.equal(csv.slice(1).split('\n')[1], tsv.split('\n')[1].split('\t').join(','));
 });
 
-test('buildUnseenTsvs: three tabs, -1 usernames only, Grade/8.00', () => {
+test('buildUnseenTsvs: three tabs, -1 usernames only, Grade/8.00 + 8 Q columns', () => {
     const root = buildFixtureDb(NOW);
     const { tabs, notSubmitted } = buildUnseenTsvs(root, key, root._control);
     assert.deepEqual(tabs.map((t) => t.tab), ['From UNSEEN 1', 'From UNSEEN 2', 'From UNSEEN 3']);
     tabs.forEach((t, i) => {
-        const { header, rows } = parseTsv(t.tsv);
-        assert.deepEqual(header, ['Username', 'State', 'Completed', 'Time taken', UNSEEN_HEADER]);
+        const { header, rows: all } = parseTsv(t.tsv);
+        assert.deepEqual(header, [...MOODLE_LEAD, UNSEEN_HEADER, ...qHeaders(8, '1.00')]);
+        const rows = all.slice(0, -1);
+        assert.equal(all[all.length - 1][0], 'Overall average');
         assert.equal(rows.length, 6);
-        rows.forEach((r) => assert.match(r[0], /-1$/));
-        const mine = rows.find((r) => r[0] === 'mq2026-001-1');
-        assert.equal(mine[4], scoreUnseen(key, root['mq2026-001-1'].answers, i + 1).toFixed(2));
-        assert.equal(gasParseDuration(mine[3]), 31 * 60 + 7);
+        rows.forEach((r) => assert.match(r[COL.user], /-1$/));
+        const mine = rows.find((r) => r[COL.user] === 'mq2026-001-1');
+        assert.equal(mine[COL.grade], scoreUnseen(key, root['mq2026-001-1'].answers, i + 1).toFixed(2));
+        assert.equal(gasParseDuration(mine[COL.taken]), 31 * 60 + 7);
+        assert.ok(t.csv.startsWith('﻿'));
     });
     assert.deepEqual(notSubmitted, ['mq2026-005-1']);
+});
+
+test('excludeUnsubmitted: unsubmitted rows get "-" Grade + Q cells, others unchanged', () => {
+    const root = buildFixtureDb(NOW);
+    const byUser = (tsv) => new Map(parseTsv(tsv).rows.slice(0, -1).map((r) => [r[COL.user], r]));
+    const cases = [
+        [buildMcqTsv(root, key, root._control), buildMcqTsv(root, key, root._control, { excludeUnsubmitted: true }), 'mq2026-005-2'],
+        ...[0, 1, 2].map((i) => [
+            buildUnseenTsvs(root, key, root._control).tabs[i],
+            buildUnseenTsvs(root, key, root._control, { excludeUnsubmitted: true }).tabs[i],
+            'mq2026-005-1'
+        ])
+    ];
+    cases.forEach(([def, ex, open]) => {
+        const a = byUser(def.tsv);
+        const b = byUser(ex.tsv);
+        assert.match(a.get(open)[COL.grade], /^\d+\.\d{2}$/);
+        assert.equal(b.get(open)[COL.state], 'In progress');
+        b.get(open).slice(COL.grade).forEach((v) => assert.equal(v, '-'));
+        assert.deepEqual([...b.keys()], [...a.keys()]);
+        a.forEach((row, u) => { if (u !== open) assert.deepEqual(b.get(u), row); });
+    });
+    assert.deepEqual(buildMcqTsv(root, key, root._control, { excludeUnsubmitted: true }).notSubmitted, ['mq2026-005-2']);
+    assert.deepEqual(buildUnseenTsvs(root, key, root._control, { excludeUnsubmitted: true }).notSubmitted, ['mq2026-005-1']);
+});
+
+test('onsite-hub analyzeExport accepts the backup csv + tsv and skips the average row', async () => {
+    const { parseDelimited, analyzeExport } = await import('../js/onsite-hub-engine.js');
+    const root = buildFixtureDb(NOW);
+    const mcq = buildMcqTsv(root, key, root._control);
+    for (const text of [mcq.csv, mcq.tsv]) {
+        const a = analyzeExport(parseDelimited(text), 'mcq');
+        assert.equal(a.ok, true, a.errors.join('; '));
+        assert.equal(a.rawMax, 112);
+        assert.equal(a.dataRows, 17);
+        assert.deepEqual(a.unmatched, []); // Moodle puts "Overall average" under Surname, Username blank
+    }
+    const u = buildUnseenTsvs(root, key, root._control).tabs[0];
+    const a = analyzeExport(parseDelimited(u.csv), 'unseen');
+    assert.equal(a.ok, true, a.errors.join('; '));
+    assert.equal(a.rawMax, 8);
 });
 
 test('sanitizeQuestions unseen: rich prompt with img+table passes; unsafe markup refused', () => {

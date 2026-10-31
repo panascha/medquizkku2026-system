@@ -161,9 +161,9 @@ async function loadKey() {
     }
 }
 
-function download(name, text) {
+function download(name, text, type) {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([text], { type: 'text/tab-separated-values;charset=utf-8' }));
+    a.href = URL.createObjectURL(new Blob([text], { type }));
     a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -185,9 +185,9 @@ function renderExports() {
         copy.className = 'text-xs bg-blue-600 text-white rounded px-2 py-1';
         copy.onclick = () => navigator.clipboard.writeText(x.tsv).then(() => toast(`คัดลอก ${x.tab} แล้ว`), () => toast('คัดลอกไม่สำเร็จ ใช้ดาวน์โหลดแทน', true));
         const dl = document.createElement('button');
-        dl.textContent = 'ดาวน์โหลด .tsv';
+        dl.textContent = 'ดาวน์โหลด .csv (Moodle)';
         dl.className = 'text-xs bg-slate-700 text-white rounded px-2 py-1';
-        dl.onclick = () => download(`${x.tab.replace(/\s+/g, '_')}.tsv`, x.tsv);
+        dl.onclick = () => download(`${x.tab.replace(/\s+/g, '_')}.csv`, x.csv, 'text/csv;charset=utf-8');
         h.append(title, copy, dl);
         const pre = document.createElement('textarea');
         pre.readOnly = true;
@@ -201,12 +201,16 @@ function renderExports() {
 
 function exportAll() {
     if (!answerKey) { toast('โหลดเฉลยก่อน', true); return; }
-    const mcq = buildMcqTsv(root, answerKey, root._control || {});
-    const uns = buildUnseenTsvs(root, answerKey, root._control || {});
-    lastExports = [{ tab: MCQ_TAB, tsv: mcq.tsv, count: mcq.count }, ...uns.tabs];
+    const opts = { excludeUnsubmitted: $('excludeUnsubmitted').checked };
+    const mcq = buildMcqTsv(root, answerKey, root._control || {}, opts);
+    const uns = buildUnseenTsvs(root, answerKey, root._control || {}, opts);
+    lastExports = [{ tab: MCQ_TAB, tsv: mcq.tsv, csv: mcq.csv, count: mcq.count }, ...uns.tabs];
+    const how = opts.excludeUnsubmitted
+        ? 'ออกเป็น In progress คะแนน "-" ไม่นับคะแนน'
+        : 'ออกเป็น In progress คะแนนจากคำตอบที่บันทึกไว้';
     const warn = [];
-    if (mcq.notSubmitted.length) warn.push(`Part 1 ยังไม่ส่ง ${mcq.notSubmitted.length} คน (ออกเป็น In progress คะแนนจากคำตอบที่บันทึกไว้): ${mcq.notSubmitted.join(', ')}`);
-    if (uns.notSubmitted.length) warn.push(`Part 2 ยังไม่ส่ง ${uns.notSubmitted.length} คน: ${uns.notSubmitted.join(', ')}`);
+    if (mcq.notSubmitted.length) warn.push(`Part 1 ยังไม่ส่ง ${mcq.notSubmitted.length} คน (${how}): ${mcq.notSubmitted.join(', ')}`);
+    if (uns.notSubmitted.length) warn.push(`Part 2 ยังไม่ส่ง ${uns.notSubmitted.length} คน (${how}): ${uns.notSubmitted.join(', ')}`);
     $('exportWarn').textContent = warn.join('\n');
     renderExports();
 }

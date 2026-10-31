@@ -270,57 +270,91 @@ export function formatMoodleDuration(ms) {
     return parts.join(' ');
 }
 
-function tsvRow(username, scoreOrNull, submittedAt, startAt, header) {
-    const done = typeof submittedAt === 'number' && typeof startAt === 'number';
-    return {
-        username,
-        line: [
-            username,
-            done ? 'Finished' : 'In progress',
-            done ? formatMoodleDate(submittedAt) : '-',
-            done ? formatMoodleDuration(submittedAt - startAt) : '-',
-            scoreOrNull === null ? '-' : scoreOrNull.toFixed(2)
-        ].join('\t'),
-        header
-    };
+// Moodle quiz "Grades" export layout (KKUEXAM 2025 sample: Setup KKUEXAM/STEP_03_Add_Quiz/format from 2025.csv).
+// One column per quiz slot: { max, ids, per } — per = marks for each correct id in the slot.
+const pad2 = (n) => String(n).padStart(2, '0');
+export const MCQ_SLOTS = [
+    ...Array.from({ length: 23 }, (_, i) => ({ max: 4, ids: [`m${pad2(i + 1)}`], per: 4 })),
+    ...Array.from({ length: 5 }, (_, i) => ({ max: 4, ids: [1, 2, 3, 4].map((s) => `m${24 + i}s${s}`), per: 1 }))
+];
+export const unseenSlots = (art) => ['a', 'b'].flatMap((sec) =>
+    [1, 2, 3, 4].map((s) => ({ max: 1, ids: [`u${art}${sec}${s}`], per: 1 })));
+
+const LEAD_COLS = ['Surname', 'First name', 'Username', 'Email address', 'State', 'Started on', 'Completed', 'Time taken'];
+
+function slotCell(slot, key, answers) {
+    if (!slot.ids.some((id) => id in answers)) return '-';
+    return slot.ids.reduce((s, id) => s + (answers[id] === key[id] ? slot.per : 0), 0).toFixed(2);
 }
 
-function buildTsv(header, lines) {
-    return ['Username\tState\tCompleted\tTime taken\t' + header, ...lines].join('\n') + '\n';
+function gradeRow(username, scoreOrNull, submittedAt, startAt, slots, key, answers) {
+    const done = typeof submittedAt === 'number' && typeof startAt === 'number';
+    return [
+        '', '', username, '',
+        done ? 'Finished' : 'In progress',
+        typeof startAt === 'number' ? formatMoodleDate(startAt) : '-',
+        done ? formatMoodleDate(submittedAt) : '-',
+        done ? formatMoodleDuration(submittedAt - startAt) : '-',
+        scoreOrNull === null ? '-' : scoreOrNull.toFixed(2),
+        ...slots.map((slot) => scoreOrNull === null ? '-' : slotCell(slot, key, answers))
+    ];
+}
+
+/** Moodle's trailing summary row: mean of the numeric cells per Grade / Q. column. */
+function averageRow(rows, width) {
+    const avg = (i) => {
+        const nums = rows.map((r) => r[i]).filter((v) => v !== '-').map(Number);
+        return nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : '-';
+    };
+    return ['Overall average', ...LEAD_COLS.slice(1).map(() => ''),
+        ...Array.from({ length: width - LEAD_COLS.length }, (_, j) => avg(LEAD_COLS.length + j))];
+}
+
+const csvCell = (v) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+
+/** grid -> { tsv (paste into the OnSite Sheet tab), csv (byte-for-byte Moodle download: BOM, comma) }. */
+function serialize(gradeHeader, slots, rows) {
+    const header = [...LEAD_COLS, gradeHeader, ...slots.map((s, i) => `Q. ${i + 1} /${s.max.toFixed(2)}`)];
+    const grid = [header, ...rows, averageRow(rows, header.length)];
+    return {
+        tsv: grid.map((r) => r.join('\t')).join('\n') + '\n',
+        csv: '﻿' + grid.map((r) => r.map(csvCell).join(',')).join('\n') + '\n'
+    };
 }
 
 /**
  * Students with a claimed seat and >=1 answer for the part get a score; claimed with none get '-'.
- * Returns { tsv, rows, notSubmitted: [username] } — notSubmitted rows export as "In progress".
+ * Returns { tsv, csv, count, notSubmitted: [username] } — notSubmitted rows export as "In progress".
+ * opts.excludeUnsubmitted: notSubmitted rows get '-' Grade, which the OnSite import drops, like real KKUEXAM.
  */
-export function buildMcqTsv(root, key, control) {
+export function buildMcqTsv(root, key, control, { excludeUnsubmitted = false } = {}) {
     const startAt = control && control.mcq && control.mcq.startAt;
-    const rows = monitorRows(root);
-    const lines = [];
+    const rows = [];
     const notSubmitted = [];
-    rows.filter((r) => r.claimed).forEach((r) => {
+    monitorRows(root).filter((r) => r.claimed).forEach((r) => {
         const n = root[r.username];
-        const score = r.answeredMcq ? scoreMcq(key, n.answers) : null;
         const sub = n.submitted && n.submitted.mcq;
+        const score = r.answeredMcq && (sub || !excludeUnsubmitted) ? scoreMcq(key, n.answers) : null;
         if (!sub) notSubmitted.push(r.username);
-        lines.push(tsvRow(r.username, score, sub, startAt, MCQ_HEADER).line);
+        rows.push(gradeRow(r.username, score, sub, startAt, MCQ_SLOTS, key, n.answers || {}));
     });
-    return { tsv: buildTsv(MCQ_HEADER, lines), count: lines.length, notSubmitted };
+    return { ...serialize(MCQ_HEADER, MCQ_SLOTS, rows), count: rows.length, notSubmitted };
 }
 
-/** Three TSVs (article 1..3), rows only for claimed `-1` usernames. */
-export function buildUnseenTsvs(root, key, control) {
+/** Three exports (article 1..3), rows only for claimed `-1` usernames. */
+export function buildUnseenTsvs(root, key, control, { excludeUnsubmitted = false } = {}) {
     const startAt = control && control.unseen && control.unseen.startAt;
-    const rows = monitorRows(root).filter((r) => r.claimed && r.username.endsWith('-1'));
-    const notSubmitted = rows.filter((r) => !r.submittedUnseen).map((r) => r.username);
+    const claimed = monitorRows(root).filter((r) => r.claimed && r.username.endsWith('-1'));
+    const notSubmitted = claimed.filter((r) => !r.submittedUnseen).map((r) => r.username);
     const tabs = [1, 2, 3].map((art) => {
-        const lines = rows.map((r) => {
+        const slots = unseenSlots(art);
+        const rows = claimed.map((r) => {
             const n = root[r.username];
-            const score = r.answeredUnseen ? scoreUnseen(key, n.answers, art) : null;
             const sub = n.submitted && n.submitted.unseen;
-            return tsvRow(r.username, score, sub, startAt, UNSEEN_HEADER).line;
+            const score = r.answeredUnseen && (sub || !excludeUnsubmitted) ? scoreUnseen(key, n.answers, art) : null;
+            return gradeRow(r.username, score, sub, startAt, slots, key, n.answers || {});
         });
-        return { tab: UNSEEN_TABS[art - 1], tsv: buildTsv(UNSEEN_HEADER, lines), count: lines.length };
+        return { tab: UNSEEN_TABS[art - 1], ...serialize(UNSEEN_HEADER, slots, rows), count: rows.length };
     });
     return { tabs, notSubmitted };
 }

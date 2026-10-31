@@ -7,15 +7,19 @@ export const FIXTURE_ME = { email: 'fixture.admin@kkumail.com', name: 'Fixture A
 
 const ids = Array.from({ length: 100 }, (_, i) => 'MQ' + String(i + 1).padStart(3, '0'));
 
-/** Fake Moodle CSV text for tests / manual paste. kind: 'mcq' | 'unseen'. */
+/**
+ * Fake Moodle quiz Grades CSV (KKUEXAM layout, same as the r1-backup staff export) for tests /
+ * manual paste. kind: 'mcq' | 'unseen'. Q. columns carry no per-slot meaning here.
+ */
 export function fixtureCsv(kind, rawMax) {
     const max = rawMax || (kind === 'mcq' ? 112 : 24);
-    const lines = ['Surname,First name,Username,State,Completed,Time taken,Grade/' + max.toFixed(2)];
+    const q = ['Q. 1 /' + max.toFixed(2)];
+    const lines = ['Surname,First name,Username,Email address,State,Started on,Completed,Time taken,Grade/' + max.toFixed(2) + ',' + q];
     for (let t = 1; t <= 100; t++) for (let m = 1; m <= 3; m++) {
         const g = ((t * 7 + m * 3) % (max + 1));
-        lines.push(`S${t},F${m},mq2026-${String(t).padStart(3, '0')}-${m},Finished,"9 November 2025  9:${String(10 + (t % 50))} AM",12 mins 3 secs,${g}.00`);
+        lines.push(`S${t},F${m},mq2026-${String(t).padStart(3, '0')}-${m},,Finished,1 November 2026  9:00 AM,1 November 2026  9:${String(10 + (t % 50))} AM,12 mins 3 secs,${g}.00,${g}.00`);
     }
-    lines.push(',,Overall average,,,,10.00');
+    lines.push('Overall average,,,,,,,,10.00,10.00');
     return lines.join('\n');
 }
 

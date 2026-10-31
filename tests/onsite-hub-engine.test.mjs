@@ -22,7 +22,7 @@ test('analyzeExport mcq Grade/112: factor 0.25, Overall average row ignored', ()
     assert.equal(a.factor, 28 / 112);
     assert.equal(a.dataRows, 300);
     assert.equal(a.teams, 100);
-    assert.deepEqual(a.unmatched, ['Overall average']);
+    assert.deepEqual(a.unmatched, []); // Moodle puts "Overall average" under Surname, Username blank
     assert.match(chipText(a, 'mcq'), /Grade\/112 → \/28/);
 });
 
