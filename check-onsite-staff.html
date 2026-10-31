@@ -823,22 +823,28 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
             </div>`;
         }
 
+        const ARROW = " ➔ ", ARROW_HTML = ` <span class="text-slate-400">➔</span> `;
+        const scoreText = p => p.score != null ? `${Number(p.score).toFixed(2)}/28` : `raw ${p.raw}`;
+
         function renderEntry(tier, p) {
             const T = TIER[tier], id = entryId(tier, p), c = checks[id] || {};
             // Bare boxes; column labels (พร้อม / รับ) sit once in the section header.
             const tick = (k, label) => `<label class="w-8 flex justify-center py-0.5 cursor-pointer" title="${label}"><input type="checkbox" class="h-5 w-5 accent-slate-800" aria-label="${label}" data-chk="${escapeHtml(id)}" data-k="${k}" ${c[k] ? "checked" : ""}></label>`;
             const tag = (cls, text) => `<span class="ml-1 whitespace-nowrap rounded border px-1 text-[11px] font-semibold ${cls}">${text}</span>`;
-            const team = `(<b class="text-slate-800">${escapeHtml(p.teamId)}</b> ${escapeHtml(p.teamName)})`;
+            // Fixed order: MQxxx ➔ team ➔ person(s) ➔ school(s) [• score]
+            const mq = `<b class="text-slate-800">${escapeHtml(p.teamId)}</b>`, team = `<span class="text-slate-600">${escapeHtml(p.teamName)}</span>`;
             let body, score = "";
             if (tier === "team") {
-                body = `<span class="font-bold">${escapeHtml(p.title)}</span> — <span class="text-slate-600">${escapeHtml(p.schools) || "—"} ${team}</span>
-                    <span class="text-slate-500"> • ${p.members.map(escapeHtml).join(", ")}</span>`;
+                body = [`<span class="font-bold">${escapeHtml(p.title)}</span> ${mq}`, team,
+                    `<span class="font-bold">${p.members.map(escapeHtml).join(", ")}</span>`,
+                    `<span class="text-slate-600">${escapeHtml(p.schools) || "—"}</span>`].join(ARROW_HTML);
             } else {
                 const tie = tieOf(p.rank);
-                body = `<span class="font-bold">${escapeHtml(p.name)}</span>${p.isTopScore ? ` <span title="คะแนนสูงสุดรอบที่ 1" aria-label="คะแนนสูงสุดรอบที่ 1">🌟</span>` : ""}`
-                    + ` — <span class="text-slate-600">${escapeHtml(p.school) || "—"} ${team}</span>`
+                body = [mq, team,
+                    `<span class="font-bold">${escapeHtml(p.name)}</span>${p.isTopScore ? ` <span title="คะแนนสูงสุดรอบที่ 1" aria-label="คะแนนสูงสุดรอบที่ 1">🌟</span>` : ""}`,
+                    `<span class="text-slate-600">${escapeHtml(p.school) || "—"}</span>`].join(ARROW_HTML);
+                score = ` <span class="whitespace-nowrap">• <b class="tabular-nums">${p.score != null ? `${Number(p.score).toFixed(2)}</b><span class="text-slate-500">/28</span>` : `raw ${escapeHtml(String(p.raw))}</b>`}</span>`
                     + (tie ? tag("bg-amber-50 text-amber-800 border-amber-300", `เสมอ ${rankSpan(tie)}`) : "");
-                score = ` <span class="whitespace-nowrap">• <b class="tabular-nums">${p.score != null ? `${Number(p.score).toFixed(2)}</b><span class="text-slate-500">/28</span>` : `raw ${escapeHtml(String(p.raw))}</b>`}</span>`;
             }
             return `<article class="flex items-start gap-2 pl-3 pr-1 py-1.5 text-sm leading-snug ${c.r ? "award-done" : ""}">
                 <span class="w-10 shrink-0 font-bold text-slate-700 whitespace-nowrap">${T.icon}${p.rank}</span>
@@ -889,7 +895,7 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
         });
         $("resetChecksBtn").onclick = () => { checks = {}; saveChecks(); renderAwards(); };
 
-        /** Plain Thai text for MC / LINE — stage-call order. Scores only in the committee notes at the end. */
+        /** Plain Thai text for MC / LINE — stage-call order, one line per recipient. */
         function mcScript() {
             const RULE = "━━━━━━━━━━━━━━━━━━━━";
             const lines = ["🏆 บทประกาศรางวัล MedQuiz KKU 2026", "พิธีปิดและมอบรางวัล · เรียงตามลำดับขึ้นเวที", `ข้อมูล ณ ${awards.generatedAt}`];
@@ -899,18 +905,12 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
                 lines.push(RULE, `${TIER[s.tier].icon} ${s.heading}`, RULE);
                 if (!s.items.length) { lines.push(s.pending ? "(รอผล Game Show)" : "(ยังไม่มีข้อมูล)"); return; }
                 lines.push(s.tier === "team" ? "🎤 ขอเชิญทีมต่อไปนี้ขึ้นรับรางวัลบนเวที" : `🎤 ขอเชิญผู้ได้รับ${TIER[s.tier].label}ขึ้นรับรางวัลบนเวที`);
+                // One line per recipient, fixed field order (same as the on-screen list).
                 s.items.forEach((p, i) => {
                     lines.push("");
-                    if (s.tier === "team") {
-                        lines.push(`${i + 1}) ${p.title} (อันดับ ${p.rank})`);
-                        lines.push(`   ทีม ${p.teamName} · ${p.teamId}`);
-                        if (p.schools) lines.push(`   ${p.schools}`);
-                        lines.push(`   สมาชิก: ${p.members.join(", ")}`);
-                    } else {
-                        lines.push(`${i + 1}) ${p.name}${p.isTopScore ? "  🌟 คะแนนสูงสุดรอบที่ 1" : ""}`);
-                        if (p.school) lines.push(`   ${p.school}`);
-                        lines.push(`   ทีม ${p.teamName} · ${p.teamId}`);
-                    }
+                    lines.push(s.tier === "team"
+                        ? `${i + 1}) ${p.title} (อันดับ ${p.rank}) ${p.teamId}${ARROW}${p.teamName}${ARROW}${p.members.join(", ")}${ARROW}${p.schools || "—"}`
+                        : `${i + 1}) ${p.teamId}${ARROW}${p.teamName}${ARROW}${p.name}${p.isTopScore ? " 🌟 คะแนนสูงสุดรอบที่ 1" : ""}${ARROW}${p.school || "—"} • ${scoreText(p)}`);
                 });
             });
             const n = tieNotes();
