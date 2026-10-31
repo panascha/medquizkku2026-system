@@ -3,7 +3,8 @@
 <!-- Data: OnSite GAS Web App action=getAllOnSiteTeams (server re-checks the ID token + whitelist). -->
 <!-- Base rotation is driven by the rotation start IT stamps from the Sheet menu -->
 <!-- ("⏱️ เริ่มหมุนฐาน"), not fixed wall-clock times, so a late Round 1 cannot show wrong stations. -->
-<!-- No localStorage copy of the roster (PDPA): only the per-device slot override is stored. -->
+<!-- Awards view: action=getAwardSummary (closing ceremony, read-only), fetched only while that view is open. -->
+<!-- No localStorage copy of the roster (PDPA): only the slot override, open view and award-checklist ids/ticks. -->
 
 <!DOCTYPE html>
 <html lang="th">
@@ -35,6 +36,16 @@
         .badge-spot { background: #2563EB; color: #fff; }
         .badge-gs { background: #7C3AED; color: #fff; }
         .dot { display: inline-block; width: .65rem; height: .65rem; border-radius: 9999px; vertical-align: middle; }
+        /* Award ceremony view */
+        .medal-gold { border: 2px solid #F5D77A; }
+        .medal-silver { border: 2px solid #D1D5DB; }
+        .medal-bronze { border: 2px solid #D08A4E; }
+        .medal-team { border: 2px solid #A78BFA; }
+        .tx-gold { color: #F5D77A; } .tx-silver { color: #E5E7EB; } .tx-bronze { color: #F0A868; } .tx-team { color: #C4B5FD; }
+        .award-done { opacity: .45; }
+        .chk { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .55rem; border-radius: 9999px; border: 1px solid var(--line); background: var(--navy2); font-size: .8rem; font-weight: 600; }
+        .chk input { width: 1.1rem; height: 1.1rem; accent-color: #F5D77A; }
+        .cue { border: 1px dashed var(--gold2); color: var(--gold1); }
     </style>
 </head>
 
@@ -69,9 +80,16 @@
             </div>
         </header>
 
+        <!-- View switcher: live status vs closing-ceremony awards -->
+        <nav id="viewNav" class="mx-4 mt-3 grid grid-cols-2 gap-2 text-sm">
+            <button data-view="status" class="rounded-lg panel px-2 py-2 font-semibold">📋 สถานะทีม &amp; ฐานกิจกรรม</button>
+            <button data-view="awards" class="rounded-lg panel px-2 py-2 font-semibold">🏆 สรุปรางวัลพิธีปิด (17:00) <span id="awardBadge" class="hidden dot bg-emerald-400"></span></button>
+        </nav>
+
         <!-- Connection error (keeps showing last data from this session) -->
         <div id="errorBox" class="hidden mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 text-sm"></div>
 
+        <div id="statusView">
         <!-- Schedule drift vs master timeline (event day + IT stamp only) -->
         <div id="driftBanner" class="hidden mx-4 mt-3 rounded-xl px-4 py-3 bg-amber-400 text-slate-950 font-semibold"></div>
 
@@ -114,6 +132,24 @@
 
         <!-- Team cards -->
         <main id="cards" class="mx-4 mt-2 space-y-2"></main>
+        </div>
+
+        <!-- Closing ceremony award summary (loaded only while this view is open) -->
+        <div id="awardsView" class="hidden">
+            <section class="mx-4 mt-3 rounded-xl panel px-4 py-3 space-y-2">
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <button data-order="call" class="rounded-lg card px-2 py-2 font-semibold">🎤 ลำดับขึ้นเวที</button>
+                    <button data-order="rank" class="rounded-lg card px-2 py-2 font-semibold">🔢 เรียงตามอันดับ</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <button id="copyScriptBtn" class="gold-bg rounded-lg px-2 py-2 font-bold">📋 คัดลอกบทประกาศพิธีกร</button>
+                    <button id="resetChecksBtn" class="rounded-lg card px-2 py-2 font-semibold">↺ ล้างเช็กลิสต์เครื่องนี้</button>
+                </div>
+                <p id="awardMeta" class="text-xs muted"></p>
+            </section>
+            <div id="awardBanners"></div>
+            <div id="awardList" class="mx-4 mt-3 space-y-3"></div>
+        </div>
     </div>
 
     <script type="module">
@@ -162,6 +198,8 @@
         let query = "";
         let loading = false;
         let lastRotationKey = "";
+        let started = false;
+        let view = (() => { try { return localStorage.getItem("onsiteStaffView") === "awards" ? "awards" : "status"; } catch { return "status"; } })();
 
         const escapeHtml = s => String(s ?? "").replace(/[&<>"']/g, c =>
             ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -180,14 +218,14 @@
             $("userEmail").textContent = user.email;
             $("gate").classList.add("hidden");
             $("app").classList.remove("hidden");
-            if (!data) { fetchData(); scheduleRefresh(); }
+            if (!started) { started = true; setView(view); scheduleRefresh(); }
         });
         $("logoutBtn").onclick = () => signOut(auth).then(() => location.replace("pages/login.html"));
 
         // ── Fetch ───────────────────────────────────────────────────────────
-        async function callApi() {
+        async function callApi(action = "getAllOnSiteTeams") {
             const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : "";
-            const res = await fetch(`${API_URL}?action=getAllOnSiteTeams&idToken=${encodeURIComponent(idToken)}`);
+            const res = await fetch(`${API_URL}?action=${action}&idToken=${encodeURIComponent(idToken)}`);
             const json = await res.json();   // GAS error pages are HTML → throws → retried
             if (json.status !== "success") {
                 const err = new Error(json.message || "unknown error");
@@ -214,12 +252,7 @@
                 $("errorBox").classList.add("hidden");
                 render();
             } catch (e) {
-                const box = $("errorBox");
-                box.classList.remove("hidden");
-                box.innerHTML = e.fatal
-                    ? `<i class="fa-solid fa-lock"></i> ไม่มีสิทธิ์ดึงข้อมูล: ${escapeHtml(e.message)}`
-                    : `<i class="fa-solid fa-triangle-exclamation"></i> เชื่อมต่อระบบไม่ได้ (${escapeHtml(e.message)})` +
-                      (data ? " — แสดงข้อมูลล่าสุดที่โหลดไว้" : " — กดซิงค์เพื่อลองใหม่");
+                showError(e, data);
             } finally {
                 loading = false;
                 $("syncIcon").classList.remove("fa-spin");
@@ -227,13 +260,24 @@
             }
         }
 
+        function showError(e, hasData) {
+            const box = $("errorBox");
+            box.classList.remove("hidden");
+            box.innerHTML = e.fatal
+                ? `<i class="fa-solid fa-lock"></i> ไม่มีสิทธิ์ดึงข้อมูล: ${escapeHtml(e.message)}`
+                : `<i class="fa-solid fa-triangle-exclamation"></i> เชื่อมต่อระบบไม่ได้ (${escapeHtml(e.message)})` +
+                  (hasData ? " — แสดงข้อมูลล่าสุดที่โหลดไว้" : " — กดซิงค์เพื่อลองใหม่");
+        }
+
+        // Only the open view refreshes, so the awards tab adds no load for staff not using it.
+        const refreshCurrent = () => view === "awards" ? loadAwardSummary() : fetchData();
         function scheduleRefresh() {
             setTimeout(async () => {
-                if (document.visibilityState === "visible") await fetchData();
+                if (document.visibilityState === "visible") await refreshCurrent();
                 scheduleRefresh();
             }, REFRESH_MS + Math.random() * REFRESH_JITTER_MS);
         }
-        $("syncBtn").onclick = fetchData;
+        $("syncBtn").onclick = refreshCurrent;
 
         // ── Time & rotation ─────────────────────────────────────────────────
         const nowMs = () => Date.now() + serverOffset;
@@ -514,10 +558,197 @@
         $("slotSelect").onchange = e => { slotOverride = e.target.value; saveSlotOverride(slotOverride); render(); };
 
         function updateLastUpdated() {
-            if (!fetchedAt) return;
-            const min = Math.floor((Date.now() - fetchedAt) / 60000);
-            $("lastUpdated").textContent = `อัปเดตล่าสุด ${min < 1 ? "เมื่อสักครู่" : min + " นาทีที่แล้ว"} (ข้อมูลชีต ${data.generatedAt})`;
+            const [at, src] = view === "awards" ? [awardsAt, awards] : [fetchedAt, data];
+            if (!at) { $("lastUpdated").textContent = "ยังไม่ได้โหลดข้อมูล"; return; }
+            const min = Math.floor((Date.now() - at) / 60000);
+            $("lastUpdated").textContent = `อัปเดตล่าสุด ${min < 1 ? "เมื่อสักครู่" : min + " นาทีที่แล้ว"} (ข้อมูลชีต ${src.generatedAt})`;
         }
+
+        // ── View switch ─────────────────────────────────────────────────────
+        function setView(v) {
+            view = v === "awards" ? "awards" : "status";
+            try { localStorage.setItem("onsiteStaffView", view); } catch { /* private mode */ }
+            $("statusView").classList.toggle("hidden", view !== "status");
+            $("awardsView").classList.toggle("hidden", view !== "awards");
+            $("viewNav").querySelectorAll("[data-view]").forEach(b => b.classList.toggle("tab-active", b.dataset.view === view));
+            $("errorBox").classList.add("hidden");
+            if (view === "awards") {
+                renderAwards();
+                if (!awards || Date.now() - awardsAt > REFRESH_MS) loadAwardSummary();
+            } else {
+                render();
+                if (!data || Date.now() - fetchedAt > REFRESH_MS) fetchData();
+            }
+            updateLastUpdated();
+        }
+        $("viewNav").onclick = e => { const b = e.target.closest("[data-view]"); if (b) setView(b.dataset.view); };
+
+        // ── Closing ceremony awards ─────────────────────────────────────────
+        // action=getAwardSummary (read-only on the server). The stage checklist keeps
+        // only entry ids (teamId / member no.) + ticks in localStorage — no names (PDPA).
+        const AWARD_CHECK_KEY = "onsiteAwardChecks_v1";
+        let awards = null, awardsAt = 0, awardsLoading = false;
+        let awardOrder = "call";
+        let checks = (() => { try { return JSON.parse(localStorage.getItem(AWARD_CHECK_KEY)) || {}; } catch { return {}; } })();
+        const saveChecks = () => { try { localStorage.setItem(AWARD_CHECK_KEY, JSON.stringify(checks)); } catch { /* private mode */ } };
+
+        async function loadAwardSummary() {
+            if (awardsLoading) return;
+            awardsLoading = true;
+            $("syncIcon").classList.add("fa-spin");
+            try {
+                let json;
+                try { json = await callApi("getAwardSummary"); }
+                catch (e) {
+                    if (e.fatal) throw e;
+                    json = await callApi("getAwardSummary");   // one retry, same as fetchData
+                }
+                awards = json;
+                awardsAt = Date.now();
+                $("errorBox").classList.add("hidden");
+                renderAwards();
+            } catch (e) {
+                if (view === "awards") showError(e, awards);
+            } finally {
+                awardsLoading = false;
+                $("syncIcon").classList.remove("fa-spin");
+                updateLastUpdated();
+            }
+        }
+
+        const TIER = {
+            gold:   { label: "เหรียญทอง",    icon: "🥇", card: "medal-gold",   tx: "tx-gold" },
+            silver: { label: "เหรียญเงิน",    icon: "🥈", card: "medal-silver", tx: "tx-silver" },
+            bronze: { label: "เหรียญทองแดง",  icon: "🥉", card: "medal-bronze", tx: "tx-bronze" },
+            team:   { label: "Game Show",    icon: "🏆", card: "medal-team",   tx: "tx-team" },
+        };
+        const PHOTO = {
+            bronze: "📸 ถ่ายภาพหมู่ผู้ได้รับเหรียญทองแดง",
+            silver: "📸 ถ่ายภาพหมู่ผู้ได้รับเหรียญเงิน",
+            gold: "📸 ถ่ายภาพหมู่ผู้ได้รับเหรียญทอง",
+            grand: "📸 ชุดที่ 6 — ถ่ายภาพหมู่ทีมที่ได้รับรางวัลทั้งหมด ร่วมกับคณาจารย์และคณะกรรมการจัดงาน",
+        };
+
+        /** [{type:'section', tier, heading, items, pending?} | {type:'cue', text}] in rank or stage-call order. */
+        function awardSections(order) {
+            const ind = awards.individuals, gs = awards.gameshow;
+            const hm = gs.filter(g => g.rank >= 4), top3 = gs.filter(g => g.rank <= 3);
+            const pending = !awards.isR3Decided;
+            if (order === "rank") return [
+                { type: "section", tier: "gold", heading: "รางวัลบุคคล คะแนนสูงสุดรอบที่ 1 · เหรียญทอง (อันดับ 1–3)", items: ind.gold },
+                { type: "section", tier: "silver", heading: "เหรียญเงิน (อันดับ 4–8)", items: ind.silver },
+                { type: "section", tier: "bronze", heading: "เหรียญทองแดง (อันดับ 9–16)", items: ind.bronze },
+                { type: "section", tier: "team", heading: "รางวัลการแข่งขันรอบ Game Show (อันดับ 1–8)", items: gs, pending },
+            ];
+            const rev = a => a.slice().reverse();
+            return [
+                { type: "section", tier: "bronze", heading: "ชุดที่ 1 · เหรียญทองแดง (8 รางวัล)", items: rev(ind.bronze) },
+                { type: "cue", text: PHOTO.bronze },
+                { type: "section", tier: "silver", heading: "ชุดที่ 2 · เหรียญเงิน (5 รางวัล)", items: rev(ind.silver) },
+                { type: "cue", text: PHOTO.silver },
+                { type: "section", tier: "gold", heading: "ชุดที่ 3 · เหรียญทอง (3 รางวัล) + คะแนนสูงสุดรอบที่ 1", items: rev(ind.gold) },
+                { type: "cue", text: PHOTO.gold },
+                { type: "section", tier: "team", heading: "ชุดที่ 4 · Game Show รางวัลชมเชย (5 ทีม)", items: rev(hm), pending },
+                { type: "section", tier: "team", heading: "ชุดที่ 5 · Game Show รองชนะเลิศอันดับ 2 → อันดับ 1 → ชนะเลิศ", items: rev(top3), pending },
+                { type: "cue", text: PHOTO.grand },
+            ];
+        }
+
+        const entryId = (tier, p) => tier === "team" ? `gs:${p.teamId}` : `ind:${p.teamId}:${p.member}`;
+
+        function renderEntry(tier, p) {
+            const T = TIER[tier], id = entryId(tier, p), c = checks[id] || {};
+            const tick = (k, label) => `<label class="chk"><input type="checkbox" data-chk="${escapeHtml(id)}" data-k="${k}" ${c[k] ? "checked" : ""}> ${label}</label>`;
+            const head = tier === "team"
+                ? `<div class="font-bold ${T.tx}">${T.icon} ${escapeHtml(p.title)} <span class="muted font-normal">· อันดับ ${p.rank}</span></div>
+                   <div class="text-xl font-bold leading-tight mt-0.5">${escapeHtml(p.teamName) || '<span class="muted">(ไม่มีชื่อทีม)</span>'}</div>
+                   <div class="text-sm mt-0.5"><span class="rounded-full gold-bg text-xs font-bold px-2 py-0.5">${escapeHtml(p.teamId)}</span> <span class="muted">${escapeHtml(p.schools) || "—"}</span></div>
+                   <ol class="mt-1 text-base list-decimal list-inside">${p.members.map(m => `<li>${escapeHtml(m)}</li>`).join("")}</ol>`
+                : `<div class="font-bold ${T.tx}">${T.icon} ${T.label} <span class="muted font-normal">· อันดับ ${p.rank}</span>
+                       ${p.isTopScore ? `<span class="ml-1 rounded-full gold-bg text-xs px-2 py-0.5">🌟 คะแนนสูงสุดรอบที่ 1</span>` : ""}</div>
+                   <div class="text-xl font-bold leading-tight mt-0.5">${escapeHtml(p.name)}</div>
+                   <div class="text-sm muted mt-0.5">${escapeHtml(p.school) || "—"}</div>
+                   <div class="text-sm mt-0.5"><span class="rounded-full gold-bg text-xs font-bold px-2 py-0.5">${escapeHtml(p.teamId)}</span> ${escapeHtml(p.teamName)}
+                       <span class="muted">· ${p.score != null ? `${p.score}/28` : `raw ${p.raw}`}</span></div>`;
+            return `<article class="rounded-xl card ${T.card} px-4 py-3 ${c.r ? "award-done" : ""}">
+                ${head}
+                <div class="mt-2 flex flex-wrap gap-2">${tick("s", "พร้อมขึ้นเวที")}${tick("r", "รับรางวัลแล้ว")}</div>
+            </article>`;
+        }
+
+        function renderAwards() {
+            document.querySelectorAll("[data-order]").forEach(b => b.classList.toggle("tab-active", b.dataset.order === awardOrder));
+            if (!awards) {
+                $("awardList").innerHTML = `<p class="text-center muted py-8"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลดสรุปรางวัล…</p>`;
+                return;
+            }
+            $("awardBadge").classList.toggle("hidden", !awards.isR3Decided);
+            $("awardMeta").textContent = awardOrder === "call"
+                ? "ลำดับขึ้นเวที: น้อย → มาก (ทองแดง → เงิน → ทอง → Game Show ชมเชย → อันดับ 3 → 2 → ชนะเลิศ)"
+                : "เรียงตามอันดับ: มาก → น้อย";
+
+            const banners = [];
+            if (!awards.isR3Decided) banners.push(`<div class="mx-4 mt-3 rounded-xl px-4 py-3 bg-amber-400 text-slate-950 font-semibold">⏳ ผล Game Show ยังไม่ครบ (${awards.gameshow.length}/8 ทีม) — รางวัลบุคคลรอบที่ 1 ด้านล่างใช้ได้แล้ว</div>`);
+            (awards.warnings || []).forEach(w => banners.push(`<div class="mx-4 mt-3 rounded-xl px-4 py-3 bg-red-100 text-red-900 border border-red-300 font-semibold">⚠️ ${escapeHtml(w)}</div>`));
+            $("awardBanners").innerHTML = banners.join("");
+
+            $("awardList").innerHTML = awardSections(awardOrder).map(s => {
+                if (s.type === "cue") return `<div class="rounded-xl cue px-4 py-2 text-center font-bold">${escapeHtml(s.text)}</div>`;
+                const body = s.items.length ? s.items.map(p => renderEntry(s.tier, p)).join("")
+                    : `<p class="rounded-xl card px-4 py-3 muted">${s.pending ? "รอผล Game Show" : "ยังไม่มีข้อมูล"}</p>`;
+                return `<section class="space-y-2"><h2 class="font-bold text-lg ${TIER[s.tier].tx}">${escapeHtml(s.heading)}</h2>${body}</section>`;
+            }).join("");
+        }
+
+        $("awardsView").addEventListener("click", e => {
+            const b = e.target.closest("[data-order]");
+            if (b) { awardOrder = b.dataset.order; renderAwards(); }
+        });
+        $("awardList").addEventListener("change", e => {
+            const el = e.target.closest("[data-chk]");
+            if (!el) return;
+            const c = checks[el.dataset.chk] || (checks[el.dataset.chk] = {});
+            c[el.dataset.k] = el.checked;
+            saveChecks();
+            el.closest("article").classList.toggle("award-done", !!c.r);
+        });
+        $("resetChecksBtn").onclick = () => { checks = {}; saveChecks(); renderAwards(); };
+
+        /** Plain Thai text for MC / LINE — always stage-call order, no scores (scores aren't announced). */
+        function mcScript() {
+            const lines = ["บทประกาศรางวัล MedQuiz KKU 2026 (ลำดับขึ้นเวที)", `ข้อมูล ณ ${awards.generatedAt}`];
+            awardSections("call").forEach(s => {
+                lines.push("");
+                if (s.type === "cue") { lines.push(s.text); return; }
+                lines.push(s.heading);
+                if (!s.items.length) { lines.push(s.pending ? "(รอผล Game Show)" : "(ยังไม่มีข้อมูล)"); return; }
+                s.items.forEach((p, i) => {
+                    if (s.tier === "team") {
+                        lines.push(`${i + 1}. ${p.title} — ทีม ${p.teamName} (${p.teamId})${p.schools ? " · " + p.schools : ""}`);
+                        lines.push(`   สมาชิก: ${p.members.join(", ")}`);
+                    } else {
+                        lines.push(`${i + 1}. ${p.name}${p.school ? " — " + p.school : ""} (ทีม ${p.teamName} · ${p.teamId})${p.isTopScore ? " 🌟 คะแนนสูงสุดรอบที่ 1" : ""}`);
+                    }
+                });
+            });
+            return lines.join("\n");
+        }
+
+        $("copyScriptBtn").onclick = async () => {
+            if (!awards) return;
+            const text = mcScript(), btn = $("copyScriptBtn"), orig = "📋 คัดลอกบทประกาศพิธีกร";
+            let ok = false;
+            try { await navigator.clipboard.writeText(text); ok = true; }
+            catch {
+                const ta = document.createElement("textarea");   // fallback: older in-app browsers (LINE)
+                ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+                document.body.appendChild(ta); ta.select();
+                try { ok = document.execCommand("copy"); } catch { ok = false; }
+                ta.remove();
+            }
+            btn.textContent = ok ? "✅ คัดลอกแล้ว" : "❌ คัดลอกไม่ได้";
+            setTimeout(() => { btn.textContent = orig; }, 2000);
+        };
 
         // 1 s tick: clock + countdown; full re-render only when the rotation slot/state flips.
         setInterval(() => {
