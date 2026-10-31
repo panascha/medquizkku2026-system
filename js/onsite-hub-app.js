@@ -77,6 +77,13 @@ function setBusy(on, btn) {
     if (!on) renderAll();
 }
 
+// Every gated action button: disabled while busy or blocked, and the hover title says why.
+function gate(id, reason) {
+    const b = $(id);
+    b.disabled = busy || !!reason;
+    b.title = reason || '';
+}
+
 // ── confirm modal (no window.confirm). typed: exact word required, or null ──────────────
 function confirmModal(title, body, typed) {
     return new Promise((resolve) => {
@@ -167,7 +174,7 @@ function renderInputs() {
     else if (unCount && unCount !== 3) why = 'Unseen ต้องใส่ครบ 3 บทความ';
     else if (anyBad) why = 'มีช่องที่ข้อมูลไม่ผ่านการตรวจ';
     $('btnDownloadGrids').disabled = !INPUTS.some((i) => grids[i.id]);
-    $('btnIngest').disabled = busy || !!why;
+    gate('btnIngest', why);
     $('ingestWhy').textContent = why;
 }
 
@@ -193,10 +200,11 @@ function renderPreview() {
             pv.data.top45.map((t) => `<tr class="${t.rank === 40 ? 'border-b-2 border-red-500' : ''}"><td>${t.rank}</td><td>${teamLink(t.teamId)}</td><td>${esc(t.total)}</td><td>${esc(t.unseen)}</td><td>${t.submit == null ? '—' : esc(t.submit)}</td></tr>`).join('') +
             '</tbody></table></div>';
     }
-    const ok = canDecide(pv);
-    $('btnDecide').disabled = busy || !ok;
-    $('decideWhy').textContent = ok ? '' : (pv.previewStale ? 'พรีวิวเก่า — กดพรีวิวใหม่' : (pv.data && !pv.previewReady ? 'คะแนนยังไม่พร้อม (< 50 ทีม)' : 'ต้องกดพรีวิวก่อน'));
+    const decideWhy = canDecide(pv) ? '' : (pv.previewStale ? 'พรีวิวเก่า — กดพรีวิวใหม่' : (pv.data && !pv.previewReady ? 'คะแนนยังไม่พร้อม (< 50 ทีม)' : 'ต้องกดพรีวิวก่อน'));
+    gate('btnDecide', decideWhy);
+    $('decideWhy').textContent = decideWhy;
     $('btnDownloadPv').disabled = !pv.data;
+    renderNext();
 }
 
 async function doIngest(btn) {
@@ -248,14 +256,17 @@ async function doRotationStart(btn) {
     if (res) { toast('เริ่มหมุนฐานแล้ว'); loadStatus(); }
 }
 async function doRotationClear(btn) {
-    if (!(await confirmModal('ล้างเวลาเริ่มหมุนฐาน', 'หน้า Staff Escort จะไม่แสดงตารางจนกว่าจะเริ่มใหม่', null))) return;
+    if (!(await confirmModal('ล้างเวลาเริ่มหมุนฐาน (1/2)', 'หน้า Staff Escort จะไม่แสดงตารางจนกว่าจะเริ่มใหม่ — ต้องการล้างจริงหรือไม่?', null))) return;
+    if (!(await confirmModal('ล้างเวลาเริ่มหมุนฐาน (2/2)', 'พิมพ์ CLEAR เพื่อยืนยันการล้างเวลาเริ่มหมุนฐาน', 'CLEAR'))) return;
     if (await run('rotationClear', {}, btn)) { toast('ล้างแล้ว'); loadStatus(); }
 }
 async function doReset(btn) {
-    if (!(await confirmModal('Reset รอบ 1', 'ล้างผลตัดสิน (K/L) และคืนสูตรอันดับชั่วคราว — พิมพ์ RESET เพื่อยืนยัน', 'RESET'))) return;
+    if (!(await confirmModal('Reset รอบ 1 (1/2)', 'ล้างผลตัดสิน (K/L) และคืนสูตรอันดับชั่วคราว — Top 40 / กลุ่ม A-B-C จะหายจากชีต ต้องการ Reset จริงหรือไม่?', null))) return;
+    if (!(await confirmModal('Reset รอบ 1 (2/2)', 'พิมพ์ RESET เพื่อยืนยัน', 'RESET'))) return;
     const res = await run('r1Reset', { confirm: 'RESET' }, btn);
     if (res) {
         pv = { previewToken: null, previewReady: false, previewStale: false, data: null };
+        ranksSavedAt = 0; exportedAt = 0;   // next-action card starts over
         toast(`Reset แล้ว (${res.cleared} แถว)`); renderPreview(); loadStatus();
     }
 }
@@ -286,7 +297,7 @@ async function loadStatus() {
     const rot = s.rotationStartMs;
     $('rotInfo').dataset.set = rot ? '1' : '';
     $('rotInfo').textContent = rot ? `เริ่มหมุนฐานเมื่อ ${new Date(rot).toLocaleString('th-TH')}` : 'ยังไม่ได้ตั้งเวลาเริ่มหมุนฐาน';
-    renderRotLive(); renderSpot();
+    renderRotLive(); renderSpot(); renderDanger();
 }
 
 async function loadTeams() {
@@ -326,6 +337,75 @@ function renderSpot() {
         `<div>ตรวจแล้ว <b>${n == null ? '—' : n}</b> / ${SPOT_CELLS} ช่อง</div>` +
         `<div class="${pushed ? 'text-emerald-700' : 'text-slate-600'}">${pushed ? `ส่งผลเข้าชีตแล้ว (M ${hubStatus.mFilled} ทีม)` : 'ยังไม่ได้ส่งผลเข้าชีต'}</div>` +
         `<div>Top 8: ${top.length ? top.map((t) => teamLink(t.teamId)).join(', ') : '<span class="text-slate-500">ยังไม่มี</span>'}</div>`;
+    $('lnkSpot').textContent = `Spot Master Dashboard · ตรวจ ${n == null ? '—' : n}/${SPOT_CELLS} · เข้าชีต ${(hubStatus && hubStatus.mFilled) || 0}/40`;
+    renderNext();
+}
+
+// ── Next action card ─────────────────────────────────────────────────────────────────
+// Derived only from hubStatus, the roster (r2Passed) and this tab's own save/export clicks.
+// The two click flags are per tab: a reload forgets them, so the card re-asks (export is a
+// full rewrite, safe to repeat) — it never skips a step.
+let ranksSavedAt = 0, exportedAt = 0;
+const NEXT_TONE = {
+    wait: 'border-slate-300 bg-white text-slate-700',
+    go: 'border-emerald-500 bg-emerald-50 text-emerald-900',
+    cert: 'border-cyan-500 bg-cyan-50 text-cyan-900',
+    done: 'border-slate-300 bg-slate-50 text-slate-700',
+};
+const NEXT_RING = { go: 'ring-emerald-400', cert: 'ring-cyan-400' };
+const NEXT_TARGETS = ['btnPreview', 'btnDecide', 'btnRanksSave', 'btnAwardExport'];
+
+function nextAction() {
+    const s = hubStatus;
+    if (!s) return null;
+    const mcqN = s.lastMcq ? (s.lastMcq.teamsWithScore ?? s.lastMcq.teamsScored ?? 0) : 0;
+    const finalists = teams.filter((t) => t.r2Passed === true).length;
+    const graded = spotScores ? countGradedCells(spotScores) : null;
+    const facts = [`MCQ ${mcqN}/100 ทีม`, `Unseen ${s.lastUnseen ? '✓' : '—'}`, `ตัดสิน R1 ${s.kDecided ? '✓' : '—'}`,
+        `Spot ตรวจ ${graded == null ? '—' : graded}/${SPOT_CELLS}`, `Spot เข้าชีต ${s.mFilled || 0}/40`, `Game Show ${finalists}/8`];
+    if (!s.kDecided) {
+        if (!s.lastMcq || !s.lastUnseen) return { tone: 'wait', step: 1, facts,
+            title: `รอผล MCQ (${mcqN}/100)${s.lastUnseen ? '' : ' · รอ Unseen 3 บทความ'}`,
+            hint: 'นำเข้าไฟล์ที่ 1.1 เมื่อ KKUEXAM ปิดรอบ' };
+        return { tone: 'go', step: 1, facts, target: canDecide(pv) ? 'btnDecide' : 'btnPreview',
+            title: canDecide(pv) ? 'กด [1.3 ตัดสินรอบ 1]' : 'คะแนนเข้าครบ → กด [1.2 พรีวิวอันดับ] แล้ว [1.3 ตัดสินรอบ 1]',
+            hint: mcqN < 100 ? `MCQ มีคะแนน ${mcqN}/100 ทีม — ตรวจรายการ no-show ในผลนำเข้าก่อน` : '' };
+    }
+    if (finalists < 8) {
+        if (!exportedAt) return { tone: 'cert', step: 4, facts, target: 'btnAwardExport',
+            title: 'R1 ตัดสินแล้ว → กด [🎓 Generate Award Certificates] (Top 40 + รางวัลบุคคล)',
+            hint: 'จากนั้นดาวน์โหลด CSV ที่ Staff Escort › 🏆 สรุปรางวัล' };
+        return { tone: 'wait', step: 3, facts, title: `รอผล Spot — ตรวจแล้ว ${graded == null ? '—' : graded}/${SPOT_CELLS} ช่อง`,
+            hint: `ส่งออก Top 40 แล้ว ${new Date(exportedAt).toLocaleTimeString('th-TH')} · Push ผล Spot ที่ Spot Master Dashboard` };
+    }
+    if (!ranksSavedAt) return { tone: 'go', step: 4, facts, target: 'btnRanksSave',
+        title: 'Top 8 พร้อม → หลังจบ Game Show เลือกอันดับ 1–8 แล้วกด [💾 บันทึกอันดับ Game Show]' };
+    if (exportedAt < ranksSavedAt) return { tone: 'cert', step: 4, facts, target: 'btnAwardExport',
+        title: 'บันทึกอันดับแล้ว → กด [🎓 Generate Award Certificates] อีกครั้ง (รวมรางวัล Game Show)' };
+    return { tone: 'done', step: 0, facts, title: '✅ ส่งออกเกียรติบัตรครบแล้ว',
+        hint: 'ดาวน์โหลด CSV ที่ Staff Escort › 🏆 สรุปรางวัล' };
+}
+
+function renderNext() {
+    const el = $('nextAction');
+    if (!el) return;
+    NEXT_TARGETS.forEach((id) => $(id).classList.remove('ring-4', 'ring-offset-2', ...Object.values(NEXT_RING)));
+    document.querySelectorAll('[data-nextbadge]').forEach((b) => b.remove());
+    const n = nextAction();
+    if (!n) return;
+    if (n.target && NEXT_RING[n.tone]) {
+        const t = $(n.target);
+        t.classList.add('ring-4', 'ring-offset-2', NEXT_RING[n.tone]);
+        if (!t.disabled) t.insertAdjacentHTML('afterend', '<span data-nextbadge class="self-center animate-pulse rounded-full bg-emerald-600 text-white text-xs font-bold px-2 py-1">👉 ถึงคิวแล้ว กดปุ่มนี้</span>');
+    }
+    el.className = 'rounded-xl border-2 p-4 ' + NEXT_TONE[n.tone];
+    el.innerHTML = `<div class="text-xs font-bold opacity-70">ขั้นต่อไป</div>
+        <div class="text-lg font-bold">${esc(n.title)}</div>
+        ${n.hint ? `<div class="text-sm">${esc(n.hint)}</div>` : ''}
+        <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            ${n.facts.map((f) => `<span class="rounded-full bg-white border border-slate-200 text-slate-700 px-2 py-0.5">${esc(f)}</span>`).join('')}
+            ${n.step ? `<button type="button" data-gostep="${n.step}" class="ml-auto rounded-lg bg-slate-800 text-white px-3 py-1.5 text-sm font-bold">ไปขั้น ${n.step} →</button>` : ''}
+        </div>`;
 }
 
 async function watchSpot(fixture) {
@@ -358,8 +438,15 @@ function renderAwards() {
         </select></label>`).join('');
     const r = buildRanksPayload(picks, g.stations.map((s) => s.teamId));
     $('awardWarn').textContent = Object.keys(picks).length || !g.ok ? r.error : '';
-    $('btnRanksSave').disabled = !r.ok;
-    $('btnAwardExport').disabled = !g.ok;
+    gate('btnRanksSave', r.ok ? '' : (r.error || 'เลือกอันดับ 1–8 ให้ครบทุกทีม'));
+    // Top 40 + individual certificates exist once R1 is decided; Game Show rows fill in on a re-run.
+    gate('btnAwardExport', g.ok || (hubStatus && hubStatus.kDecided > 0) ? '' : 'ต้องตัดสินรอบ 1 ก่อน');
+}
+
+function renderDanger() {
+    const s = hubStatus;
+    gate('btnReset', s && s.mFilled > 0 ? `มีคะแนน R2 แล้ว ${s.mFilled} ทีม — Reset ไม่ได้` : '');
+    gate('btnRotClear', s && !s.rotationStartMs ? 'ยังไม่ได้ตั้งเวลาเริ่มหมุนฐาน' : '');
 }
 
 async function doRanksSave(btn) {
@@ -367,13 +454,13 @@ async function doRanksSave(btn) {
     if (!r.ok) { toast(r.error, true); return; }
     if (!(await confirmModal('บันทึกอันดับ Game Show', r.ranks.map((x) => `${x.rank}. ${x.teamId}`).join('  ') + ' — เขียนทับคอลัมน์ R3_Rank ในชีต LS_OnSite', null))) return;
     const res = await run('r3SetRanks', { ranks: r.ranks }, btn);
-    if (res) toast(`บันทึกอันดับแล้ว (${res.written} ทีม)`);
+    if (res) { ranksSavedAt = Date.now(); toast(`บันทึกอันดับแล้ว (${res.written} ทีม)`); renderNext(); }
 }
 
 async function doAwardExport(btn) {
     if (!(await confirmModal('สร้างเกียรติบัตร', 'สร้าง/เขียนทับชีตส่งออกเกียรติบัตรจากข้อมูลล่าสุด — ตรวจว่าบันทึกอันดับ Game Show แล้ว', null))) return;
     const res = await run('awardExport', {}, btn);
-    if (res) { $('awardResult').textContent = awardSummaryLines(res).join('\n'); $('awardResult').hidden = false; toast('สร้างเกียรติบัตรแล้ว'); }
+    if (res) { exportedAt = Date.now(); $('awardResult').textContent = awardSummaryLines(res).join('\n'); $('awardResult').hidden = false; toast('สร้างเกียรติบัตรแล้ว'); renderNext(); }
 }
 
 const gsJson = () => JSON.stringify(buildGameshowSetup(teams).stations, null, 2);
@@ -418,7 +505,7 @@ function renderLinks() {
     set('lnkSheet', LINKS.lsSheet);
 }
 
-function renderAll() { renderInputs(); renderPreview(); renderAwards(); }
+function renderAll() { renderInputs(); renderPreview(); renderAwards(); renderDanger(); renderNext(); }
 
 function bind() {
     document.querySelectorAll('[data-stepbtn]').forEach((b) => b.addEventListener('click', () => showStep(Number(b.dataset.stepbtn))));
@@ -429,7 +516,14 @@ function bind() {
     });
     $('awardGrid').addEventListener('change', (e) => {
         const s = e.target.closest && e.target.closest('select[data-team]');
-        if (s) { picks[s.dataset.team] = s.value; renderAwards(); }
+        if (s) { picks[s.dataset.team] = s.value; renderAwards(); renderNext(); }
+    });
+    $('nextAction').addEventListener('click', (e) => {
+        const b = e.target.closest && e.target.closest('[data-gostep]');
+        if (!b) return;
+        showStep(Number(b.dataset.gostep));
+        const n = nextAction();
+        if (n && n.target) $(n.target).scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     $('btnDownloadPv').addEventListener('click', downloadPreview);
     $('btnStatus').addEventListener('click', loadStatus);

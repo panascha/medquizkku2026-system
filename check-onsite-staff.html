@@ -151,6 +151,7 @@
                     <button id="copyScriptBtn" class="gold-bg rounded-lg px-2 py-2 font-bold">📋 คัดลอกบทประกาศพิธีกร</button>
                     <button id="resetChecksBtn" class="rounded-lg card px-2 py-2 font-semibold">↺ ล้างเช็กลิสต์เครื่องนี้</button>
                 </div>
+                <button id="certCsvBtn" class="w-full rounded-lg card px-2 py-2 text-sm font-semibold">📥 ดาวน์โหลด CSV รายชื่อเกียรติบัตร</button>
                 <p id="awardMeta" class="text-xs muted"></p>
             </section>
             <div id="awardBanners"></div>
@@ -939,6 +940,53 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
             }
             btn.textContent = ok ? "✅ คัดลอกแล้ว" : "❌ คัดลอกไม่ได้";
             setTimeout(() => { btn.textContent = orig; }, 2000);
+        };
+
+        // ── Certificates CSV (Canva bulk create / Word mail merge) ─────────────────
+        // One row per recipient, built only from data this page already loads (status payload +
+        // getAwardSummary). Titles mirror OnSite GAS AWARD_EXPORT_CONFIG.TITLES. No scores, no contacts.
+        // Download is a staff action; nothing is kept in localStorage.
+        const CERT_HEAD = ["Team_ID", "Team_Name", "School_Name", "Recipient_Name", "Award_Category", "Award_Title", "Rank"];
+        const CERT_TITLE = {
+            gold: "รางวัลเหรียญทอง (คะแนนสูงสุดประเภทบุคคล)",
+            silver: "รางวัลเหรียญเงิน",
+            bronze: "รางวัลเหรียญทองแดง",
+            top40: "ประกาศนียบัตรผ่านเข้ารอบ 40 ทีมสุดท้าย",
+        };
+
+        function certRows() {
+            const rows = [];
+            if (awards) ["gold", "silver", "bronze"].forEach(tier => awards.individuals[tier].forEach(p =>
+                rows.push([p.teamId, p.teamName, p.school, p.name, "รางวัลบุคคล (คะแนน MCQ สูงสุด)", CERT_TITLE[tier], p.rank])));
+            if (data && data.r1Decided) data.teams.filter(t => t.r1Passed === true).sort(byTeamId).forEach(t =>
+                t.members.forEach(m => rows.push([t.teamId, t.teamName, t.school, m, "ทีม - ผ่านเข้ารอบ 40 ทีมสุดท้าย", CERT_TITLE.top40, ""])));
+            if (awards) awards.gameshow.forEach(g => g.members.forEach(m =>
+                rows.push([g.teamId, g.teamName, g.schools, m, "ทีม - รางวัล Game Show", g.title, g.rank])));
+            return rows;
+        }
+
+        const csvCell = v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+
+        $("certCsvBtn").onclick = async () => {
+            const btn = $("certCsvBtn"), orig = "📥 ดาวน์โหลด CSV รายชื่อเกียรติบัตร";
+            btn.disabled = true;
+            btn.textContent = "… กำลังดึงข้อมูลล่าสุด";
+            await Promise.all([fetchData(), loadAwardSummary()]);   // both keep the last good copy on error
+            const rows = certRows();
+            btn.disabled = false;
+            if (!rows.length) { btn.textContent = "❌ ยังไม่มีข้อมูลผู้รับ"; setTimeout(() => { btn.textContent = orig; }, 3000); return; }
+            const csv = "﻿" + [CERT_HEAD, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n");
+            const d = new Date(nowMs()), hhmm = String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+            a.download = `medquiz2026-certificates-${hhmm}.csv`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            const notes = [];
+            if (!(data && data.r1Decided)) notes.push("ยังไม่มี Top 40");
+            if (awards && !awards.isR3Decided) notes.push(`Game Show ${awards.gameshow.length}/8`);
+            btn.textContent = `✅ ${rows.length} แถว` + (notes.length ? ` · ${notes.join(" · ")}` : "");
+            setTimeout(() => { btn.textContent = orig; }, 4000);
         };
 
         // 1 s tick: clock + countdown; full re-render only when the rotation slot/state flips.

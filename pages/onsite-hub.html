@@ -47,6 +47,9 @@
 
     <main id="app" hidden class="max-w-[1100px] mx-auto p-4 space-y-4">
 
+        <!-- Next action guidance (onsite-hub-app.js renderNext) — derived from hubStatus + roster only -->
+        <div id="nextAction" class="rounded-xl border-2 border-slate-300 bg-white p-4 text-slate-600">กำลังโหลดสถานะ…</div>
+
         <div class="flex flex-wrap gap-2" role="tablist">
             <button data-stepbtn="1" class="stepbtn">1 R1 นำเข้า / พรีวิว / ตัดสิน</button>
             <button data-stepbtn="2" class="stepbtn">2 หมุนฐาน</button>
@@ -102,9 +105,13 @@
             <div id="rotLive" class="border border-slate-200 rounded-lg p-3 space-y-2"></div>
             <div class="flex gap-3 flex-wrap">
                 <button id="btnRotStart" class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">เริ่มหมุนฐานตอนนี้</button>
-                <button id="btnRotClear" class="border border-slate-300 rounded-lg px-4 py-2 text-sm">ล้างเวลาเริ่ม</button>
                 <a href="../check-onsite-staff.html" class="border border-slate-300 rounded-lg px-4 py-2 text-sm">เปิด Staff Escort</a>
             </div>
+            <details class="border border-red-300 bg-red-50 rounded-lg p-3">
+                <summary class="cursor-pointer text-sm font-bold text-red-800">⚠ โซนอันตราย — ล้างเวลาเริ่มหมุนฐาน</summary>
+                <p class="text-sm text-red-900 mt-2">หน้า Staff Escort จะไม่แสดงตารางจนกว่าจะเริ่มใหม่ — ยืนยัน 2 ชั้น (พิมพ์ CLEAR)</p>
+                <button id="btnRotClear" class="mt-2 bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-40">ล้างเวลาเริ่ม</button>
+            </details>
         </section>
 
         <!-- Step 3 -->
@@ -113,7 +120,7 @@
             <p class="text-xs text-slate-500">ตัดสินเสมอ/Push ผลทำที่ Spot Master Dashboard เท่านั้น</p>
             <div id="spotMonitor" class="border border-slate-200 rounded-lg p-3 space-y-2 text-sm"></div>
             <div class="flex gap-3 flex-wrap">
-                <a href="spot-dashboard.html" class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">Spot Master Dashboard</a>
+                <a id="lnkSpot" href="spot-dashboard.html" class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">Spot Master Dashboard</a>
                 <a href="spot-grading.html" class="border border-slate-300 rounded-lg px-4 py-2 text-sm">Spot กรอกคะแนน</a>
             </div>
         </section>
@@ -146,11 +153,11 @@
 
         <!-- Step 5 -->
         <section data-step="5" hidden class="space-y-4">
-            <div class="bg-white border border-red-200 rounded-xl p-4 space-y-2">
-                <h2 class="font-bold text-red-800">Reset รอบ 1</h2>
-                <p class="text-sm text-slate-600">ล้างผลตัดสิน (K/L) และคืนสูตรอันดับชั่วคราว — ปฏิเสธหากมีคะแนน R2 แล้ว</p>
-                <button id="btnReset" class="bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-bold">Reset รอบ 1</button>
-            </div>
+            <details class="bg-red-50 border-2 border-red-300 rounded-xl p-4">
+                <summary class="cursor-pointer font-bold text-red-800">⚠ โซนอันตราย — Reset รอบ 1</summary>
+                <p class="text-sm text-red-900 mt-2">ล้างผลตัดสิน (K/L) และคืนสูตรอันดับชั่วคราว — ปฏิเสธหากมีคะแนน R2 แล้ว · ยืนยัน 2 ชั้น (พิมพ์ RESET)</p>
+                <button id="btnReset" class="mt-2 bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-40">Reset รอบ 1</button>
+            </details>
             <div class="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-1 text-sm">
                 <h2 class="font-bold text-amber-900">ถ้า hub ล่ม</h2>
                 <p>เปิด Google Sheet LS_OnSite → เมนู <b>🏆 MedQuiz OnSite</b> → ใช้เมนูเดิม: นำเข้าคะแนน R1 MCQ, นำเข้าคะแนน Unseen, ตัดสินรอบ 1 (<code>setRound1Results</code> ไม่ต้องใช้ token), เริ่ม/ล้างเวลาหมุนฐาน</p>
