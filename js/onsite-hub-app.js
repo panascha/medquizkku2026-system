@@ -292,7 +292,7 @@ async function loadStatus() {
 async function loadTeams() {
     try { teams = (await call('getAllOnSiteTeams', {})).teams || []; } catch (e) { return; }   // ping badge tracks hubStatus
     const fin = new Set(finalistIds());
-    picks = picks.map((v) => (fin.has(v) ? v : ''));   // drop picks that are no longer finalists
+    picks = Object.fromEntries(Object.entries(picks).filter(([id]) => fin.has(id)));   // drop picks that are no longer finalists
     renderGameshow(); renderAwards(); renderRoster(); renderSpot();
 }
 
@@ -345,20 +345,19 @@ function renderGameshow() {
 }
 
 // ── Step 4 awards: Gameshow places 1-8 -> r3SetRanks, then awardExport ───────────────────
-let picks = Array(8).fill('');
+let picks = {};   // { teamId: rank } — ties allowed
 
 const finalistIds = () => buildGameshowSetup(teams).stations.map((s) => s.teamId);
 
 function renderAwards() {
     const g = buildGameshowSetup(teams);
-    const taken = new Set(picks.filter(Boolean));
-    $('awardGrid').innerHTML = picks.map((v, i) => `<label class="text-sm block"><span class="font-bold">อันดับ ${i + 1}</span>
-        <select data-place="${i}" class="mt-1 w-full border border-slate-300 rounded-lg px-2 py-1 bg-white">
-            <option value="">— เลือกทีม —</option>
-            ${g.stations.map((s) => `<option value="${esc(s.teamId)}"${s.teamId === v ? ' selected' : ''}${taken.has(s.teamId) && s.teamId !== v ? ' disabled' : ''}>${esc(s.teamId)} ${esc(s.teamName)}</option>`).join('')}
+    $('awardGrid').innerHTML = g.stations.map((s) => `<label class="text-sm block"><span class="font-bold">${esc(s.teamId)} ${esc(s.teamName)}</span>
+        <select data-team="${esc(s.teamId)}" class="mt-1 w-full border border-slate-300 rounded-lg px-2 py-1 bg-white">
+            <option value="">— เลือกอันดับ —</option>
+            ${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<option value="${n}"${String(picks[s.teamId]) === String(n) ? ' selected' : ''}>อันดับ ${n}</option>`).join('')}
         </select></label>`).join('');
     const r = buildRanksPayload(picks, g.stations.map((s) => s.teamId));
-    $('awardWarn').textContent = picks.some(Boolean) || !g.ok ? r.error : '';
+    $('awardWarn').textContent = Object.keys(picks).length || !g.ok ? r.error : '';
     $('btnRanksSave').disabled = !r.ok;
     $('btnAwardExport').disabled = !g.ok;
 }
@@ -429,8 +428,8 @@ function bind() {
         b.addEventListener('click', () => acts[id](b));
     });
     $('awardGrid').addEventListener('change', (e) => {
-        const s = e.target.closest && e.target.closest('select[data-place]');
-        if (s) { picks[Number(s.dataset.place)] = s.value; renderAwards(); }
+        const s = e.target.closest && e.target.closest('select[data-team]');
+        if (s) { picks[s.dataset.team] = s.value; renderAwards(); }
     });
     $('btnDownloadPv').addEventListener('click', downloadPreview);
     $('btnStatus').addEventListener('click', loadStatus);

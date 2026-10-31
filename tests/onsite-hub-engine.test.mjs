@@ -176,19 +176,27 @@ test('buildGameshowSetup: != 8 finalists -> ok=false with warning', () => {
 import { buildRanksPayload, awardSummaryLines } from '../js/onsite-hub-engine.js';
 const FIN8 = ['MQ003', 'MQ009', 'MQ012', 'MQ018', 'MQ022', 'MQ027', 'MQ031', 'MQ038'];
 
-test('buildRanksPayload: valid -> ranks 1-8 integers in pick order', () => {
-    const r = buildRanksPayload([...FIN8].reverse(), FIN8);
+const picksOf = (ranks) => Object.fromEntries(FIN8.map((id, i) => [id, ranks[i]]));
+
+test('buildRanksPayload: valid -> integer ranks 1-8, sorted by rank', () => {
+    const r = buildRanksPayload(picksOf(['8', '7', '6', '5', '4', '3', '2', '1']), FIN8);
     assert.equal(r.ok, true);
     assert.deepEqual(r.ranks[0], { teamId: 'MQ038', rank: 1 });
     assert.deepEqual(r.ranks[7], { teamId: 'MQ003', rank: 8 });
 });
 
-test('buildRanksPayload: unset / duplicate / non-finalist / finalist count != 8 rejected', () => {
-    assert.equal(buildRanksPayload(FIN8.slice(0, 7).concat(''), FIN8).ok, false);
-    assert.equal(buildRanksPayload(FIN8.slice(0, 7), FIN8).ok, false);
-    assert.match(buildRanksPayload(FIN8.slice(0, 7).concat('MQ003'), FIN8).error, /ซ้ำ/);
-    assert.match(buildRanksPayload(FIN8.slice(0, 7).concat('MQ001'), FIN8).error, /ไม่ใช่ผู้เข้ารอบ/);
-    assert.equal(buildRanksPayload(FIN8, FIN8.slice(0, 7)).ok, false);
+test('buildRanksPayload: tied ranks allowed (co-runners-up, several honorable mentions)', () => {
+    const r = buildRanksPayload(picksOf(['1', '2', '2', '4', '4', '4', '4', '4']), FIN8);
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.ranks.map((x) => x.rank), [1, 2, 2, 4, 4, 4, 4, 4]);
+});
+
+test('buildRanksPayload: unset / out-of-range / non-finalist / finalist count != 8 rejected', () => {
+    assert.equal(buildRanksPayload(picksOf(['1', '2', '3', '4', '5', '6', '7', '']), FIN8).ok, false);
+    assert.equal(buildRanksPayload({ MQ003: '1' }, FIN8).ok, false);
+    assert.equal(buildRanksPayload(picksOf(['1', '2', '3', '4', '5', '6', '7', '9']), FIN8).ok, false);
+    assert.match(buildRanksPayload({ ...picksOf(['1', '2', '3', '4', '5', '6', '7', '8']), MQ001: '1' }, FIN8).error, /ไม่ใช่ผู้เข้ารอบ/);
+    assert.equal(buildRanksPayload(picksOf(['1', '2', '3', '4', '5', '6', '7', '8']), FIN8.slice(0, 7)).ok, false);
     assert.equal(buildRanksPayload(null, null).ok, false);
 });
 

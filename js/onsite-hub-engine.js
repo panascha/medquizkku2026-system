@@ -246,17 +246,20 @@ export function buildGameshowSetup(teams) {
 }
 
 /**
- * Gameshow places 1-8 -> r3SetRanks payload. picks[i] = teamId for place i+1 ('' = unset).
- * Needs 8 distinct teamIds, all among the 8 R2 finalists. Mirrors the GAS check; GAS stays authoritative.
+ * Gameshow placings -> r3SetRanks payload. picks = { teamId: rank } ('' / missing = unset).
+ * Every one of the 8 R2 finalists needs an integer rank 1-8; several teams may share a rank (ties).
+ * Mirrors the GAS check; GAS stays authoritative.
  */
 export function buildRanksPayload(picks, finalistIds) {
-    const fin = new Set(finalistIds || []);
-    const p = Array.isArray(picks) ? picks : [];
-    if (fin.size !== 8) return { ok: false, ranks: [], error: `มีผู้เข้ารอบ ${fin.size} ทีม (ต้องมี 8)` };
-    if (p.length !== 8 || p.some((x) => !x)) return { ok: false, ranks: [], error: 'เลือกให้ครบทั้ง 8 อันดับ' };
-    if (new Set(p).size !== 8) return { ok: false, ranks: [], error: 'มีทีมซ้ำในหลายอันดับ' };
-    if (p.some((x) => !fin.has(x))) return { ok: false, ranks: [], error: 'มีทีมที่ไม่ใช่ผู้เข้ารอบ' };
-    return { ok: true, ranks: p.map((teamId, i) => ({ teamId, rank: i + 1 })), error: '' };
+    const fin = [...new Set(finalistIds || [])];
+    const p = picks && typeof picks === 'object' && !Array.isArray(picks) ? picks : {};
+    if (fin.length !== 8) return { ok: false, ranks: [], error: `มีผู้เข้ารอบ ${fin.length} ทีม (ต้องมี 8)` };
+    if (Object.keys(p).some((id) => p[id] !== '' && p[id] != null && !fin.includes(id))) return { ok: false, ranks: [], error: 'มีทีมที่ไม่ใช่ผู้เข้ารอบ' };
+    const ranks = fin.map((teamId) => ({ teamId, rank: Number(p[teamId]) }));
+    if (ranks.some((r) => p[r.teamId] === '' || p[r.teamId] == null)) return { ok: false, ranks: [], error: 'เลือกอันดับให้ครบทั้ง 8 ทีม' };
+    if (ranks.some((r) => !Number.isInteger(r.rank) || r.rank < 1 || r.rank > 8)) return { ok: false, ranks: [], error: 'อันดับต้องเป็น 1-8' };
+    ranks.sort((a, b) => a.rank - b.rank);
+    return { ok: true, ranks, error: '' };
 }
 
 /** Display lines from an awardExport response (only fields GAS returned). */
