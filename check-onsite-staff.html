@@ -669,7 +669,11 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
         $("signPrintBtn").onclick = () => {
             if (!data) return;
             const w = window.open("", "_blank");   // synchronous in the click handler (popup blockers)
-            if (!w) { showError(new Error("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต pop-up แล้วลองใหม่"), data); return; }
+            if (!w) {
+                $("errorBox").classList.remove("hidden");
+                $("errorBox").innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต pop-up แล้วกดพิมพ์อีกครั้ง`;
+                return;
+            }
             const { teams, draft } = signSheetTeams();
             w.document.open();
             w.document.write(buildSignSheetPrintHtml(teams, draft));
