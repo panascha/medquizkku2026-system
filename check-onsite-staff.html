@@ -762,7 +762,8 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
                 { type: "section", tier: "gold", heading: "รางวัลบุคคล คะแนนสูงสุดรอบที่ 1 · เหรียญทอง (อันดับ 1–3)", items: ind.gold },
                 { type: "section", tier: "silver", heading: "เหรียญเงิน (อันดับ 4–8)", items: ind.silver },
                 { type: "section", tier: "bronze", heading: "เหรียญทองแดง (อันดับ 9–16)", items: ind.bronze },
-                { type: "section", tier: "team", heading: "รางวัลการแข่งขันรอบ Game Show (อันดับ 1–8)", items: gs, pending },
+                { type: "section", tier: "team", heading: "รางวัลการแข่งขันรอบ Game Show (อันดับ 1–3)", items: top3, pending },
+                { type: "section", tier: "team", heading: "Game Show รางวัลชมเชย (5 ทีม)", items: hm, pending },
             ];
             const rev = a => a.slice().reverse();
             return [
@@ -847,7 +848,7 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
                     + (tie ? tag("bg-amber-50 text-amber-800 border-amber-300", `เสมอ ${rankSpan(tie)}`) : "");
             }
             return `<article class="flex items-start gap-2 pl-3 pr-1 py-1.5 text-sm leading-snug ${c.r ? "award-done" : ""}">
-                <span class="w-10 shrink-0 font-bold text-slate-700 whitespace-nowrap">${T.icon}${p.rank}</span>
+                <span class="min-w-10 shrink-0 font-bold text-slate-700 whitespace-nowrap">${T.icon}${tier === "team" && p.rank >= 4 ? "ชมเชย" : p.rank}</span>
                 <div class="min-w-0 flex-1 break-words">${body}${score}</div>
                 <div class="shrink-0 flex">${tick("s", "พร้อมขึ้นเวที")}${tick("r", "รับรางวัลแล้ว")}</div>
             </article>`;
@@ -909,7 +910,7 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
                 s.items.forEach((p, i) => {
                     lines.push("");
                     lines.push(s.tier === "team"
-                        ? `${i + 1}) ${p.title} (อันดับ ${p.rank}) ${p.teamId}${ARROW}${p.teamName}${ARROW}${p.members.join(", ")}${ARROW}${p.schools || "—"}`
+                        ? `${i + 1}) ${p.title}${p.rank >= 4 ? "" : ` (อันดับ ${p.rank})`} ${p.teamId}${ARROW}${p.teamName}${ARROW}${p.members.join(", ")}${ARROW}${p.schools || "—"}`
                         : `${i + 1}) ${p.teamId}${ARROW}${p.teamName}${ARROW}${p.name}${p.isTopScore ? " 🌟 คะแนนสูงสุดรอบที่ 1" : ""}${ARROW}${p.school || "—"} • ${scoreText(p)}`);
                 });
             });
