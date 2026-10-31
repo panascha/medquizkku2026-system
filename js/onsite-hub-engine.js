@@ -89,6 +89,7 @@ export function analyzeExport(grid, kind, allowed = DEFAULT_ALLOWED) {
     }
     out.teams = teams.size;
     if (!out.dataRows) out.errors.push('ไม่พบแถว Username รูปแบบ mq2026-NNN-M');
+    else if (out.blankGrades === out.dataRows) out.errors.push(`ไม่มีคะแนนเลยสักแถว (${out.dataRows} แถวเป็น "-" หรือว่าง) — ไฟล์เปล่า / ผิด quiz / ดาวน์โหลดก่อนสอบเสร็จ`);
     if (out.badGrades.length) out.errors.push(`คะแนนไม่ใช่ตัวเลข: ${out.badGrades.slice(0, 5).join(', ')}`);
     if (out.duplicates.length) out.warnings.push(`Username ซ้ำ ${out.duplicates.length} แถว (server ใช้แถวแรก)`);
     if (out.blankGrades) out.warnings.push(`คะแนนว่าง ${out.blankGrades} แถว (นับเป็นไม่มีคะแนน)`);
