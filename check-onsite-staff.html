@@ -37,23 +37,7 @@
         .badge-gs { background: #7C3AED; color: #fff; }
         .dot { display: inline-block; width: .65rem; height: .65rem; border-radius: 9999px; vertical-align: middle; }
         /* Award ceremony view */
-        .medal-gold { border: 2px solid #F5D77A; }
-        .medal-silver { border: 2px solid #D1D5DB; }
-        .medal-bronze { border: 2px solid #D08A4E; }
-        .medal-team { border: 2px solid #A78BFA; }
-        .tx-gold { color: #F5D77A; } .tx-silver { color: #E5E7EB; } .tx-bronze { color: #F0A868; } .tx-team { color: #C4B5FD; }
         .award-done { opacity: .45; }
-        .chk { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .55rem; border-radius: 9999px; border: 1px solid var(--line); background: var(--navy2); font-size: .8rem; font-weight: 600; }
-        .chk input { width: 1.1rem; height: 1.1rem; accent-color: #F5D77A; }
-        .cue { border: 1px dashed var(--gold2); color: var(--gold1); }
-        .award-row { display: grid; grid-template-columns: auto 1fr auto; gap: .75rem; align-items: start; }
-        .rank-badge { width: 2.75rem; height: 2.75rem; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; color: var(--navy); }
-        .rb-gold { background: #F5D77A; } .rb-silver { background: #E5E7EB; } .rb-bronze { background: #F0A868; } .rb-team { background: #C4B5FD; }
-        .score { text-align: right; font-size: 1.5rem; font-weight: 800; line-height: 1; }
-        .score small { display: block; font-size: .75rem; font-weight: 600; color: var(--muted); margin-top: .2rem; }
-        .tie-chip { display: inline-block; border-radius: 9999px; padding: .05rem .5rem; font-size: .75rem; font-weight: 700; background: #FDE68A; color: #78350F; }
-        .chk { min-height: 2.5rem; }
-        @media (min-width: 768px) { .award-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; } }
     </style>
 </head>
 
@@ -170,7 +154,7 @@
                 <p id="awardMeta" class="text-xs muted"></p>
             </section>
             <div id="awardBanners"></div>
-            <div id="awardList" class="mx-4 mt-3 space-y-3"></div>
+            <div id="awardList" class="mx-4 mt-3 space-y-2"></div>
         </div>
     </div>
 
@@ -757,10 +741,10 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
         }
 
         const TIER = {
-            gold:   { label: "เหรียญทอง",    icon: "🥇", card: "medal-gold",   tx: "tx-gold" },
-            silver: { label: "เหรียญเงิน",    icon: "🥈", card: "medal-silver", tx: "tx-silver" },
-            bronze: { label: "เหรียญทองแดง",  icon: "🥉", card: "medal-bronze", tx: "tx-bronze" },
-            team:   { label: "Game Show",    icon: "🏆", card: "medal-team",   tx: "tx-team" },
+            gold:   { label: "เหรียญทอง",    icon: "🥇" },
+            silver: { label: "เหรียญเงิน",    icon: "🥈" },
+            bronze: { label: "เหรียญทองแดง",  icon: "🥉" },
+            team:   { label: "Game Show",    icon: "🏆" },
         };
         const PHOTO = {
             bronze: "📸 ถ่ายภาพหมู่ผู้ได้รับเหรียญทองแดง",
@@ -830,40 +814,36 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
         function renderTieAlert() {
             const n = tieNotes();
             if (!n) return "";
-            const cls = n.straddle ? "bg-amber-300 text-slate-950 border-2 border-amber-500" : "card";
-            return `<div class="mx-4 mt-3 rounded-xl px-4 py-3 ${cls}">
-                <div class="font-bold text-base">${n.straddle ? "⚖️ คะแนนเท่ากันคาบเส้นตัดเหรียญ — กรรมการต้องตัดสินก่อนขึ้นเวที" : "ℹ️ มีผู้ได้คะแนนเท่ากันในกลุ่มผู้ได้รับรางวัล"}</div>
-                <ul class="mt-1 text-sm font-semibold list-disc list-inside">${n.lines.map(l => `<li>${escapeHtml(l)}</li>`).join("")}</ul>
-                ${n.recs.length ? `<div class="mt-2 text-sm"><b>ข้อเสนอต่อกรรมการ:</b><ul class="list-disc list-inside">${n.recs.map(r => `<li>${escapeHtml(r)}</li>`).join("")}</ul></div>
-                <p class="mt-1 text-xs">รายชื่อด้านล่างยังแบ่งตามระบบ 3/5/8 เดิม — ยังไม่ได้ปรับตามมติ</p>` : ""}
+            const cls = n.straddle ? "bg-amber-50 text-amber-900 border-amber-300" : "bg-white text-slate-700 border-slate-200";
+            return `<div class="mx-4 mt-3 rounded-lg border px-3 py-2 text-xs leading-snug ${cls}">
+                <div class="font-bold text-sm">${n.straddle ? "⚖️ คะแนนเท่ากันคาบเส้นตัดเหรียญ — กรรมการต้องตัดสินก่อนขึ้นเวที" : "ℹ️ มีผู้ได้คะแนนเท่ากันในกลุ่มผู้ได้รับรางวัล"}</div>
+                <ul class="mt-0.5 list-disc list-inside">${n.lines.map(l => `<li>${escapeHtml(l)}</li>`).join("")}</ul>
+                ${n.recs.length ? `<div class="mt-1"><b>ข้อเสนอ:</b> ${n.recs.map(escapeHtml).join(" · ")}
+                <span class="opacity-75">(รายชื่อด้านล่างยังแบ่ง 3/5/8 เดิม)</span></div>` : ""}
             </div>`;
         }
 
         function renderEntry(tier, p) {
             const T = TIER[tier], id = entryId(tier, p), c = checks[id] || {};
-            const tick = (k, label) => `<label class="chk"><input type="checkbox" data-chk="${escapeHtml(id)}" data-k="${k}" ${c[k] ? "checked" : ""}> ${label}</label>`;
-            const chip = `<span class="rounded-full gold-bg text-xs font-bold px-2 py-0.5">${escapeHtml(p.teamId)}</span>`;
-            let body, score = "<div></div>";
+            // Bare boxes; column labels (พร้อม / รับ) sit once in the section header.
+            const tick = (k, label) => `<label class="w-8 flex justify-center py-0.5 cursor-pointer" title="${label}"><input type="checkbox" class="h-5 w-5 accent-slate-800" aria-label="${label}" data-chk="${escapeHtml(id)}" data-k="${k}" ${c[k] ? "checked" : ""}></label>`;
+            const tag = (cls, text) => `<span class="ml-1 whitespace-nowrap rounded border px-1 text-[11px] font-semibold ${cls}">${text}</span>`;
+            const team = `(<b class="text-slate-800">${escapeHtml(p.teamId)}</b> ${escapeHtml(p.teamName)})`;
+            let body, score = "";
             if (tier === "team") {
-                body = `<div class="text-sm font-bold ${T.tx}">${T.icon} ${escapeHtml(p.title)}</div>
-                   <div class="text-xl font-bold leading-tight break-words">${escapeHtml(p.teamName) || '<span class="muted">(ไม่มีชื่อทีม)</span>'}</div>
-                   <div class="text-sm mt-0.5">${chip} <span class="muted">${escapeHtml(p.schools) || "—"}</span></div>
-                   <ol class="mt-1 text-base list-decimal list-inside">${p.members.map(m => `<li>${escapeHtml(m)}</li>`).join("")}</ol>`;
+                body = `<span class="font-bold">${escapeHtml(p.title)}</span> — <span class="text-slate-600">${escapeHtml(p.schools) || "—"} ${team}</span>
+                    <span class="text-slate-500"> • ${p.members.map(escapeHtml).join(", ")}</span>`;
             } else {
                 const tie = tieOf(p.rank);
-                body = `<div class="text-sm font-bold ${T.tx} flex flex-wrap items-center gap-1"><span class="whitespace-nowrap">${T.icon} ${T.label}</span>
-                       ${p.isTopScore ? `<span class="whitespace-nowrap rounded-full gold-bg text-xs px-2 py-0.5">🌟 คะแนนสูงสุดรอบที่ 1</span>` : ""}
-                       ${tie ? `<span class="whitespace-nowrap tie-chip">เสมอ ${rankSpan(tie)}</span>` : ""}</div>
-                   <div class="text-xl font-bold leading-tight break-words">${escapeHtml(p.name)}</div>
-                   <div class="text-sm muted">${escapeHtml(p.school) || "—"}</div>
-                   <div class="text-sm mt-0.5">${chip} ${escapeHtml(p.teamName)}</div>`;
-                score = p.score != null
-                    ? `<div class="score ${T.tx}">${Number(p.score).toFixed(2)}<small>/28</small></div>`
-                    : `<div class="score ${T.tx}">${escapeHtml(String(p.raw))}<small>raw</small></div>`;
+                body = `<span class="font-bold">${escapeHtml(p.name)}</span>${p.isTopScore ? ` <span title="คะแนนสูงสุดรอบที่ 1" aria-label="คะแนนสูงสุดรอบที่ 1">🌟</span>` : ""}`
+                    + ` — <span class="text-slate-600">${escapeHtml(p.school) || "—"} ${team}</span>`
+                    + (tie ? tag("bg-amber-50 text-amber-800 border-amber-300", `เสมอ ${rankSpan(tie)}`) : "");
+                score = ` <span class="whitespace-nowrap">• <b class="tabular-nums">${p.score != null ? `${Number(p.score).toFixed(2)}</b><span class="text-slate-500">/28</span>` : `raw ${escapeHtml(String(p.raw))}</b>`}</span>`;
             }
-            return `<article class="rounded-xl card ${T.card} px-3 py-3 ${c.r ? "award-done" : ""}">
-                <div class="award-row"><div class="rank-badge rb-${tier}">${p.rank}</div><div class="min-w-0">${body}</div>${score}</div>
-                <div class="mt-2 flex flex-wrap gap-2">${tick("s", "พร้อมขึ้นเวที")}${tick("r", "รับรางวัลแล้ว")}</div>
+            return `<article class="flex items-start gap-2 pl-3 pr-1 py-1.5 text-sm leading-snug ${c.r ? "award-done" : ""}">
+                <span class="w-10 shrink-0 font-bold text-slate-700 whitespace-nowrap">${T.icon}${p.rank}</span>
+                <div class="min-w-0 flex-1 break-words">${body}${score}</div>
+                <div class="shrink-0 flex">${tick("s", "พร้อมขึ้นเวที")}${tick("r", "รับรางวัลแล้ว")}</div>
             </article>`;
         }
 
@@ -884,10 +864,14 @@ thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside
             $("awardBanners").innerHTML = banners.join("");
 
             $("awardList").innerHTML = awardSections(awardOrder).map(s => {
-                if (s.type === "cue") return `<div class="rounded-xl cue px-4 py-2 text-center font-bold">${escapeHtml(s.text)}</div>`;
-                const body = s.items.length ? `<div class="award-grid space-y-2 md:space-y-0">${s.items.map(p => renderEntry(s.tier, p)).join("")}</div>`
-                    : `<p class="rounded-xl card px-4 py-3 muted">${s.pending ? "รอผล Game Show" : "ยังไม่มีข้อมูล"}</p>`;
-                return `<section class="space-y-2"><h2 class="font-bold text-lg ${TIER[s.tier].tx}">${escapeHtml(s.heading)}</h2>${body}</section>`;
+                if (s.type === "cue") return `<div class="text-center text-xs font-semibold muted">${escapeHtml(s.text)}</div>`;
+                const body = s.items.length ? s.items.map(p => renderEntry(s.tier, p)).join("")
+                    : `<p class="px-3 py-2 text-sm text-slate-500">${s.pending ? "รอผล Game Show" : "ยังไม่มีข้อมูล"}</p>`;
+                return `<section class="rounded-lg bg-white border border-slate-200 text-slate-900 overflow-hidden">
+                    <h2 class="flex items-end gap-2 pl-3 pr-1 py-1.5 text-sm font-bold bg-slate-50 border-b border-slate-200">
+                        <span class="flex-1">${TIER[s.tier].icon} ${escapeHtml(s.heading)}</span>
+                        ${s.items.length ? `<span class="shrink-0 flex text-[11px] font-semibold text-slate-500"><span class="w-8 text-center">พร้อม</span><span class="w-8 text-center">รับ</span></span>` : ""}</h2>
+                    <div class="divide-y divide-slate-200">${body}</div></section>`;
             }).join("");
         }
 
