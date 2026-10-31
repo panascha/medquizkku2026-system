@@ -46,6 +46,14 @@
         .chk { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .55rem; border-radius: 9999px; border: 1px solid var(--line); background: var(--navy2); font-size: .8rem; font-weight: 600; }
         .chk input { width: 1.1rem; height: 1.1rem; accent-color: #F5D77A; }
         .cue { border: 1px dashed var(--gold2); color: var(--gold1); }
+        .award-row { display: grid; grid-template-columns: auto 1fr auto; gap: .75rem; align-items: start; }
+        .rank-badge { width: 2.75rem; height: 2.75rem; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; color: var(--navy); }
+        .rb-gold { background: #F5D77A; } .rb-silver { background: #E5E7EB; } .rb-bronze { background: #F0A868; } .rb-team { background: #C4B5FD; }
+        .score { text-align: right; font-size: 1.5rem; font-weight: 800; line-height: 1; }
+        .score small { display: block; font-size: .75rem; font-weight: 600; color: var(--muted); margin-top: .2rem; }
+        .tie-chip { display: inline-block; border-radius: 9999px; padding: .05rem .5rem; font-size: .75rem; font-weight: 700; background: #FDE68A; color: #78350F; }
+        .chk { min-height: 2.5rem; }
+        @media (min-width: 768px) { .award-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; } }
     </style>
 </head>
 
@@ -119,6 +127,20 @@
 
         <!-- Counts -->
         <section id="countsBar" class="mx-4 mt-3 grid grid-cols-4 gap-2 text-center text-xs"></section>
+
+        <!-- Spot Test signature sheet export (built in memory from the last fetch; nothing stored) -->
+        <section class="mx-4 mt-3 rounded-xl panel px-4 py-3">
+            <h2 class="font-bold gold"><i class="fa-solid fa-file-signature"></i> ใบเซ็นชื่อรอบ Spot Test</h2>
+            <p id="signSheetNote" class="mt-1 text-xs muted">รอโหลดข้อมูล…</p>
+            <select id="signSheetScope" class="hidden mt-2 w-full text-sm rounded-md px-2 py-1 card text-white">
+                <option value="first40">ร่างก่อนประกาศผลรอบ 1: ทีมแรก 40 ทีม (เรียงตามรหัส MQ)</option>
+                <option value="all">ร่างก่อนประกาศผลรอบ 1: ทุกทีม</option>
+            </select>
+            <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                <button id="signPrintBtn" class="gold-bg rounded-lg px-2 py-2 font-bold" disabled>🖨️ พิมพ์ / PDF</button>
+                <button id="signDocBtn" class="rounded-lg card px-2 py-2 font-semibold" disabled>📄 Word (.doc)</button>
+            </div>
+        </section>
 
         <!-- Tabs + search -->
         <nav id="tabs" class="mx-4 mt-3 flex gap-2 overflow-x-auto pb-1 text-sm"></nav>
@@ -550,12 +572,126 @@
             renderPulse(rot);
             renderRotation(rot);
             renderCounts();
+            renderSignSheetPanel();
             renderTabs();
             renderCards(rot);
         }
 
         $("search").addEventListener("input", e => { query = e.target.value; if (data) renderCards(rotationState()); });
         $("slotSelect").onchange = e => { slotOverride = e.target.value; saveSlotOverride(slotOverride); render(); };
+
+        // ── Spot Test signature sheet (print/PDF + Word .doc) ───────────────
+        // Layout follows handbook pp.16-28: A4 portrait, header row repeated, one tbody per
+        // team so a team never splits across pages. ลำดับ = member no. within the team.
+        const SIGN = {
+            title: "ใบลงทะเบียนและเซ็นชื่อผู้เข้าสอบ รอบที่ 2 (Spot Examination) — MedQuiz KKU 2026",
+            subtitle: "วันอาทิตย์ที่ 1 พฤศจิกายน 2569 เวลา 10.30 - 12.00 น. ณ ห้องปฏิบัติการ 8 อาคารเรียนรวม ชั้น 4",
+            draft: { first40: "ร่าง — ก่อนประกาศผลรอบที่ 1 (ทีมแรก 40 ทีมตามรหัส MQ)", all: "ร่าง — ก่อนประกาศผลรอบที่ 1 (ทุกทีม)" },
+        };
+        const byTeamId = (a, b) => a.teamId.localeCompare(b.teamId, "en", { numeric: true });
+
+        function signSheetTeams() {
+            const sorted = data.teams.slice().sort(byTeamId);
+            if (data.r1Decided) return { teams: sorted.filter(t => t.r1Passed === true), draft: "" };
+            const scope = $("signSheetScope").value;
+            return { teams: scope === "all" ? sorted : sorted.slice(0, 40), draft: SIGN.draft[scope] };
+        }
+
+        function renderSignSheetPanel() {
+            const undecided = !data.r1Decided;
+            $("signSheetScope").classList.toggle("hidden", !undecided);
+            const { teams } = signSheetTeams();
+            const people = teams.reduce((n, t) => n + Math.max(1, t.members.length), 0);
+            $("signSheetNote").textContent = (undecided ? "⏳ ผลรอบ 1 ยังไม่ครบ — พิมพ์เป็นร่างได้ · " : "ทีมผ่านรอบ 1 · ")
+                + `${teams.length} ทีม / ${people} แถว`;
+            $("signPrintBtn").disabled = $("signDocBtn").disabled = teams.length === 0;
+        }
+        $("signSheetScope").onchange = () => { if (data) renderSignSheetPanel(); };
+
+        /** Table body: one <tbody> per team; Team ID/Name rowspan = member count (min 1 row). */
+        function signSheetRows(teams, forWord) {
+            return teams.map(t => {
+                const names = t.members.length ? t.members : [""];
+                const n = names.length;
+                // Word: keep-with-next on every row but the team's last keeps the team on one page.
+                const p = (txt, i) => forWord
+                    ? `<p class="c"${i < n - 1 ? ' style="page-break-after:avoid"' : ""}>${txt}</p>` : txt;
+                return `<tbody class="team">` + names.map((m, i) => `<tr>`
+                    + `<td class="c">${p(i + 1, i)}</td>`
+                    + (i === 0 ? `<td class="c" rowspan="${n}">${p(escapeHtml(t.teamId), i)}</td>`
+                        + `<td class="c" rowspan="${n}">${p(escapeHtml(t.teamName), i)}</td>` : "")
+                    + `<td class="c">${p(escapeHtml(m), i)}</td><td>${p("&nbsp;", i)}</td></tr>`).join("") + `</tbody>`;
+            }).join("");
+        }
+
+        const SIGN_HEAD = `<thead><tr><th style="width:8%">ลำดับ</th><th style="width:11%">Team ID</th>`
+            + `<th style="width:23%">Team Name</th><th style="width:33%">ชื่อ - สกุล</th><th style="width:25%">ลายเซ็น</th></tr></thead>`;
+
+        function buildSignSheetPrintHtml(teams, draft) {
+            const font = f => new URL(`assets/fonts/${f}`, location.href).href;   // absolute: popup is about:blank
+            return `<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ใบเซ็นชื่อ Spot Examination</title><style>
+@font-face{font-family:'Sarabun';font-weight:400;src:url('${font("Sarabun-Regular.woff2")}') format('woff2')}
+@font-face{font-family:'Sarabun';font-weight:700;src:url('${font("Sarabun-Bold.woff2")}') format('woff2')}
+@page{size:A4 portrait;margin:15mm 15mm 15mm 15mm}
+body{font-family:'Sarabun',sans-serif;font-size:12pt;color:#000;margin:0}
+h1{font-size:13pt;text-align:center;margin:0 0 2pt;text-decoration:underline}
+.sub{text-align:center;margin:0 0 4pt}.draft{text-align:center;font-weight:700;margin:0 0 4pt}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #000;padding:2pt 4pt;height:0.9cm;vertical-align:middle}
+th{font-weight:700;text-align:center}td.c{text-align:center}
+thead{display:table-header-group}tbody.team{break-inside:avoid;page-break-inside:avoid}
+</style></head><body><h1>${escapeHtml(SIGN.title)}</h1><p class="sub">${escapeHtml(SIGN.subtitle)}</p>`
+                + (draft ? `<p class="draft">${escapeHtml(draft)}</p>` : "")
+                + `<table>${SIGN_HEAD}${signSheetRows(teams, false)}</table></body></html>`;
+        }
+
+        function buildSignSheetDocHtml(teams, draft) {
+            // Word ignores @media print and web fonts: Office namespaces + @page section, per-cell
+            // borders, and Thai (complex-script) font set via mso-bidi-* with a fallback stack.
+            const ff = `font-family:"TH Sarabun New","Sarabun","TH SarabunPSK","Leelawadee UI",Tahoma,sans-serif;`
+                + `mso-bidi-font-family:"TH Sarabun New";font-size:16pt;mso-bidi-font-size:16pt;`;
+            const cell = `border:solid windowtext 1.0pt;mso-border-alt:solid windowtext .5pt;padding:0cm 4pt;vertical-align:middle;`;
+            return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">`
+                + `<head><meta charset="utf-8"><title>ใบเซ็นชื่อ Spot Examination</title>`
+                + `<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->`
+                + `<style>@page Section1{size:595.3pt 841.9pt;margin:42.5pt 42.5pt 42.5pt 42.5pt;mso-page-orientation:portrait}`
+                + `div.Section1{page:Section1}p{margin:0;${ff}}table{border-collapse:collapse;mso-table-layout-alt:fixed}`
+                + `td,th{${cell}${ff}height:0.9cm}p.c{text-align:center}th p{text-align:center;font-weight:bold}`
+                + `h1{text-align:center;margin:0;font-size:18pt;mso-bidi-font-size:18pt;text-decoration:underline;font-family:"TH Sarabun New","Sarabun",Tahoma,sans-serif;mso-bidi-font-family:"TH Sarabun New"}</style></head>`
+                + `<body><div class="Section1"><h1>${escapeHtml(SIGN.title)}</h1><p class="c">${escapeHtml(SIGN.subtitle)}</p>`
+                + (draft ? `<p class="c"><b>${escapeHtml(draft)}</b></p>` : "")
+                + `<table width="100%" border="1" cellspacing="0" cellpadding="0">`
+                + SIGN_HEAD.replace(/<th([^>]*)>([^<]*)<\/th>/g, `<th$1><p>$2</p></th>`)
+                    .replace("<tr>", `<tr style="mso-yfti-irow:-1;mso-yfti-firstrow:yes;page-break-inside:avoid">`)
+                + signSheetRows(teams, true) + `</table></div></body></html>`;
+        }
+
+        $("signPrintBtn").onclick = () => {
+            if (!data) return;
+            const w = window.open("", "_blank");   // synchronous in the click handler (popup blockers)
+            if (!w) { showError(new Error("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต pop-up แล้วลองใหม่"), data); return; }
+            const { teams, draft } = signSheetTeams();
+            w.document.open();
+            w.document.write(buildSignSheetPrintHtml(teams, draft));
+            w.document.close();
+            const fonts = w.document.fonts;
+            Promise.all([...fonts].map(f => f.load().catch(() => null)))
+                .then(() => fonts.ready)
+                .then(() => { w.focus(); w.print(); });
+        };
+
+        $("signDocBtn").onclick = () => {
+            if (!data) return;
+            const { teams, draft } = signSheetTeams();
+            const blob = new Blob(["﻿" + buildSignSheetDocHtml(teams, draft)], { type: "application/msword" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = draft ? "spot-signsheet-DRAFT.doc" : "spot-signsheet.doc";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        };
 
         function updateLastUpdated() {
             const [at, src] = view === "awards" ? [awardsAt, awards] : [fetchedAt, data];
@@ -655,23 +791,74 @@
         }
 
         const entryId = (tier, p) => tier === "team" ? `gs:${p.teamId}` : `ind:${p.teamId}:${p.member}`;
+        const fmtScore = g => g.score != null ? `${Number(g.score).toFixed(2)}/28` : `raw ${g.raw}`;
+        const rankSpan = g => g.from === g.to ? `${g.from}` : `${g.from}–${g.to}`;
+        const CUT_LABEL = { 3: "ทอง/เงิน (อันดับ 3/4)", 8: "เงิน/ทองแดง (อันดับ 8/9)", 16: "ทองแดง/ไม่ได้รางวัล (อันดับ 16/17)" };
+
+        /** Equal-score runs from the server (sees rank 17+); older backend → derive from the 16 shown. */
+        function tieGroups() {
+            if (Array.isArray(awards.tieGroups)) return awards.tieGroups;
+            const all = [...awards.individuals.gold, ...awards.individuals.silver, ...awards.individuals.bronze], out = [];
+            for (let i = 0; i < all.length;) {
+                let j = i;
+                while (j + 1 < all.length && all[j + 1].raw === all[i].raw) j++;
+                if (j > i) out.push({ from: all[i].rank, to: all[j].rank, count: j - i + 1, raw: all[i].raw, score: all[i].score,
+                    cuts: [3, 8].filter(c => c >= all[i].rank && c < all[j].rank) });
+                i = j + 1;
+            }
+            return out;
+        }
+        const tieOf = rank => tieGroups().find(g => rank >= g.from && rank <= g.to);
+
+        /** Shared by the alert box and the MC script's committee notes. Tiers on screen are NOT changed. */
+        function tieNotes() {
+            const groups = tieGroups();
+            if (!groups.length) return null;
+            const straddle = groups.filter(g => g.cuts.length);
+            const lines = groups.map(g => `อันดับ ${rankSpan(g)} คะแนนเท่ากัน ${fmtScore(g)} (${g.count} คน)`
+                + (g.cuts.length ? ` — คาบเส้น ${g.cuts.map(c => CUT_LABEL[c] || `อันดับ ${c}/${c + 1}`).join(", ")}` : ""));
+            const recs = straddle.map(g => g.from === 1
+                ? `พิจารณาให้เหรียญทองร่วม ${g.count} เหรียญ และเหรียญเงิน ${Math.max(0, 8 - g.to)} เหรียญ หรือใช้เกณฑ์ตัดสินเสมอด้วยคะแนนทีม`
+                : `อันดับ ${rankSpan(g)}: ให้รางวัลระดับเดียวกันทั้ง ${g.count} คน หรือใช้เกณฑ์ตัดสินเสมอด้วยคะแนนทีม`);
+            return { straddle: straddle.length > 0, lines, recs };
+        }
+
+        function renderTieAlert() {
+            const n = tieNotes();
+            if (!n) return "";
+            const cls = n.straddle ? "bg-amber-300 text-slate-950 border-2 border-amber-500" : "card";
+            return `<div class="mx-4 mt-3 rounded-xl px-4 py-3 ${cls}">
+                <div class="font-bold text-base">${n.straddle ? "⚖️ คะแนนเท่ากันคาบเส้นตัดเหรียญ — กรรมการต้องตัดสินก่อนขึ้นเวที" : "ℹ️ มีผู้ได้คะแนนเท่ากันในกลุ่มผู้ได้รับรางวัล"}</div>
+                <ul class="mt-1 text-sm font-semibold list-disc list-inside">${n.lines.map(l => `<li>${escapeHtml(l)}</li>`).join("")}</ul>
+                ${n.recs.length ? `<div class="mt-2 text-sm"><b>ข้อเสนอต่อกรรมการ:</b><ul class="list-disc list-inside">${n.recs.map(r => `<li>${escapeHtml(r)}</li>`).join("")}</ul></div>
+                <p class="mt-1 text-xs">รายชื่อด้านล่างยังแบ่งตามระบบ 3/5/8 เดิม — ยังไม่ได้ปรับตามมติ</p>` : ""}
+            </div>`;
+        }
 
         function renderEntry(tier, p) {
             const T = TIER[tier], id = entryId(tier, p), c = checks[id] || {};
             const tick = (k, label) => `<label class="chk"><input type="checkbox" data-chk="${escapeHtml(id)}" data-k="${k}" ${c[k] ? "checked" : ""}> ${label}</label>`;
-            const head = tier === "team"
-                ? `<div class="font-bold ${T.tx}">${T.icon} ${escapeHtml(p.title)} <span class="muted font-normal">· อันดับ ${p.rank}</span></div>
-                   <div class="text-xl font-bold leading-tight mt-0.5">${escapeHtml(p.teamName) || '<span class="muted">(ไม่มีชื่อทีม)</span>'}</div>
-                   <div class="text-sm mt-0.5"><span class="rounded-full gold-bg text-xs font-bold px-2 py-0.5">${escapeHtml(p.teamId)}</span> <span class="muted">${escapeHtml(p.schools) || "—"}</span></div>
-                   <ol class="mt-1 text-base list-decimal list-inside">${p.members.map(m => `<li>${escapeHtml(m)}</li>`).join("")}</ol>`
-                : `<div class="font-bold ${T.tx}">${T.icon} ${T.label} <span class="muted font-normal">· อันดับ ${p.rank}</span>
-                       ${p.isTopScore ? `<span class="ml-1 rounded-full gold-bg text-xs px-2 py-0.5">🌟 คะแนนสูงสุดรอบที่ 1</span>` : ""}</div>
-                   <div class="text-xl font-bold leading-tight mt-0.5">${escapeHtml(p.name)}</div>
-                   <div class="text-sm muted mt-0.5">${escapeHtml(p.school) || "—"}</div>
-                   <div class="text-sm mt-0.5"><span class="rounded-full gold-bg text-xs font-bold px-2 py-0.5">${escapeHtml(p.teamId)}</span> ${escapeHtml(p.teamName)}
-                       <span class="muted">· ${p.score != null ? `${p.score}/28` : `raw ${p.raw}`}</span></div>`;
-            return `<article class="rounded-xl card ${T.card} px-4 py-3 ${c.r ? "award-done" : ""}">
-                ${head}
+            const chip = `<span class="rounded-full gold-bg text-xs font-bold px-2 py-0.5">${escapeHtml(p.teamId)}</span>`;
+            let body, score = "<div></div>";
+            if (tier === "team") {
+                body = `<div class="text-sm font-bold ${T.tx}">${T.icon} ${escapeHtml(p.title)}</div>
+                   <div class="text-xl font-bold leading-tight break-words">${escapeHtml(p.teamName) || '<span class="muted">(ไม่มีชื่อทีม)</span>'}</div>
+                   <div class="text-sm mt-0.5">${chip} <span class="muted">${escapeHtml(p.schools) || "—"}</span></div>
+                   <ol class="mt-1 text-base list-decimal list-inside">${p.members.map(m => `<li>${escapeHtml(m)}</li>`).join("")}</ol>`;
+            } else {
+                const tie = tieOf(p.rank);
+                body = `<div class="text-sm font-bold ${T.tx} flex flex-wrap items-center gap-1"><span class="whitespace-nowrap">${T.icon} ${T.label}</span>
+                       ${p.isTopScore ? `<span class="whitespace-nowrap rounded-full gold-bg text-xs px-2 py-0.5">🌟 คะแนนสูงสุดรอบที่ 1</span>` : ""}
+                       ${tie ? `<span class="whitespace-nowrap tie-chip">เสมอ ${rankSpan(tie)}</span>` : ""}</div>
+                   <div class="text-xl font-bold leading-tight break-words">${escapeHtml(p.name)}</div>
+                   <div class="text-sm muted">${escapeHtml(p.school) || "—"}</div>
+                   <div class="text-sm mt-0.5">${chip} ${escapeHtml(p.teamName)}</div>`;
+                score = p.score != null
+                    ? `<div class="score ${T.tx}">${Number(p.score).toFixed(2)}<small>/28</small></div>`
+                    : `<div class="score ${T.tx}">${escapeHtml(String(p.raw))}<small>raw</small></div>`;
+            }
+            return `<article class="rounded-xl card ${T.card} px-3 py-3 ${c.r ? "award-done" : ""}">
+                <div class="award-row"><div class="rank-badge rb-${tier}">${p.rank}</div><div class="min-w-0">${body}</div>${score}</div>
                 <div class="mt-2 flex flex-wrap gap-2">${tick("s", "พร้อมขึ้นเวที")}${tick("r", "รับรางวัลแล้ว")}</div>
             </article>`;
         }
@@ -687,14 +874,14 @@
                 ? "ลำดับขึ้นเวที: น้อย → มาก (ทองแดง → เงิน → ทอง → Game Show ชมเชย → อันดับ 3 → 2 → ชนะเลิศ)"
                 : "เรียงตามอันดับ: มาก → น้อย";
 
-            const banners = [];
+            const banners = [renderTieAlert()];
             if (!awards.isR3Decided) banners.push(`<div class="mx-4 mt-3 rounded-xl px-4 py-3 bg-amber-400 text-slate-950 font-semibold">⏳ ผล Game Show ยังไม่ครบ (${awards.gameshow.length}/8 ทีม) — รางวัลบุคคลรอบที่ 1 ด้านล่างใช้ได้แล้ว</div>`);
             (awards.warnings || []).forEach(w => banners.push(`<div class="mx-4 mt-3 rounded-xl px-4 py-3 bg-red-100 text-red-900 border border-red-300 font-semibold">⚠️ ${escapeHtml(w)}</div>`));
             $("awardBanners").innerHTML = banners.join("");
 
             $("awardList").innerHTML = awardSections(awardOrder).map(s => {
                 if (s.type === "cue") return `<div class="rounded-xl cue px-4 py-2 text-center font-bold">${escapeHtml(s.text)}</div>`;
-                const body = s.items.length ? s.items.map(p => renderEntry(s.tier, p)).join("")
+                const body = s.items.length ? `<div class="award-grid space-y-2 md:space-y-0">${s.items.map(p => renderEntry(s.tier, p)).join("")}</div>`
                     : `<p class="rounded-xl card px-4 py-3 muted">${s.pending ? "รอผล Game Show" : "ยังไม่มีข้อมูล"}</p>`;
                 return `<section class="space-y-2"><h2 class="font-bold text-lg ${TIER[s.tier].tx}">${escapeHtml(s.heading)}</h2>${body}</section>`;
             }).join("");
@@ -714,23 +901,38 @@
         });
         $("resetChecksBtn").onclick = () => { checks = {}; saveChecks(); renderAwards(); };
 
-        /** Plain Thai text for MC / LINE — always stage-call order, no scores (scores aren't announced). */
+        /** Plain Thai text for MC / LINE — stage-call order. Scores only in the committee notes at the end. */
         function mcScript() {
-            const lines = ["บทประกาศรางวัล MedQuiz KKU 2026 (ลำดับขึ้นเวที)", `ข้อมูล ณ ${awards.generatedAt}`];
+            const RULE = "━━━━━━━━━━━━━━━━━━━━";
+            const lines = ["🏆 บทประกาศรางวัล MedQuiz KKU 2026", "พิธีปิดและมอบรางวัล · เรียงตามลำดับขึ้นเวที", `ข้อมูล ณ ${awards.generatedAt}`];
             awardSections("call").forEach(s => {
                 lines.push("");
-                if (s.type === "cue") { lines.push(s.text); return; }
-                lines.push(s.heading);
+                if (s.type === "cue") { lines.push(`>>> ${s.text} <<<`); return; }
+                lines.push(RULE, `${TIER[s.tier].icon} ${s.heading}`, RULE);
                 if (!s.items.length) { lines.push(s.pending ? "(รอผล Game Show)" : "(ยังไม่มีข้อมูล)"); return; }
+                lines.push(s.tier === "team" ? "🎤 ขอเชิญทีมต่อไปนี้ขึ้นรับรางวัลบนเวที" : `🎤 ขอเชิญผู้ได้รับ${TIER[s.tier].label}ขึ้นรับรางวัลบนเวที`);
                 s.items.forEach((p, i) => {
+                    lines.push("");
                     if (s.tier === "team") {
-                        lines.push(`${i + 1}. ${p.title} — ทีม ${p.teamName} (${p.teamId})${p.schools ? " · " + p.schools : ""}`);
+                        lines.push(`${i + 1}) ${p.title} (อันดับ ${p.rank})`);
+                        lines.push(`   ทีม ${p.teamName} · ${p.teamId}`);
+                        if (p.schools) lines.push(`   ${p.schools}`);
                         lines.push(`   สมาชิก: ${p.members.join(", ")}`);
                     } else {
-                        lines.push(`${i + 1}. ${p.name}${p.school ? " — " + p.school : ""} (ทีม ${p.teamName} · ${p.teamId})${p.isTopScore ? " 🌟 คะแนนสูงสุดรอบที่ 1" : ""}`);
+                        lines.push(`${i + 1}) ${p.name}${p.isTopScore ? "  🌟 คะแนนสูงสุดรอบที่ 1" : ""}`);
+                        if (p.school) lines.push(`   ${p.school}`);
+                        lines.push(`   ทีม ${p.teamName} · ${p.teamId}`);
                     }
                 });
             });
+            const n = tieNotes();
+            lines.push("", RULE, "📝 บันทึกสำหรับกรรมการ / ทีมงาน (ไม่ต้องประกาศ)", RULE);
+            if (!n) lines.push("ไม่มีผู้ได้คะแนนเท่ากันในกลุ่มผู้ได้รับรางวัลบุคคล");
+            else {
+                lines.push("คะแนนเท่ากัน (เต็ม 28):", ...n.lines.map(l => "• " + l));
+                if (n.recs.length) lines.push("ข้อเสนอ:", ...n.recs.map(r => "• " + r), "• รายชื่อด้านบนยังแบ่งตามระบบ 3/5/8 เดิม — ปรับตามมติกรรมการก่อนประกาศ");
+            }
+            (awards.warnings || []).forEach(w => lines.push("⚠️ " + w));
             return lines.join("\n");
         }
 
