@@ -6,6 +6,11 @@ import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' }); // ให้เลือกบัญชีทุกครั้ง
 
+// หน้าที่จะไปหลัง login (fixed value ไม่รับ URL จาก query กัน open redirect)
+const afterLoginUrl = new URLSearchParams(window.location.search).get("next") === "spot-grading"
+    ? "spot-grading.html"
+    : "../index.html";
+
 // ฟังก์ชัน Login: ตรวจสอบโดเมน และ Whitelist (ถ้ามี)
 export const loginWithKKU = async () => {
     try {
@@ -22,7 +27,7 @@ export const loginWithKKU = async () => {
 
             if (snapshot.exists()) {
                 console.log("Welcome Staff:", user.displayName);
-                window.location.href = "../index.html";
+                window.location.href = afterLoginUrl;
                 return user;
             } else {
                 alert("คุณไม่มีสิทธิ์เข้าถึงระบบ Staff กรุณาติดต่อฝ่าย IT");
@@ -52,7 +57,7 @@ onAuthStateChanged(auth, (user) => {
         if (!isValidEmail) {
             signOut(auth);
         } else if (isLoginPage) {
-            window.location.href = "../index.html";
+            window.location.href = afterLoginUrl;
         }
     } else {
         if (!isLoginPage) {

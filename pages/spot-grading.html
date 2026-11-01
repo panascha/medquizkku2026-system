@@ -106,6 +106,8 @@
             const { requireStaff } = await import('../js/staff-guard.js');
             let started = false;
             onAuthStateChanged(auth, async (user) => {
+                // สแกน QR ครั้งแรกยังไม่ login: login เสร็จต้องกลับมาหน้านี้ ไม่ใช่ hub
+                if (!user) { location.replace('login.html?next=spot-grading'); return; }
                 if (!(await requireStaff(user))) return;
                 document.getElementById('staffName').textContent = user.displayName || user.email;
                 if (started) return;      // token refresh ไม่ต้องโหลดซ้ำ

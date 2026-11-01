@@ -30,6 +30,15 @@
 
     <main id="app" hidden class="max-w-[1300px] mx-auto p-4 space-y-4">
 
+        <section class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-center gap-6">
+            <div id="gradingQr" class="w-72 max-w-full bg-white"></div>
+            <div class="space-y-2">
+                <h2 class="text-2xl font-bold">ผู้ตรวจ: สแกนเพื่อเข้าหน้าตรวจ R2 Spot</h2>
+                <p class="text-slate-600">เปิดกล้องมือถือสแกน แล้วเข้าสู่ระบบด้วย KKU Mail (อย่าสแกนผ่าน LINE — Google จะไม่ให้เข้าสู่ระบบ)</p>
+                <a id="gradingLink" class="block text-sm text-blue-700 underline break-all"></a>
+            </div>
+        </section>
+
         <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
             <h2 class="font-bold">1. ตั้งค่า</h2>
             <p id="adminNote" hidden class="text-sm text-amber-800">คุณไม่ได้อยู่ใน admins — ดูข้อมูลได้อย่างเดียว</p>
@@ -103,6 +112,20 @@
 
     <div id="toast" hidden></div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+    <script>
+        // แยก script จาก module ด้านล่าง: ถ้า CDN ล่ม หน้า dashboard ยังทำงาน เหลือแค่ลิงก์
+        (function () {
+            const url = 'https://medquizkku2026-system.vercel.app/pages/spot-grading.html';
+            const link = document.getElementById('gradingLink');
+            link.href = url;
+            link.textContent = url;
+            const qr = qrcode(0, 'M');
+            qr.addData(url);
+            qr.make();
+            document.getElementById('gradingQr').innerHTML = qr.createSvgTag({ scalable: true, margin: 4 });
+        })();
+    </script>
     <script type="module">
         import { initDashboardPage } from '../js/spot-dashboard-app.js';
 
