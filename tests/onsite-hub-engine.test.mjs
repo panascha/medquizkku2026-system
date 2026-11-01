@@ -2,8 +2,43 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     parseDelimited, analyzeExport, buildIngestPayload, classifyError, preflightRows, canDecide, chipText,
+    buildScoreView, filterScoreRows,
 } from '../js/onsite-hub-engine.js';
 import { fixtureCsv, createFixtureBackend } from '../js/onsite-hub-fixture.js';
+
+test('buildScoreView: flags outlier, in-team spread, MCQ/Unseen gap, missing; sorts by rank', async () => {
+    const res = await createFixtureBackend()('hubScores', {});
+    const v = buildScoreView(res.teams);
+    const t = (id) => v.teams.find((x) => x.teamId === id);
+    assert.equal(v.teams[0].teamId, 'MQ001');
+    assert.ok(t('MQ001').flags.includes('z'));
+    assert.ok(t('MQ020').flags.includes('spread'));
+    assert.equal(t('MQ020').spread, 12);
+    assert.ok(t('MQ060').flags.includes('gap'));
+    assert.ok(t('MQ007').flags.includes('missing'));
+    assert.deepEqual(t('MQ100').flags, ['missing']);
+    assert.equal(t('MQ100').z, null);
+    assert.equal(v.individuals.length, 300);
+    assert.equal(v.individuals[v.individuals.length - 1].rank, null);
+    assert.ok(v.individuals[0].flags.includes('z'));
+});
+
+test('buildScoreView: tied people share a rank; zero sd gives z 0; empty input safe', () => {
+    const member = (num, score) => ({ num, name: 'n' + num, score });
+    const v = buildScoreView([{ teamId: 'A', total: 10, members: [member(1, 5), member(2, 5), member(3, 1)] }]);
+    assert.deepEqual(v.individuals.map((p) => p.rank), [1, 1, 3]);
+    assert.equal(v.teams[0].z, null);
+    assert.deepEqual(buildScoreView(undefined), { teams: [], individuals: [] });
+});
+
+test('filterScoreRows: searches member names and honours flagged-only', () => {
+    const rows = [
+        { teamId: 'MQ001', teamName: 'x', members: [{ name: 'อลิส' }], flags: [] },
+        { teamId: 'MQ002', name: 'บ๊อบ', flags: ['z'] },
+    ];
+    assert.deepEqual(filterScoreRows(rows, 'อลิส', false).map((r) => r.teamId), ['MQ001']);
+    assert.deepEqual(filterScoreRows(rows, '', true).map((r) => r.teamId), ['MQ002']);
+});
 
 test('parseDelimited: CSV quoting, BOM, CRLF, embedded comma/quote/newline', () => {
     const g = parseDelimited('﻿a,b,c\r\n"x,1","he said ""hi""","l1\nl2"\r\n');

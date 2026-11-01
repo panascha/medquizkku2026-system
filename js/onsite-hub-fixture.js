@@ -59,6 +59,21 @@ export function createFixtureBackend(opts = {}) {
         switch (action) {
             case 'getAllOnSiteTeams':
                 return { status: 'success', teams: fixtureTeams(decided || !!opts.r2, !!opts.r2), rotationStartMs };
+            case 'hubScores':
+                return {
+                    status: 'success', generatedAt: 'fixture',
+                    teams: ids.map((id, i) => {
+                        const n = i + 1;
+                        if (n > 95) return { teamId: id, teamName: 'ทีมปลอม ' + n, mcqAvg: null, unseenTotal: null, unseen: [null, null, null], total: 0, rank: n, r1Passed: false, activityGroup: 'A', r2Score: null, r2Rank: null, r2Passed: null, members: [1, 2, 3].map((k) => ({ num: k, name: `สมาชิกปลอม ${n}-${k}`, score: null })) };
+                        const mcq = n === 1 ? 26 : 16 - n * 0.1;
+                        const un = n === 60 ? 17 : 10 - n * 0.05;
+                        return {
+                            teamId: id, teamName: 'ทีมปลอม ' + n, mcqAvg: mcq, unseenTotal: un, unseen: [un / 3, un / 3, un / 3], total: mcq + un, rank: n,
+                            r1Passed: n <= 40, activityGroup: n <= 40 ? '' : 'ABC'[n % 3], r2Score: null, r2Rank: null, r2Passed: null,
+                            members: [1, 2, 3].map((k) => ({ num: k, name: `สมาชิกปลอม ${n}-${k}`, score: n === 7 && k === 2 ? null : n === 20 ? mcq + (k - 2) * 6 : mcq })),
+                        };
+                    }),
+                };
             case 'hubStatus':
                 return {
                     status: 'success', tabs: {}, pasteRows: {}, lsRows: 100, rosterUsernames: 300,

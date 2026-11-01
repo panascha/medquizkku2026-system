@@ -185,6 +185,67 @@ export const GROUPS = ['A', 'B', 'C'];
 export const SPOT_CELLS = 1400;   // 40 teams x 35 questions
 
 /** Roster search: substring over team id, name, members, school (school optional). */
+// Review prompts only, never evidence of cheating. spread is points out of /28.
+export const SCORE_FLAG = { z: 2, spread: 10, gap: 50 };
+
+function zScorer(vals) {
+    if (vals.length < 2) return () => null;
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / (vals.length - 1));
+    return (v) => (sd > 0 ? (v - mean) / sd : 0);
+}
+const rankIn = (vals, v) => 1 + vals.filter((x) => x > v).length;
+
+/** hubScores teams -> { teams, individuals }, each row carrying z/flags for the score view. */
+export function buildScoreView(rawTeams) {
+    const list = Array.isArray(rawTeams) ? rawTeams : [];
+    const scored = list.filter((t) => Number(t.total) > 0);
+    const zTotal = zScorer(scored.map((t) => t.total));
+    const mcqs = scored.map((t) => t.mcqAvg || 0), unseens = scored.map((t) => t.unseenTotal || 0);
+
+    const teams = list.map((t) => {
+        const members = t.members || [];
+        const got = members.map((m) => m.score).filter((s) => s !== null && s !== undefined);
+        const isScored = Number(t.total) > 0;
+        const z = isScored ? zTotal(t.total) : null;
+        const spread = got.length >= 2 ? Math.max(...got) - Math.min(...got) : null;
+        const mcqRank = isScored ? rankIn(mcqs, t.mcqAvg || 0) : null;
+        const unseenRank = isScored ? rankIn(unseens, t.unseenTotal || 0) : null;
+        const gap = isScored ? Math.abs(mcqRank - unseenRank) : null;
+        const flags = [];
+        if (z !== null && Math.abs(z) >= SCORE_FLAG.z) flags.push('z');
+        if (spread !== null && spread >= SCORE_FLAG.spread) flags.push('spread');
+        if (gap !== null && gap >= SCORE_FLAG.gap) flags.push('gap');
+        if (got.length < members.length || !members.length) flags.push('missing');
+        return { ...t, z, spread, mcqRank, unseenRank, gap, flags };
+    }).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || (b.total || 0) - (a.total || 0));
+
+    const people = list.flatMap((t) => (t.members || []).map((m) => ({
+        teamId: t.teamId, teamName: t.teamName, num: m.num, name: m.name,
+        score: m.score === undefined ? null : m.score,
+    })));
+    const vals = people.filter((p) => p.score !== null).map((p) => p.score);
+    const zPerson = zScorer(vals);
+    const individuals = people.map((p) => {
+        if (p.score === null) return { ...p, rank: null, z: null, flags: ['missing'] };
+        const z = zPerson(p.score);
+        return { ...p, rank: rankIn(vals, p.score), z, flags: z !== null && Math.abs(z) >= SCORE_FLAG.z ? ['z'] : [] };
+    }).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+
+    return { teams, individuals };
+}
+
+/** Search team id/name/member names; optionally keep flagged rows only. Works on both row kinds. */
+export function filterScoreRows(rows, query, flaggedOnly) {
+    const q = String(query == null ? '' : query).trim().toLowerCase();
+    return (rows || []).filter((r) => {
+        if (flaggedOnly && !r.flags.length) return false;
+        if (!q) return true;
+        return [r.teamId, r.teamName, r.name, ...(r.members || []).map((m) => m.name)]
+            .some((v) => v != null && String(v).toLowerCase().includes(q));
+    });
+}
+
 export function filterTeams(teams, query) {
     const q = String(query == null ? '' : query).trim().toLowerCase();
     const list = Array.isArray(teams) ? teams : [];

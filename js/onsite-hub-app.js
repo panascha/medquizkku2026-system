@@ -7,6 +7,7 @@ import {
     classifyError, preflightRows, canDecide, DEFAULT_ALLOWED,
     filterTeams, rotationState, roomsForSlot, phaseOf, countGradedCells, buildGameshowSetup,
     buildRanksPayload, awardSummaryLines, ROT, GROUPS, SPOT_CELLS,
+    buildScoreView, filterScoreRows, SCORE_FLAG,
 } from './onsite-hub-engine.js';
 
 // Same deployment URL as spot-dashboard-app.js / check-onsite*.html (update in place, never a new URL).
@@ -472,6 +473,44 @@ function download(name, text) {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// ── Step 6: score view (read-only, in memory only) ──────────────────────────────────
+let scoreData = null;     // buildScoreView result
+let scoreAt = '';
+const FLAG_TEXT = { z: 'คะแนนโดด', spread: 'ในทีมห่างกัน', gap: 'MCQ ≠ Unseen', missing: 'ขาดคะแนน' };
+const fmt = (v) => (v === null || v === undefined ? '—' : String(+Number(v).toFixed(2)));
+const flagChips = (r) => r.flags.map((f) => `<span class="inline-block rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 whitespace-nowrap">${esc(FLAG_TEXT[f])}</span>`).join(' ');
+const th = (t) => `<th class="px-2 py-1 text-left whitespace-nowrap">${esc(t)}</th>`;
+const td = (html) => `<td class="px-2 py-1 whitespace-nowrap">${html}</td>`;
+
+async function doScoresLoad(btn) {
+    const res = await run('hubScores', {}, btn);
+    if (!res) return;
+    scoreData = buildScoreView(res.teams);
+    scoreAt = res.generatedAt || '';
+    renderScores();
+}
+
+function renderScores() {
+    if (!scoreData) return;
+    const view = $('scoreView').value;
+    const all = scoreData[view];
+    const rows = filterScoreRows(all, $('scoreSearch').value, $('scoreFlagged').checked);
+    $('scoreMeta').textContent = `${rows.length} / ${all.length} แถว · ติดธง ${all.filter((r) => r.flags.length).length} · ข้อมูลเมื่อ ${scoreAt} · เกณฑ์ธง: |z| ≥ ${SCORE_FLAG.z}, คะแนน MCQ ในทีมห่าง ≥ ${SCORE_FLAG.spread}, อันดับ MCQ/Unseen ต่าง ≥ ${SCORE_FLAG.gap}`;
+    const head = view === 'teams'
+        ? ['อันดับ', 'ทีม', 'ชื่อทีม', 'รวม', 'MCQ เฉลี่ย', 'M1', 'M2', 'M3', 'Unseen', 'U1', 'U2', 'U3', 'R1', 'R2', 'z', 'ธง']
+        : ['อันดับ', 'ทีม', 'ชื่อทีม', 'คนที่', 'ชื่อ', 'MCQ /28', 'z', 'ธง'];
+    const body = rows.map((r) => {
+        if (view === 'individuals') {
+            return [fmt(r.rank), teamLink(r.teamId), esc(r.teamName), `M${esc(r.num)}`, esc(r.name), fmt(r.score), fmt(r.z), flagChips(r)];
+        }
+        const m = (n) => { const x = (r.members || []).find((y) => y.num === n); return fmt(x ? x.score : null); };
+        const r1 = r.r1Passed === true ? 'ผ่าน' : r.r1Passed === false ? 'ไม่ผ่าน' : '—';
+        return [fmt(r.rank), teamLink(r.teamId), esc(r.teamName), `<b>${fmt(r.total)}</b>`, fmt(r.mcqAvg), m(1), m(2), m(3), fmt(r.unseenTotal), ...(r.unseen || []).map(fmt), r1, fmt(r.r2Score), fmt(r.z), flagChips(r)];
+    }).map((cells) => `<tr class="border-t border-slate-100">${cells.map(td).join('')}</tr>`).join('');
+    $('scoreTable').innerHTML = `<table class="w-full text-xs"><thead class="bg-slate-50"><tr>${head.map(th).join('')}</tr></thead><tbody>${body}</tbody></table>`
+        + (rows.length ? '' : '<p class="text-sm text-slate-500 text-center py-6">ไม่พบข้อมูล</p>');
+}
+
 // ── Roster drawer ────────────────────────────────────────────────────────────────────
 function openRoster(teamId) {
     rosterFocus = teamId || null;
@@ -509,7 +548,7 @@ function renderAll() { renderInputs(); renderPreview(); renderAwards(); renderDa
 
 function bind() {
     document.querySelectorAll('[data-stepbtn]').forEach((b) => b.addEventListener('click', () => showStep(Number(b.dataset.stepbtn))));
-    const acts = { btnIngest: doIngest, btnPreview: doPreview, btnDecide: doDecide, btnRotStart: doRotationStart, btnRotClear: doRotationClear, btnReset: doReset, btnRanksSave: doRanksSave, btnAwardExport: doAwardExport };
+    const acts = { btnIngest: doIngest, btnPreview: doPreview, btnDecide: doDecide, btnRotStart: doRotationStart, btnRotClear: doRotationClear, btnReset: doReset, btnRanksSave: doRanksSave, btnAwardExport: doAwardExport, btnScoresLoad: doScoresLoad };
     Object.keys(acts).forEach((id) => {
         const b = $(id); b.dataset.act = '1'; b.dataset.label = b.textContent;
         b.addEventListener('click', () => acts[id](b));
@@ -525,6 +564,7 @@ function bind() {
         const n = nextAction();
         if (n && n.target) $(n.target).scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
+    ['scoreView', 'scoreSearch', 'scoreFlagged'].forEach((id) => $(id).addEventListener('input', renderScores));
     $('btnDownloadPv').addEventListener('click', downloadPreview);
     $('btnStatus').addEventListener('click', loadStatus);
     $('btnDownloadGrids').addEventListener('click', () => download('r1-raw-grids.json', JSON.stringify({ mcq: grids.mcq || null, unseen: [grids.u1 || null, grids.u2 || null, grids.u3 || null] }, null, 2)));

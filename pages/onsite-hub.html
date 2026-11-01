@@ -56,6 +56,7 @@
             <button data-stepbtn="3" class="stepbtn">3 R2 Spot</button>
             <button data-stepbtn="4" class="stepbtn">4 R3 Game Show / รางวัล</button>
             <button data-stepbtn="5" class="stepbtn">5 ฉุกเฉิน</button>
+            <button data-stepbtn="6" class="stepbtn">6 คะแนนรายทีม / รายคน</button>
         </div>
 
         <!-- Step 1 -->
@@ -162,6 +163,22 @@
                 <h2 class="font-bold text-amber-900">ถ้า hub ล่ม</h2>
                 <p>เปิด Google Sheet LS_OnSite → เมนู <b>🏆 MedQuiz OnSite</b> → ใช้เมนูเดิม: นำเข้าคะแนน R1 MCQ, นำเข้าคะแนน Unseen, ตัดสินรอบ 1 (<code>setRound1Results</code> ไม่ต้องใช้ token), เริ่ม/ล้างเวลาหมุนฐาน</p>
             </div>
+        </section>
+
+        <!-- Step 6: read-only score view. Data stays in memory; nothing is written. -->
+        <section data-step="6" hidden class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+                <button id="btnScoresLoad" class="bg-[#0f1f4b] text-white rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-40">โหลดคะแนนล่าสุด</button>
+                <select id="scoreView" class="border border-slate-300 rounded-lg px-3 py-2 text-sm" aria-label="มุมมอง">
+                    <option value="teams">รายทีม</option>
+                    <option value="individuals">รายคน (MCQ)</option>
+                </select>
+                <input id="scoreSearch" type="search" autocomplete="off" placeholder="ค้นหา MQ / ทีม / ชื่อ" class="flex-1 min-w-[160px] border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                <label class="text-sm flex items-center gap-1"><input id="scoreFlagged" type="checkbox"> เฉพาะที่ติดธง</label>
+            </div>
+            <p id="scoreMeta" class="text-xs text-slate-600">ยังไม่ได้โหลด</p>
+            <p class="text-xs text-amber-800">ธงเป็นตัวช่วยให้ตรวจซ้ำ ไม่ใช่หลักฐานทุจริต · คะแนนและชื่อเป็นข้อมูลภายใน ห้ามเผยแพร่</p>
+            <div id="scoreTable" class="overflow-x-auto"></div>
         </section>
 
         <section class="bg-white border border-slate-200 rounded-xl p-4">
