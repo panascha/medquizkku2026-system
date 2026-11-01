@@ -55,9 +55,17 @@
                 <span>การตรวจ:</span><span id="gradingState" class="font-bold"></span>
                 <button id="btnToggle" class="bg-slate-800 text-white rounded-lg px-4 py-2 text-sm font-bold"></button>
             </div>
+            <div class="border-t border-slate-200 pt-3 space-y-2">
+                <div class="text-sm font-bold">ตัดข้อที่ไม่นับคะแนน <span class="font-normal text-slate-500">(ติ๊กข้อที่ตัด คะแนนรวมคิดจากข้อที่เหลือ)</span></div>
+                <div id="excludePick" class="flex flex-wrap gap-1"></div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button id="btnExclude" disabled class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-bold">บันทึกรายการตัดข้อ</button>
+                    <span id="excludeInfo" class="text-sm text-slate-600"></span>
+                </div>
+            </div>
             <div class="border-t border-red-200 pt-3 space-y-1">
                 <button id="btnCleanSlate" hidden class="bg-red-700 text-white rounded-lg px-4 py-2 text-sm font-bold">⚠️ ล้างข้อมูลคะแนนทดสอบทั้งหมด (Clean Slate ก่อนแข่งจริง)</button>
-                <p class="text-xs text-slate-500">ลบคะแนน ผู้ตรวจ ผลตัดสินเสมอ และสถานะส่งผล แล้วปิดการตรวจ — รายชื่อทีม ข้อสอบ และ admins คงไว้</p>
+                <p class="text-xs text-slate-500">ลบคะแนน ผู้ตรวจ ผลตัดสินเสมอ รายการตัดข้อ และสถานะส่งผล แล้วปิดการตรวจ — รายชื่อทีม ข้อสอบ และ admins คงไว้</p>
             </div>
         </section>
 
@@ -88,7 +96,7 @@
         </section>
 
         <section class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-            <h2 class="font-bold">4. อันดับ</h2>
+            <h2 class="font-bold">4. อันดับ <span id="boardScope" class="text-sm font-normal text-red-700"></span></h2>
             <div id="tieBox" hidden class="bg-amber-50 border border-amber-300 rounded-lg p-3 space-y-2">
                 <div class="font-bold text-amber-900">คะแนนเท่ากันคร่อมอันดับ 8/9 — ประธานต้องเลือก</div>
                 <div id="tieInfo" class="text-sm"></div>
@@ -98,7 +106,7 @@
                 </div>
             </div>
             <table class="w-full text-sm">
-                <thead><tr class="text-left text-slate-500"><th class="px-2">#</th><th class="px-2">ทีม</th><th class="px-2">ชื่อ</th><th class="px-2 text-right">คะแนน</th><th class="px-2 text-right" title="คะแนน 9 ข้อตัวแทนรายวิชา (q06 q08 q11 q12 q20 q24 q26 q28 q32) ใช้ประกอบการตัดสินเท่านั้น">9 ข้อ (เสมอ)</th><th class="px-2"></th></tr></thead>
+                <thead><tr class="text-left text-slate-500"><th class="px-2">#</th><th class="px-2">ทีม</th><th class="px-2">ชื่อ</th><th class="px-2 text-right">คะแนน</th><th id="subHead" class="px-2 text-right"></th><th class="px-2"></th></tr></thead>
                 <tbody id="board"></tbody>
             </table>
         </section>
@@ -107,6 +115,7 @@
             <h2 class="font-bold">5. ส่งผลเข้าชีต OnSite</h2>
             <button id="btnPush" disabled class="bg-red-700 text-white rounded-lg px-6 py-3 font-bold">Push</button>
             <div id="pushWhy" class="text-sm text-slate-600"></div>
+            <div id="pushStale" hidden class="text-sm font-bold text-red-700">รายการตัดข้อเปลี่ยนหลังส่งผลแล้ว: คะแนนในชีตล้าสมัย ต้องแก้คอลัมน์ M/O ใน LS_OnSite ด้วยมือตามที่ประธานยืนยัน</div>
         </section>
     </main>
 

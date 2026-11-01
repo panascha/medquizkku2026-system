@@ -16,7 +16,7 @@ Status: CONTRACT, not built (2026-10-25). Event 1 Nov 2569: Spot ends 12:00, gra
 
 ## RTDB contract (`spot_grading_2026/`)
 ```
-config/      { isGradingOpen: bool, pushedAt?: ms, pushedBy?: email }
+config/      { isGradingOpen: bool, pushedAt?: ms, pushedBy?: email, exclude?: { qids?: [qNN], by: email, at: ms } }   # exclude: items dropped from scoring; no rules change needed (config is admin-write, children open)
 admins/{escapedEmail}: true         # chair + IT, set by hand in console
 teams/{MQxxx}: { name, r1Rank }     # exactly 40, loaded from OnSite getAllOnSiteTeams (K = TRUE)
 questions/{q01..q35}: { no, subject, type: "MCQ"|"SAQ", key, rubric }
@@ -45,6 +45,7 @@ Question upload file (`{"questions": {"q01": {...}}}`, 35 entries) lives **outsi
 2. Live 35 x 40 heatmap, progress `n / 1400`, per-question completion with laggards highlighted.
 3. Leaderboard (total out of 35). Teams tied across the 8/9 boundary are flagged, and the chair ticks which ones pass, which writes `tieDecision`.
 4. **Push**, enabled only at 1400/1400 with no unresolved tie. It sends one staff-gated POST to OnSite GAS. A success sets `config/pushedAt`.
+5. **Exclude items** (admins, section 1): ticked items stop counting toward the total, the Push gate and the tie sub-score. Total = raw sum of the remaining N items, shown `/ N`; Push needs N x 40 graded. Raw `scores` stay, so it is reversible. Saving clears any saved `tieDecision`. Changing it after Push only warns: Push stays blocked by `pushedAt`, so columns M/O must be fixed by hand. `pages/spot-grading.html` is unaware of exclusions: graders still see every item. Clean Slate clears it.
 - Both pages support `?fixture=1` (fake 40 teams / 35 questions, no Firebase).
 
 ## OnSite GAS action `setSpotResults` (POST)
@@ -60,7 +61,7 @@ Payload `{action, idToken, scores: {MQxxx: int}, passed: [8 ids], overwrite?: bo
 - Verified with a node harness on stubbed sheet I/O before `clasp push` (memory: GAS verify = execute). The user deploys.
 
 ## Engine (pure, tested): `js/spot-grading-engine.js`
-`normalizeTeamId(raw, teamSet)`, `progress(scores, teams, qids)`, `totals(scores)`, `rankWithCut(totals, 8)` returning `{ranked, cutTies}`, `laggards(progress)`, `buildPushPayload(totals, tieDecision)`, `lockState(grader, now)`.
+`normalizeTeamId(raw, teamSet)`, `includedQids(excluded)`, `progress(scores, teams, qids)`, `totals(scores, teams, qids)`, `rankWithCut(totals, 8)` returning `{ranked, cutTies}`, `laggards(progress)`, `buildPushPayload(totals, tieDecision)`, `lockState(grader, now)`.
 Test: `node --test tests/spot-grading-engine.test.mjs`.
 
 ---
@@ -97,6 +98,7 @@ Test: `node --test tests/spot-grading-engine.test.mjs`.
 4. ครบ 1400/1400 และไม่มีคะแนนเสมอที่ยังไม่ตัดสิน: ประธานติ๊กทีมผ่านในกรณีเสมอ, บันทึก tieDecision, ตรวจรายชื่อ 8 ทีม แล้วกด **Push**. ตรวจคอลัมน์ M และ O ของ `LS_OnSite` ด้วยตาอีกครั้ง.
 5. ปิดการตรวจ (`isGradingOpen = false`) หลัง Push และจัดการข้อมูลเฉลยใน `questions` ตามที่ตกลง.
 - ถ้า Push ฟ้องว่า M มีข้อมูลอยู่แล้ว: ใช้ `overwrite` เฉพาะเมื่อประธานยืนยัน.
+- **ตัดข้อ** (ประธานตัดสิน, admin กด): ส่วน "ตัดข้อที่ไม่นับคะแนน" ในหัวข้อ 1 ติ๊กแล้วกดบันทึก ก่อน Push. คะแนนรวมเป็นผลรวมดิบของ N ข้อที่เหลือ และ Push ต้องตรวจครบ N x 40 ช่อง (ไม่ใช่ 1400). ถ้าเคยบันทึกผลตัดสินเสมอไว้ ต้องตัดสินใหม่. ตัดข้อหลัง Push แล้ว ระบบแค่เตือน ต้องแก้ M/O ในชีตด้วยมือ.
 
 ## 5. แจ้งฝ่ายวิชาการ (ผู้แจ้ง: ผู้ใช้)
 ก่อนวันงานต้องแจ้งฝ่ายวิชาการ: **ชีทตรวจ Spot ของฝ่ายวิชาการไม่ถูกใช้เป็นคะแนนทางการ** คะแนน R2 ทั้งหมดมาจากพอร์ทัลนี้และถูก Push เข้า `LS_OnSite` (`SPOT_EXPORT` / "หน้าแรก" ไม่ถูกเขียนคะแนน). ถ้าฝ่ายวิชาการจดคะแนนในชีทของตน ถือเป็นเอกสารอ้างอิงเท่านั้น.

@@ -70,11 +70,17 @@ export function progress(scores, teams, qids = QIDS) {
     return { done, total: qids.length * teams.length, perQuestion, perTeam };
 }
 
-export function totals(scores, teams) {
+// Items still counted after the chair's exclusions (config/exclude.qids). Raw scores are never touched, so exclusion is reversible.
+export function includedQids(excluded) {
+    const out = new Set(Object.values(excluded || {}));
+    return QIDS.filter((q) => !out.has(q));
+}
+
+export function totals(scores, teams, qids) {
     const out = {};
     if (teams) teams.forEach((t) => { out[t] = 0; });
-    Object.keys(scores || {}).forEach((q) => {
-        const row = scores[q] || {};
+    (qids || Object.keys(scores || {})).forEach((q) => {
+        const row = (scores && scores[q]) || {};
         Object.keys(row).forEach((t) => {
             if (teams && !hasTeam(teams, t)) return;
             if (!(t in out)) out[t] = 0;

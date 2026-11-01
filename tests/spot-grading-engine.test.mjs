@@ -3,12 +3,75 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     QIDS, QID_RE, TEAM_RE, CUT, STALE_MS, normalizeTeamId, autoArmId, progress, totals,
-    rankWithCut, laggards, buildPushPayload, lockState, TIE_SUBSET_QIDS, subScore, halfAllowed, HALF_MAX_Q
+    rankWithCut, laggards, buildPushPayload, lockState, TIE_SUBSET_QIDS, subScore, halfAllowed, HALF_MAX_Q,
+    includedQids
 } from '../js/spot-grading-engine.js';
 
 const ids = (n) => Array.from({ length: n }, (_, i) => 'MQ' + String(i + 1).padStart(3, '0'));
 // totals helper: scores by team order
 const tot = (arr) => Object.fromEntries(arr.map((s, i) => [ids(arr.length)[i], s]));
+
+test('includedQids: drops excluded, keeps order, tolerates missing/object/unknown input', () => {
+    assert.deepEqual(includedQids(undefined), QIDS);
+    assert.deepEqual(includedQids(null), QIDS);
+    assert.deepEqual(includedQids([]), QIDS);
+    const inc = includedQids(['q35', 'q01', 'q99']);
+    assert.equal(inc.length, 33);
+    assert.equal(inc[0], 'q02');
+    assert.equal(inc[32], 'q34');
+    // RTDB may hand a list back as an object
+    assert.deepEqual(includedQids({ 0: 'q01', 2: 'q35' }), inc);
+});
+
+test('exclusion: totals count only included items, raw scores untouched and reversible', () => {
+    const s = { q01: { MQ001: 1, MQ002: 0.5 }, q02: { MQ001: 1, MQ002: 1 }, q03: { MQ001: 0, MQ002: 0.5 } };
+    const snapshot = JSON.parse(JSON.stringify(s));
+    const teams = ['MQ001', 'MQ002'];
+    assert.deepEqual(totals(s, teams), { MQ001: 2, MQ002: 2 });
+    assert.deepEqual(totals(s, teams, includedQids(['q01'])), { MQ001: 1, MQ002: 1.5 });
+    assert.deepEqual(totals(s, teams, includedQids([])), { MQ001: 2, MQ002: 2 });
+    assert.deepEqual(s, snapshot);
+    // a grade on a missing row is harmless; a team with nothing still gets 0
+    assert.deepEqual(totals({}, teams, includedQids(['q01'])), { MQ001: 0, MQ002: 0 });
+});
+
+test('exclusion: progress target shrinks, grades on excluded items do not count', () => {
+    const teams = ['MQ001', 'MQ002'];
+    const inc = includedQids(['q01']);
+    const p = progress({ q01: { MQ001: 1 }, q02: { MQ001: 1, MQ002: 0 } }, teams, inc);
+    assert.equal(p.total, 34 * 2);
+    assert.equal(p.done, 2);
+    assert.equal(p.perQuestion.q01, undefined);
+});
+
+test('exclusion: tie sub-score drops an excluded item', () => {
+    const inc = includedQids(['q06']);
+    const sub = TIE_SUBSET_QIDS.filter((q) => inc.includes(q));
+    assert.equal(sub.length, 8);
+    assert.ok(!sub.includes('q06'));
+    assert.equal(subScore({ q06: { MQ001: 1 }, q08: { MQ001: 1 } }, 'MQ001', sub), 1);
+});
+
+test('exclusion: the Top 8 follows included items, and an old tie pick stops validating', () => {
+    const teams = ids(9);
+    // q01 alone separates MQ009 (gets it) from MQ008 (misses it); all else equal
+    const s = {
+        q01: Object.fromEntries(teams.map((t) => [t, t === 'MQ008' ? 0 : 1])),
+        q02: Object.fromEntries(teams.map((t) => [t, 1]))
+    };
+    const all = totals(s, teams);
+    assert.deepEqual(buildPushPayload(all, null).payload.passed, teams.filter((t) => t !== 'MQ008'));
+    const without = totals(s, teams, includedQids(['q01']));
+    assert.equal(buildPushPayload(without, null).reason, 'TIE_UNRESOLVED');
+    // 9 tied on 2, MQ010 on 1: a decision passing MQ010 no longer fits these totals
+    const ten = ids(10);
+    const s2 = {
+        q02: Object.fromEntries(ten.map((t) => [t, 1])),
+        q03: Object.fromEntries(ten.map((t) => [t, t === 'MQ010' ? 0 : 1]))
+    };
+    const stale = { passed: [...ten.slice(0, 7), 'MQ010'] };
+    assert.equal(buildPushPayload(totals(s2, ten, includedQids(['q01'])), stale).reason, 'TIE_INVALID');
+});
 
 test('constants', () => {
     assert.equal(QIDS.length, 35);

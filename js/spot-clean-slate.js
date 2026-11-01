@@ -9,6 +9,8 @@ export const CLEAN_SLATE_UPDATE = Object.freeze({
     graders: null,
     tieDecision: null,
     'config/isGradingOpen': false,
+    // a rehearsal exclusion left in place would silently change the real Top 8
+    'config/exclude': null,
     // doPush blocks on config.pushedAt, so a rehearsal push would otherwise lock out the real one
     'config/pushedAt': null,
     'config/pushedBy': null

@@ -3,7 +3,7 @@
 // Live callers must already have passed requireStaff(user). RTDB layout + push: SPOT_GRADING.md.
 import {
     QIDS, QID_RE, QUESTION_COUNT, TEAM_COUNT, CUT,
-    TIE_SUBSET_QIDS, subScore, progress, totals, rankWithCut, laggards, buildPushPayload, fmtClock, recentActivity
+    TIE_SUBSET_QIDS, subScore, progress, totals, includedQids, rankWithCut, laggards, buildPushPayload, fmtClock, recentActivity
 } from './spot-grading-engine.js';
 import { CLEAN_SLATE_PHRASE, cleanSlateUpdate, applyCleanSlate } from './spot-clean-slate.js';
 
@@ -29,6 +29,7 @@ const ACTIVITY_LIMIT = 50;
 let tieDecision = null;
 let admins = {};
 let picks = new Set();     // chair's unsaved tie ticks
+let excludeDraft = null;   // admin's unsaved exclude ticks; null = no edits
 let pushing = false;
 
 function toast(msg, bad) {
@@ -41,18 +42,22 @@ function toast(msg, bad) {
 }
 
 const tName = (t) => (teams[t] && teams[t].name) || '';
+const itemList = (qids) => qids.map((q) => 'ข้อ ' + Number(q.slice(1))).join(', ');
 
 // ── derived state ──
 function derive() {
-    const prog = progress(scores, teamIds);
-    const tot = totals(scores, teamIds);
+    const qids = includedQids(config.exclude && config.exclude.qids);
+    const excluded = QIDS.filter((q) => !qids.includes(q));
+    const sub = TIE_SUBSET_QIDS.filter((q) => qids.includes(q));
+    const prog = progress(scores, teamIds, qids);
+    const tot = totals(scores, teamIds, qids);
     const rk = rankWithCut(tot, CUT);
     const tieScore = rk.cutTies.length ? rk.ranked[CUT - 1].score : null;
     const sure = tieScore === null ? [] : rk.ranked.filter((r) => r.score > tieScore).map((r) => r.team);
     const need = tieScore === null ? 0 : CUT - sure.length;
     const full = prog.done === prog.total && teamIds.length === TEAM_COUNT;
     const push = buildPushPayload(tot, tieDecision, CUT);
-    return { prog, tot, rk, tieScore, sure, need, full, push };
+    return { qids, excluded, sub, prog, tot, rk, tieScore, sure, need, full, push };
 }
 
 function pushBlocker(d) {
@@ -76,7 +81,40 @@ function renderSetup() {
     $('adminNote').hidden = isAdmin;
 }
 
-function renderHeatmap() {
+function renderExclude(d) {
+    const box = $('excludePick');
+    if (!box.childElementCount) {
+        QIDS.forEach((q, qi) => {
+            const lab = document.createElement('label');
+            lab.className = 'inline-flex items-center gap-1 text-xs border border-slate-200 rounded px-2 py-1 cursor-pointer';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.dataset.q = q;
+            cb.onchange = () => {
+                excludeDraft = excludeDraft || new Set(derive().excluded);
+                if (cb.checked) excludeDraft.add(q); else excludeDraft.delete(q);
+                renderExclude(derive());
+            };
+            lab.append(cb, String(qi + 1));
+            box.appendChild(lab);
+        });
+    }
+    const sel = excludeDraft || new Set(d.excluded);
+    box.querySelectorAll('input').forEach((cb) => {
+        cb.checked = sel.has(cb.dataset.q);
+        cb.disabled = !isAdmin;
+        cb.parentElement.classList.toggle('bg-red-100', cb.checked);
+    });
+    const dirty = sel.size !== d.excluded.length || d.excluded.some((q) => !sel.has(q));
+    $('btnExclude').disabled = !isAdmin || !dirty || sel.size === QUESTION_COUNT;
+    const ex = config.exclude;
+    $('excludeInfo').textContent = `นับคะแนน ${d.qids.length}/${QUESTION_COUNT} ข้อ`
+        + (d.excluded.length ? ` · ตัด ${itemList(d.excluded)}` : ' · ไม่ได้ตัดข้อใด')
+        + (ex && ex.by ? ` · แก้ล่าสุดโดย ${ex.by} (${new Date(ex.at).toLocaleTimeString('th-TH')})` : '')
+        + (dirty ? ' · มีการเลือกที่ยังไม่บันทึก' : '');
+}
+
+function renderHeatmap(d) {
     const box = $('heat');
     box.textContent = '';
     const frag = document.createDocumentFragment();
@@ -92,18 +130,19 @@ function renderHeatmap() {
     });
     QIDS.forEach((q, qi) => {
         const l = document.createElement('div');
-        l.className = 'text-[10px] text-right pr-1 text-slate-500';
+        const out = d.excluded.includes(q);
+        l.className = 'text-[10px] text-right pr-1 text-slate-500' + (out ? ' line-through' : '');
         l.textContent = 'ข้อ ' + (qi + 1);
         frag.appendChild(l);
         const row = scores[q] || {};
         teamIds.forEach((t) => {
             const c = document.createElement('div');
             const v = row[t];
-            c.className = 'h-3 rounded-sm ' + (v === 1 ? 'bg-emerald-500' : v === 0.5 ? 'bg-amber-400' : v === 0 ? 'bg-red-500' : 'bg-slate-200');
+            c.className = 'h-3 rounded-sm ' + (v === 1 ? 'bg-emerald-500' : v === 0.5 ? 'bg-amber-400' : v === 0 ? 'bg-red-500' : 'bg-slate-200') + (out ? ' opacity-20' : '');
             const m = (scoreMeta[q] || {})[t];
-            c.title = (v === 0 || v === 0.5 || v === 1)
+            c.title = (out ? 'ตัดออก ไม่นับคะแนน · ' : '') + ((v === 0 || v === 0.5 || v === 1)
                 ? `ข้อ ${qi + 1} · ${t} = ${v} | ตรวจโดย: ${(m && m.by) || '-'} (${fmtClock(m && m.at)})`
-                : `${q} · ${t} = -`;
+                : `${q} · ${t} = -`);
             frag.appendChild(c);
         });
     });
@@ -138,7 +177,7 @@ function renderActivity() {
 
 function renderProgress(d) {
     const pct = d.prog.total ? Math.round((d.prog.done / d.prog.total) * 100) : 0;
-    $('progText').textContent = `${d.prog.done} / ${d.prog.total || QUESTION_COUNT * TEAM_COUNT}`;
+    $('progText').textContent = `${d.prog.done} / ${d.prog.total || d.qids.length * TEAM_COUNT}`;
     $('progBar').style.width = pct + '%';
     const lag = laggards(d.prog);
     const box = $('lag');
@@ -156,12 +195,16 @@ function renderBoard(d) {
     const body = $('board');
     body.textContent = '';
     const tied = new Set(d.rk.cutTies);
+    const subOut = TIE_SUBSET_QIDS.filter((q) => !d.sub.includes(q));
+    $('subHead').textContent = `${d.sub.length} ข้อ (เสมอ${subOut.length ? ' · ตัด ' + itemList(subOut) : ''})`;
+    $('subHead').title = `คะแนน ${d.sub.length} ข้อตัวแทนรายวิชา (${d.sub.join(' ')}) ใช้ประกอบการตัดสินเท่านั้น`;
+    $('boardScope').textContent = d.excluded.length ? `นับ ${d.qids.length}/${QUESTION_COUNT} ข้อ · ตัด ${itemList(d.excluded)}` : '';
     d.rk.ranked.forEach((r) => {
         const tr = document.createElement('tr');
         const inTop = tieDecision && Array.isArray(tieDecision.passed) && tieDecision.passed.includes(r.team);
         tr.className = tied.has(r.team) ? 'bg-amber-50' : (r.rank <= CUT && !tied.size ? 'bg-emerald-50' : '');
-        const cells = [r.rank, r.team, tName(r.team), r.score + ' / ' + QUESTION_COUNT,
-            tied.has(r.team) ? subScore(scores, r.team) + ' / ' + TIE_SUBSET_QIDS.length : ''];
+        const cells = [r.rank, r.team, tName(r.team), r.score + ' / ' + d.qids.length,
+            tied.has(r.team) ? subScore(scores, r.team, d.sub) + ' / ' + d.sub.length : ''];
         cells.forEach((v, i) => {
             const td = document.createElement('td');
             td.className = 'px-2 py-1 ' + (i === 3 ? 'text-right font-bold' : i === 4 ? 'text-right text-amber-800 font-bold' : '');
@@ -209,12 +252,15 @@ function renderPush(d) {
     $('pushWhy').textContent = config.pushedAt
         ? `ส่งแล้วโดย ${config.pushedBy || '-'} (${new Date(config.pushedAt).toLocaleTimeString('th-TH')})`
         : (why || 'พร้อมส่ง — กดเพื่อเขียนผลลงชีต OnSite');
+    const ex = config.exclude;
+    $('pushStale').hidden = !(config.pushedAt && ex && ex.at > config.pushedAt);
 }
 
 function renderAll() {
     const d = derive();
     renderSetup();
-    renderHeatmap();
+    renderExclude(d);
+    renderHeatmap(d);
     renderActivity();
     renderProgress(d);
     renderBoard(d);
@@ -231,8 +277,8 @@ async function toggleGrading() {
 
 async function cleanSlate() {
     if (!isAdmin) return;
-    const graded = progress(scores, teamIds).done;
-    if (!confirm(`ล้างข้อมูลคะแนนทดสอบทั้งหมด?\n\nจะลบ: คะแนน (${graded} ช่อง) ผู้ตรวจ ผลตัดสินเสมอ และสถานะ "ส่งผลแล้ว"\nจะปิดการตรวจ\nคงไว้: รายชื่อทีม ข้อสอบ admins\n\nย้อนกลับไม่ได้ — ห้ามกดหลังเริ่มตรวจจริง`)) return;
+    const graded = progress(scores, teamIds).done;   // every cell, excluded items too: all of it is wiped
+    if (!confirm(`ล้างข้อมูลคะแนนทดสอบทั้งหมด?\n\nจะลบ: คะแนน (${graded} ช่อง) ผู้ตรวจ ผลตัดสินเสมอ รายการตัดข้อ และสถานะ "ส่งผลแล้ว"\nจะปิดการตรวจ\nคงไว้: รายชื่อทีม ข้อสอบ admins\n\nย้อนกลับไม่ได้ — ห้ามกดหลังเริ่มตรวจจริง`)) return;
     const typed = prompt(`พิมพ์ ${CLEAN_SLATE_PHRASE} เพื่อยืนยัน`);
     if (typed === null) return;
     if (typed.trim() !== CLEAN_SLATE_PHRASE) { toast('ข้อความยืนยันไม่ตรง — ยกเลิก', true); return; }
@@ -294,6 +340,25 @@ async function uploadQuestions(file) {
     }
 }
 
+async function saveExclude() {
+    if (!isAdmin || !excludeDraft || excludeDraft.size === QUESTION_COUNT) return;
+    const qids = QIDS.filter((q) => excludeDraft.has(q));
+    const lines = [`นับคะแนน ${QUESTION_COUNT - qids.length}/${QUESTION_COUNT} ข้อ`, qids.length ? `ตัด: ${itemList(qids)}` : 'ไม่ตัดข้อใด', 'คะแนนรายข้อเดิมยังเก็บไว้ เปลี่ยนกลับได้'];
+    if (tieDecision) lines.push('ผลตัดสินเสมอที่บันทึกไว้จะถูกล้าง ต้องตัดสินใหม่');
+    if (config.pushedAt) lines.push('ส่งผลเข้าชีตไปแล้ว: คะแนนในชีตจะล้าสมัย ต้องแก้คอลัมน์ M/O ด้วยมือ');
+    if (!confirm(lines.join('\n') + '\n\nยืนยัน?')) return;
+    try {
+        // an old tie pick was made on different totals; clear it first so a failed second write can't keep it
+        if (tieDecision) await backend.setPath('tieDecision', null);
+        await backend.setPath('config/exclude', { qids, by: me.email, at: backend.now() });
+        excludeDraft = null;
+        toast('บันทึกรายการตัดข้อแล้ว');
+    } catch (e) {
+        toast('บันทึกไม่สำเร็จ: ' + (e && e.message), true);
+    }
+    renderAll();
+}
+
 async function saveTie() {
     const d = derive();
     const passed = [...d.sure, ...picks].sort();
@@ -307,7 +372,8 @@ async function doPush() {
     const d = derive();
     const why = pushBlocker(d);
     if (why) { toast(why, true); return; }
-    if (!confirm(`ส่งผลเข้าชีต OnSite: ผ่าน 8 ทีม — ${d.push.payload.passed.join(', ')}\nยืนยัน?`)) return;
+    const scope = `นับคะแนน ${d.qids.length}/${QUESTION_COUNT} ข้อ${d.excluded.length ? ' (ตัด ' + itemList(d.excluded) + ')' : ''}`;
+    if (!confirm(`ส่งผลเข้าชีต OnSite: ผ่าน 8 ทีม — ${d.push.payload.passed.join(', ')}\n${scope}\nยืนยัน?`)) return;
     pushing = true;
     renderPush(d);
     try {
@@ -329,6 +395,7 @@ function bind() {
     $('btnLoadTeams').onclick = loadTeams;
     $('btnCleanSlate').onclick = cleanSlate;
     $('fileQ').onchange = (e) => uploadQuestions(e.target.files[0]);
+    $('btnExclude').onclick = saveExclude;
     $('btnTie').onclick = saveTie;
     $('btnPush').onclick = doPush;
 }
@@ -409,7 +476,13 @@ export async function initDashboardPage({ fixture, complete, user }) {
         backend.watch('admins', (v) => { admins = v || {}; isAdmin = admins[key] === true; renderAll(); });
     }
     bind();
-    backend.watch('config', (v) => { config = v || {}; renderAll(); });
+    backend.watch('config', (v) => {
+        config = v || {};
+        // an exclude change can move the tied set; a tick outside it has no checkbox left to untick
+        const tiedNow = derive().rk.cutTies;
+        picks.forEach((t) => { if (!tiedNow.includes(t)) picks.delete(t); });
+        renderAll();
+    });
     backend.watch('teams', (v) => { teams = v || {}; teamIds = Object.keys(teams).sort(); renderAll(); });
     backend.watch('scores', (v) => { scores = v || {}; renderAll(); });
     backend.watch('scoreMeta', (v) => { scoreMeta = v || {}; renderAll(); });

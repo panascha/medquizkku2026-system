@@ -9,7 +9,7 @@ const rules = JSON.parse(readFileSync(new URL('../spot_grading.rules.json', impo
 
 function seeded() {
     return {
-        config: { isGradingOpen: true, pushedAt: 1, pushedBy: 'a@kku.ac.th', keep: 'x' },
+        config: { isGradingOpen: true, pushedAt: 1, pushedBy: 'a@kku.ac.th', exclude: { qids: ['q01'], by: 'a', at: 1 }, keep: 'x' },
         teams: { MQ001: { name: 'A' } },
         questions: { q01: { key: 'k' } },
         admins: { a_kku: true },
@@ -22,7 +22,7 @@ function seeded() {
 
 test('wipe list covers every grading path and nothing of the setup data', () => {
     assert.deepEqual(Object.keys(CLEAN_SLATE_UPDATE).sort(),
-        ['config/isGradingOpen', 'config/pushedAt', 'config/pushedBy', 'graders', 'scoreMeta', 'scores', 'tieDecision']);
+        ['config/exclude', 'config/isGradingOpen', 'config/pushedAt', 'config/pushedBy', 'graders', 'scoreMeta', 'scores', 'tieDecision']);
     assert.equal(CLEAN_SLATE_UPDATE['config/isGradingOpen'], false);
     assert.notEqual(cleanSlateUpdate(), CLEAN_SLATE_UPDATE);
 });
