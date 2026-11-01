@@ -132,7 +132,7 @@
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 muted"></i>
             <input id="search" type="search" autocomplete="off"
                 placeholder="ค้นหา รหัสทีม / ชื่อทีม / ชื่อนักเรียน"
-                class="w-full rounded-lg card text-white placeholder-slate-400 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                class="w-full rounded-lg card text-white placeholder-slate-400 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <p id="listNote" class="mx-4 mt-2 text-xs muted"></p>
 
@@ -502,7 +502,6 @@
             const btn = e.target.closest("[data-tab]");
             if (!btn) return;
             tab = btn.dataset.tab;
-            if (tab !== "all") { query = ""; $("search").value = ""; }   // search spans all teams, so it would override this tab's filter
             render();   // also clears the room highlight in the pulse widget
         };
 
@@ -524,9 +523,10 @@
             const activeTab = TABS.find(t => t.id === tab);
             const room = activeTab ? null : roomPulse(rot).find(r => r.id === tab);
             const filter = activeTab ? activeTab.filter : roomFilter(tab, rot);
-            const list = q ? data.teams.filter(t => matches(t, q)) : data.teams.filter(filter);
+            const list = data.teams.filter(t => filter(t) && (!q || matches(t, q)));
+            const scope = tab === "all" ? "ทุกทีม" : room ? `ห้อง ${room.name}` : "แท็บนี้";
             $("listNote").textContent = q
-                ? `ผลการค้นหา "${query.trim()}" ในทุกทีม: ${list.length} ทีม`
+                ? `ผลการค้นหา "${query.trim()}" ใน${scope}: ${list.length} ทีม`
                 : room ? `ห้อง ${room.name}: ${list.length} ทีม (อยู่ในห้อง / กำลังเดินไป) — แตะห้องอีกครั้งเพื่อดูทั้งหมด`
                 : `${list.length} ทีม`;
             $("cards").innerHTML = list.length ? list.map(t => {
@@ -553,8 +553,6 @@
             const rot = rotationState();
             lastRotationKey = rotationKey(rot);
             $("slotSelect").value = slotOverride;   // not in the 1 s tick: would fight an open dropdown
-            $("search").disabled = tab !== "all";
-            $("search").placeholder = tab === "all" ? "ค้นหา รหัสทีม / ชื่อทีม / ชื่อนักเรียน" : "ค้นหาได้เฉพาะแท็บ ทั้งหมด";
             renderDrift(rot);
             renderBanner(rot);
             renderPulse(rot);
