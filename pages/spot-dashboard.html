@@ -80,7 +80,10 @@
         </section>
 
         <section class="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
-            <h2 class="font-bold mb-2">3. Heatmap ข้อ × ทีม</h2>
+            <div class="flex items-center gap-2 mb-2">
+                <h2 class="font-bold">3. Heatmap ข้อ × ทีม</h2>
+                <button id="btnCsv" class="ml-auto bg-emerald-700 text-white rounded-lg px-3 py-1.5 text-xs font-bold">ดาวน์โหลด CSV (คะแนนรายข้อ × ทีม)</button>
+            </div>
             <div id="heat" class="min-w-[700px]"></div>
             <p class="text-xs text-slate-500 mt-2">เขียว = 1, แดง = 0, เทา = ยังไม่ตรวจ</p>
         </section>

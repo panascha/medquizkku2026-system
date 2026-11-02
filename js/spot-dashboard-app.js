@@ -398,6 +398,40 @@ function bind() {
     $('btnExclude').onclick = saveExclude;
     $('btnTie').onclick = saveTie;
     $('btnPush').onclick = doPush;
+    $('btnCsv').onclick = downloadCsv;
+}
+
+// ── CSV export: one row per team, one column per item (blank = not graded) ──
+const csvCell = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+
+export function buildSpotCsv({ qids, excluded, teamIds, teams, scores, tot, ranked }) {
+    const rankOf = {};
+    ranked.forEach((r) => { rankOf[r.team] = r.rank; });
+    const head = ['อันดับ', 'รหัสทีม', 'ชื่อทีม']
+        .concat(qids.map((q, i) => 'ข้อ ' + (i + 1) + (excluded.includes(q) ? ' (ตัด)' : '')))
+        .concat(['คะแนนรวม (เฉพาะข้อที่นับ)', 'ตรวจแล้ว (ข้อ)']);
+    const rows = teamIds.slice()
+        .sort((a, b) => (rankOf[a] || 999) - (rankOf[b] || 999) || (a < b ? -1 : 1))
+        .map((t) => {
+            const cells = qids.map((q) => { const v = (scores[q] || {})[t]; return v === 0 || v === 0.5 || v === 1 ? v : ''; });
+            return [rankOf[t] || '', t, (teams[t] && teams[t].name) || ''].concat(cells)
+                .concat([tot[t] ?? 0, cells.filter((c) => c !== '').length]);
+        });
+    return '﻿' + [head].concat(rows).map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}
+
+function downloadCsv() {
+    const d = derive();
+    const csv = buildSpotCsv({ qids: QIDS, excluded: d.excluded, teamIds, teams, scores, tot: d.tot, ranked: d.rk.ranked });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `spot_r2_item_by_team_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(`ดาวน์โหลด CSV แล้ว (${teamIds.length} ทีม × ${QIDS.length} ข้อ)`);
 }
 
 // ── backends ──
