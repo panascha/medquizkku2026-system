@@ -511,6 +511,42 @@ function renderScores() {
         + (rows.length ? '' : '<p class="text-sm text-slate-500 text-center py-6">ไม่พบข้อมูล</p>');
 }
 
+// CSV of every row in the current view (search/flag filters ignored). Plain values, BOM for Excel Thai.
+const csvCell = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+const num = (v) => (v === null || v === undefined || v === '' ? '' : +Number(v).toFixed(4));
+
+export function buildScoresCsv(view, all) {
+    const flags = (r) => r.flags.map((f) => FLAG_TEXT[f] || f).join(' | ');
+    let head, rows;
+    if (view === 'individuals') {
+        head = ['อันดับ', 'รหัสทีม', 'ชื่อทีม', 'คนที่', 'ชื่อ', 'MCQ /28', 'z', 'ธง'];
+        rows = all.map((r) => [num(r.rank), r.teamId, r.teamName, 'M' + r.num, r.name, num(r.score), num(r.z), flags(r)]);
+    } else {
+        head = ['อันดับ', 'รหัสทีม', 'ชื่อทีม', 'รวม', 'MCQ เฉลี่ย', 'M1', 'M2', 'M3', 'Unseen', 'U1', 'U2', 'U3', 'R1', 'R2', 'z', 'ธง'];
+        rows = all.map((r) => {
+            const m = (n) => { const x = (r.members || []).find((y) => y.num === n); return num(x ? x.score : null); };
+            const u = [0, 1, 2].map((i) => num((r.unseen || [])[i]));
+            const r1 = r.r1Passed === true ? 'ผ่าน' : r.r1Passed === false ? 'ไม่ผ่าน' : '';
+            return [num(r.rank), r.teamId, r.teamName, num(r.total), num(r.mcqAvg), m(1), m(2), m(3), num(r.unseenTotal), ...u, r1, num(r.r2Score), num(r.z), flags(r)];
+        });
+    }
+    return '﻿' + [head].concat(rows).map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}
+
+function doScoresCsv() {
+    if (!scoreData) { toast('กด "โหลดคะแนนล่าสุด" ก่อน', true); return; }
+    const view = $('scoreView').value;
+    const csv = buildScoresCsv(view, scoreData[view]);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `onsite_scores_${view}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 // ── Roster drawer ────────────────────────────────────────────────────────────────────
 function openRoster(teamId) {
     rosterFocus = teamId || null;
@@ -565,6 +601,7 @@ function bind() {
         if (n && n.target) $(n.target).scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     ['scoreView', 'scoreSearch', 'scoreFlagged'].forEach((id) => $(id).addEventListener('input', renderScores));
+    $('btnScoresCsv').addEventListener('click', doScoresCsv);
     $('btnDownloadPv').addEventListener('click', downloadPreview);
     $('btnStatus').addEventListener('click', loadStatus);
     $('btnDownloadGrids').addEventListener('click', () => download('r1-raw-grids.json', JSON.stringify({ mcq: grids.mcq || null, unseen: [grids.u1 || null, grids.u2 || null, grids.u3 || null] }, null, 2)));
