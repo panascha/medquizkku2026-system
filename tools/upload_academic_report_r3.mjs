@@ -46,11 +46,11 @@ for (const f of FILES) {
 }
 
 const token = await fetchToken();
-const res = await fetch(`${DB}/academic_report_r3.json`, {
-  method: 'PUT',
+const res = await fetch(`${DB}/academic_report_2026/r3Files.json`, {
+  method: 'PATCH',
   headers: { 'Authorization': `Bearer ${token}` },
   body: JSON.stringify(payload)
 });
 if (!res.ok) throw new Error(`PUT failed: ${res.status} ${await res.text()}`);
-console.log(`Uploaded /academic_report_r3 (${Object.keys(payload.files).length} files, ${JSON.stringify(payload).length} bytes)`);
+console.log(`Uploaded /academic_report_2026/r3Files (${Object.keys(payload.files).length} files, ${JSON.stringify(payload).length} bytes)`);
 for (const f of FILES) console.log(`  ${f.name}: ${payload.files[f.name.replace(/\./g, '_')].size} bytes`);

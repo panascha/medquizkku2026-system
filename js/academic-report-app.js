@@ -215,7 +215,7 @@ async function downloadR3(item) {
         if (!r3Cache[item.r3key]) {
             if (btn) btn.textContent = 'กำลังโหลด...';
             const { db, ref, get } = await import('./firebase-config.js');
-            const snap = await get(ref(db, `academic_report_r3/files/${item.r3key}`));
+            const snap = await get(ref(db, `academic_report_2026/r3Files/files/${item.r3key}`));
             if (!snap.exists()) throw new Error('ไม่พบไฟล์ใน RTDB');
             r3Cache[item.r3key] = snap.val();
         }
