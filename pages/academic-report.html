@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedQuiz KKU 2026 — รายงานวิเคราะห์ข้อสอบทุกรอบ (ฝ่ายวิชาการ)</title>
+    <script src="../js/tailwind.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        .tab-on { background: #0f1f4b; color: #F5D77A; }
+        #heatGrid { display: grid; gap: 1px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+    <header class="bg-[#0f1f4b] text-white px-4 py-3 flex flex-wrap items-center gap-3">
+        <a href="../index.html" class="text-xs px-2.5 py-1 rounded bg-white/10 hover:bg-white/20">← หน้าหลัก</a>
+        <h1 class="font-bold text-base">รายงานวิเคราะห์ข้อสอบทุกรอบ — MedQuiz KKU 2026 (ฝ่ายวิชาการ)</h1>
+        <span id="staffBadge" class="ml-auto text-xs opacity-80"></span>
+    </header>
+    <div id="fixtureBanner" hidden class="bg-amber-100 text-amber-900 text-center text-xs py-1 font-semibold">
+        FIXTURE MODE — ข้อมูลจำลองสำหรับทดสอบหน้าจอ
+    </div>
+    <main id="app" hidden class="max-w-[1400px] mx-auto p-4 space-y-4">
+        <section class="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+            <button data-tab="overview" class="tabbtn tab-on rounded-lg px-3 py-1.5 text-sm font-bold">ภาพรวมทุกรอบ</button>
+            <button data-tab="r0" class="tabbtn rounded-lg px-3 py-1.5 text-sm font-bold bg-slate-100">รอบ 0 · คัดเลือก</button>
+            <button data-tab="r1" class="tabbtn rounded-lg px-3 py-1.5 text-sm font-bold bg-slate-100">รอบ 1 · KKUEXAM</button>
+            <button data-tab="r2" class="tabbtn rounded-lg px-3 py-1.5 text-sm font-bold bg-slate-100">รอบ 2 · Spot Heatmap</button>
+            <button data-tab="r3" class="tabbtn rounded-lg px-3 py-1.5 text-sm font-bold bg-slate-100">รอบ 3 · Gameshow</button>
+            <label class="ml-auto text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg cursor-pointer font-semibold">
+                📂 โหลดไฟล์รายงาน (.json)
+                <input id="fileJson" type="file" accept="application/json,.json" class="hidden">
+            </label>
+            <button id="btnPrint" class="bg-slate-800 text-white rounded-lg px-3 py-1.5 text-xs font-bold">พิมพ์ / บันทึก PDF</button>
+        </section>
+
+        <p id="statusLine" class="text-xs text-slate-600"></p>
+
+        <section id="viewOverview" class="space-y-4">
+            <div id="kpiGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+            <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                <h2 class="font-bold text-sm">สรุปคุณภาพข้อสอบแยกรอบ (Difficulty &amp; Discrimination)</h2>
+                <div id="roundSummaryTable" class="overflow-x-auto"></div>
+            </div>
+        </section>
+
+        <section id="viewRound" hidden class="space-y-4">
+            <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 id="roundTitle" class="font-bold"></h2>
+                    <input id="itemSearch" type="search" placeholder="ค้นหารหัสข้อ / รูปแบบ / โจทย์" class="ml-auto border border-slate-300 rounded-lg px-3 py-1.5 text-xs min-w-[220px]">
+                    <select id="bandFilter" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs">
+                        <option value="">ทุกช่วงความยาก</option>
+                        <option value="hard">ยาก (&lt; 30%)</option>
+                        <option value="mid">ปานกลาง (30–70%)</option>
+                        <option value="easy">ง่าย (&gt; 70%)</option>
+                    </select>
+                    <button id="btnExportStats" class="bg-emerald-700 text-white rounded-lg px-3 py-1.5 text-xs font-bold">ดาวน์โหลด CSV สถิติรายข้อ</button>
+                    <button id="btnExportMatrix" class="bg-[#0f1f4b] text-white rounded-lg px-3 py-1.5 text-xs font-bold">ดาวน์โหลด CSV คะแนนรายข้อ × ทีม/คน</button>
+                </div>
+                <div id="distBars" class="grid grid-cols-3 gap-2 text-xs"></div>
+                <div id="itemsTable" class="overflow-x-auto"></div>
+            </div>
+
+            <div id="heatCard" hidden class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 overflow-x-auto">
+                <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-sm">Heatmap คะแนนรายข้อ × ทีม</h3>
+                    <span class="text-xs text-slate-500">เขียว = เต็ม · เหลือง = บางส่วน · แดง = 0 · เทา = ไม่ได้ตรวจ</span>
+                </div>
+                <div id="heatGrid" class="min-w-[720px]"></div>
+            </div>
+
+            <div id="matrixCard" class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h3 id="matrixTitle" class="font-bold text-sm">ตารางคะแนนรายทีม / รายคน</h3>
+                    <input id="teamSearch" type="search" placeholder="ค้นหา MQ / ชื่อทีม / โรงเรียน" class="ml-auto border border-slate-300 rounded-lg px-3 py-1.5 text-xs min-w-[200px]">
+                </div>
+                <div id="matrixTable" class="overflow-x-auto max-h-[520px]"></div>
+            </div>
+        </section>
+    </main>
+
+    <script type="module">
+        import { initAcademicReportPage } from '../js/academic-report-app.js';
+        const params = new URLSearchParams(location.search);
+        const fixture = params.get('fixture') === '1';
+        const show = () => { document.getElementById('app').hidden = false; };
+        if (fixture) {
+            document.getElementById('fixtureBanner').hidden = false;
+            initAcademicReportPage({ fixture: true }).then(show);
+        } else {
+            const [{ auth, onAuthStateChanged }, { requireStaff }] = await Promise.all([
+                import('../js/firebase-config.js'),
+                import('../js/staff-guard.js')
+            ]);
+            onAuthStateChanged(auth, async (user) => {
+                if (!(await requireStaff(user))) return;
+                document.getElementById('staffBadge').textContent = user.email;
+                await initAcademicReportPage({ fixture: false, user });
+                show();
+            });
+        }
+    </script>
+</body>
+</html>
