@@ -199,16 +199,41 @@ function buildFileCatalog() {
                 mhead: r.matrixHead, mrows: r.final100MatrixRows || r.matrixRows, label: `${cr.label} Final 100` });
         }
     });
-    // R3 Gameshow files (reused from existing report, not in web JSON)
+    // R3 Gameshow files (lazy-loaded from RTDB /academic_report_r3)
     list.push({ name: 'gameshow_academic_report_2026-11-01.pdf', desc: 'รอบ 3 Gameshow — รายงานฉบับเต็ม (PDF)',
-        kind: 'missing', icon: 'fa-file-pdf' });
+        kind: 'r3-file', icon: 'fa-file-pdf', r3key: 'gameshow_academic_report_2026-11-01_pdf' });
     list.push({ name: 'gameshow_team_answers_2026-11-01.csv', desc: 'รอบ 3 Gameshow — คำตอบรายทีม',
-        kind: 'missing', icon: 'fa-table' });
+        kind: 'r3-file', icon: 'fa-table', r3key: 'gameshow_team_answers_2026-11-01_csv' });
     fileCatalog = list;
     renderFileButtons();
 }
 
+const r3Cache = {};
+async function downloadR3(item) {
+    const btn = document.querySelector(`.file-btn[data-file="${item.name}"] .file-state`);
+    try {
+        if (!r3Cache[item.r3key]) {
+            if (btn) btn.textContent = 'กำลังโหลด...';
+            const { db, ref, get } = await import('./firebase-config.js');
+            const snap = await get(ref(db, `academic_report_r3/files/${item.r3key}`));
+            if (!snap.exists()) throw new Error('ไม่พบไฟล์ใน RTDB');
+            r3Cache[item.r3key] = snap.val();
+        }
+        const f = r3Cache[item.r3key];
+        const bytes = Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0));
+        downloadBlob(item.name, bytes, f.mime);
+        if (btn) btn.textContent = '';
+    } catch (e) {
+        if (btn) btn.textContent = '';
+        alert(`โหลด ${item.name} ไม่สำเร็จ: ${e.message}`);
+    }
+}
+
 function downloadFile(item) {
+    if (item.kind === 'r3-file') {
+        downloadR3(item);
+        return;
+    }
     if (item.kind === 'json') {
         const json = JSON.stringify(data, null, 2);
         downloadBlob(item.name, json, 'application/json');
@@ -267,7 +292,7 @@ function renderFileButtons() {
         const badge = f.kind === 'missing' ? '<span class="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">ต้องใช้ไฟล์จริง</span>' : '';
         return `<button data-file="${esc(f.name)}" class="border ${color} rounded-lg px-3 py-2.5 text-left text-xs flex items-start gap-2 file-btn">
             <span class="text-slate-400 mt-0.5"><i class="fa-solid ${esc(f.icon)}"></i></span>
-            <span class="min-w-0"><span class="block font-semibold">${esc(f.name)}</span><span class="block text-slate-500 text-[11px]">${esc(f.desc)} ${badge}</span></span>
+            <span class="min-w-0"><span class="block font-semibold">${esc(f.name)}</span><span class="block text-slate-500 text-[11px]">${esc(f.desc)} ${badge} <span class="file-state text-blue-700"></span></span></span>
         </button>`;
     }).join('');
     el.querySelectorAll('.file-btn').forEach((b) => {
