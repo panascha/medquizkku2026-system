@@ -38,19 +38,22 @@ async function fetchToken() {
   return (await res.json()).access_token;
 }
 
-const payload = { generatedAt: new Date().toISOString(), files: {} };
+const r3Files = { generatedAt: new Date().toISOString(), files: {} };
 for (const f of FILES) {
   const buf = readFileSync(join(DIR, f.name));
   const key = f.name.replace(/\./g, '_');
-  payload.files[key] = { mime: f.mime, size: buf.length, b64: buf.toString('base64') };
+  r3Files.files[key] = { mime: f.mime, size: buf.length, b64: buf.toString('base64') };
 }
+const reportPath = join(__dirname, '../../../reports/academic_report_2026-11-03/academic_report_web.json');
+const report = JSON.parse(readFileSync(reportPath, 'utf8'));
+report.r3Files = r3Files;
 
 const token = await fetchToken();
-const res = await fetch(`${DB}/academic_report_2026/r3Files.json`, {
-  method: 'PATCH',
+const res = await fetch(`${DB}/academic_report_2026.json`, {
+  method: 'PUT',
   headers: { 'Authorization': `Bearer ${token}` },
-  body: JSON.stringify(payload)
+  body: JSON.stringify(report)
 });
 if (!res.ok) throw new Error(`PUT failed: ${res.status} ${await res.text()}`);
-console.log(`Uploaded /academic_report_2026/r3Files (${Object.keys(payload.files).length} files, ${JSON.stringify(payload).length} bytes)`);
-for (const f of FILES) console.log(`  ${f.name}: ${payload.files[f.name.replace(/\./g, '_')].size} bytes`);
+console.log(`Uploaded R3 inside /academic_report_2026 (${Object.keys(r3Files.files).length} files, ${JSON.stringify(r3Files).length} bytes)`);
+for (const f of FILES) console.log(`  ${f.name}: ${r3Files.files[f.name.replace(/\./g, '_')].size} bytes`);
