@@ -123,6 +123,7 @@ function renderRound(key) {
 
 function render() {
     if (!data) return;
+    if (!fileCatalog.length) buildFileCatalog();
     $('statusLine').textContent = `ข้อมูลรายงานเมื่อ: ${data.generatedAt || '-'} · เอกสารภายในฝ่ายวิชาการ ห้ามเผยแพร่`;
     document.querySelectorAll('.tabbtn').forEach((b) => b.classList.toggle('tab-on', b.dataset.tab === activeTab));
     const isOv = activeTab === 'overview';
@@ -131,12 +132,150 @@ function render() {
     if (isOv) renderOverview(); else renderRound(activeTab);
 }
 
-function downloadBlob(name, text) {
+function downloadBlob(name, text, mime = 'text/csv;charset=utf-8') {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+    a.href = URL.createObjectURL(new Blob([text], { type: mime }));
     a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+let fileCatalog = [];
+
+function buildFileCatalog() {
+    const rds = data.rounds || {};
+    const list = [];
+    // JSON bundle
+    list.push({ name: 'academic_report_web.json', desc: 'ชุดข้อมูลทั้งหมด (JSON)', kind: 'json', icon: 'fa-code' });
+    // HTML standalone
+    list.push({ name: 'full_academic_report_2026.html', desc: 'รายงานฉบับเต็ม (HTML standalone)', kind: 'html', icon: 'fa-file-code' });
+    // CSV per round
+    // split R1 items: MCQ+MTF vs Unseen by type prefix
+    function splitR1(r1) {
+        if (!r1) return { mcqMtf: null, unseen: null };
+        const all = r1.items || [];
+        const mcqMtfItems = all.filter((it) => /^(MCQ|MTF)/.test(it.type));
+        const unseenItems = all.filter((it) => /^Unseen/.test(it.type));
+        // Matrix has 46 cols: 3 metadata + 43 MCQ+MTF item scores. Unseen NOT in matrix.
+        return {
+            mcqMtf: mcqMtfItems.length ? {
+                label: 'รอบ 1 MCQ+MTF', participants: r1.participants,
+                items: mcqMtfItems,
+                matrixHead: r1.matrixHead || [],
+                matrixRows: r1.matrixRows || []
+            } : null,
+            unseen: unseenItems.length ? {
+                label: 'รอบ 1 Unseen', participants: r1.participants,
+                title: 'รอบที่ 1 — Unseen (3 บทความ × 8 T/F)',
+                items: unseenItems,
+                matrixHead: [],
+                matrixRows: []
+            } : null
+        };
+    }
+
+    const r1Split = splitR1(rds.r1);
+
+    const csvRounds = [
+        { key: 'r0', label: 'รอบ 0', statsFile: 'r0_item_stats.csv', matrixFile: 'r0_team_item_matrix.csv',
+          final100File: 'r0_final100_item_matrix.csv' },
+        { key: 'r1mcq', label: 'รอบ 1 MCQ+MTF', statsFile: 'r1_mcq_mtf_item_stats.csv', matrixFile: 'r1_mcq_mtf_person_item_matrix.csv',
+          source: r1Split.mcqMtf, matrixOk: true },
+        { key: 'r1u', label: 'รอบ 1 Unseen', statsFile: 'r1_unseen_item_stats.csv', matrixFile: 'r1_unseen_person_item_matrix.csv',
+          source: r1Split.unseen, matrixOk: false },
+        // unseen matrix: items exist but matrix rows not in web JSON — user loads local CSV file instead
+        { key: 'r2', label: 'รอบ 2 Spot', statsFile: 'r2_spot_item_stats.csv', matrixFile: 'r2_spot_team_item_matrix.csv' },
+    ];
+    csvRounds.forEach((cr) => {
+        const r = cr.source || rds[cr.key];
+        if (!r) return;
+        const items = r.items || [];
+        list.push({ name: cr.statsFile, desc: `${cr.label} — สถิติรายข้อ`, kind: 'csv-stats', icon: 'fa-table',
+            items, label: cr.label });
+        list.push({ name: cr.matrixFile, desc: `${cr.label} — คะแนนรายข้อ × ทีม/คน`, kind: cr.matrixOk === false ? 'missing' : 'csv-matrix', icon: 'fa-table-list',
+            mhead: r.matrixHead, mrows: r.matrixRows, label: cr.label });
+        if (cr.final100File) {
+            list.push({ name: cr.final100File, desc: `${cr.label} — Final 100 เท่านั้น`, kind: 'csv-matrix', icon: 'fa-table-list',
+                mhead: r.matrixHead, mrows: r.final100MatrixRows || r.matrixRows, label: `${cr.label} Final 100` });
+        }
+    });
+    // R3 Gameshow files (reused from existing report, not in web JSON)
+    list.push({ name: 'gameshow_academic_report_2026-11-01.pdf', desc: 'รอบ 3 Gameshow — รายงานฉบับเต็ม (PDF)',
+        kind: 'missing', icon: 'fa-file-pdf' });
+    list.push({ name: 'gameshow_team_answers_2026-11-01.csv', desc: 'รอบ 3 Gameshow — คำตอบรายทีม',
+        kind: 'missing', icon: 'fa-table' });
+    fileCatalog = list;
+    renderFileButtons();
+}
+
+function downloadFile(item) {
+    if (item.kind === 'json') {
+        const json = JSON.stringify(data, null, 2);
+        downloadBlob(item.name, json, 'application/json');
+        return;
+    }
+    if (item.kind === 'html') {
+        const html = buildStandaloneHtml();
+        downloadBlob(item.name, html, 'text/html');
+        return;
+    }
+    if (item.kind === 'csv-stats') {
+        const head = ['รหัสข้อ', 'รูปแบบ', 'คะแนนเต็ม', 'เฉลย', '% ตอบถูก', 'Disc.', 'คะแนนเฉลี่ย', 'N', 'สถานะ', 'โจทย์'];
+        const rows = (item.items || []).map((it) => [it.id, it.type, it.pts, it.key, it.diff, it.disc, it.mean, it.n, it.status || '', it.stem || '']);
+        downloadBlob(item.name, toCsv(head, rows));
+        return;
+    }
+    if (item.kind === 'csv-matrix') {
+        downloadBlob(item.name, toCsv(item.mhead || [], item.mrows || []));
+        return;
+    }
+    // missing — flag for upload
+    alert(`ไฟล์ ${item.name} อยู่ในโฟลเดอร์รายงานฉบับเต็ม แต่ยังไม่ได้รวมในชุดข้อมูลเว็บ — ดึงจากโฟลเดอร์ reports/ โดยตรง`);
+}
+
+function buildStandaloneHtml() {
+    const rds = data.rounds || {};
+    const keys = ['r0', 'r1', 'r2', 'r3'].filter((k) => rds[k]);
+    const safe = esc;
+    let tbl = '';
+    keys.forEach((k) => {
+        const r = rds[k];
+        const s = roundStats(r);
+        tbl += `<h2>${safe(r.title)} — ${safe(r.participants)} คน, ${s.count} ข้อ, % ตอบถูกเฉลี่ย ${s.avgDiff}%, Disc. ${s.avgDisc}</h2>`;
+        tbl += '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;font-size:11px;width:100%">';
+        tbl += '<tr><th>ข้อ</th><th>รูปแบบ</th><th>เต็ม</th><th>เฉลย</th><th>% ถูก</th><th>Disc.</th><th>เฉลี่ย</th><th>N</th></tr>';
+        (r.items || []).forEach((it) => {
+            tbl += `<tr><td>${safe(it.id)}</td><td>${safe(it.type)}</td><td>${safe(it.pts)}</td><td>${safe(it.key)}</td><td>${Number(it.diff||0).toFixed(1)}%</td><td>${safe(it.disc)}</td><td>${safe(it.mean)}</td><td>${safe(it.n)}</td></tr>`;
+        });
+        tbl += '</table><br>';
+    });
+    return `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>MedQuiz KKU 2026 รายงานวิเคราะห์ข้อสอบ</title>
+<style>body{font-family:'Sarabun',sans-serif;max-width:1200px;margin:20px auto;padding:0 16px;color:#1e293b}
+h1{color:#0f1f4b} h2{font-size:14px;margin-top:24px} table{margin-bottom:12px} th{background:#f1f5f9}
+td,th{padding:4px 8px}</style></head><body>
+<h1>MedQuiz KKU 2026 — รายงานวิเคราะห์ข้อสอบทุกรอบ (ฝ่ายวิชาการ)</h1>
+<p>สร้างเมื่อ: ${safe(data.generatedAt || '-')}</p>${tbl}
+</body></html>`;
+}
+
+function renderFileButtons() {
+    const el = $('downloadFiles');
+    if (!el) return;
+    if (!fileCatalog.length) { el.innerHTML = '<p class="text-xs text-slate-400">รอโหลดข้อมูลก่อน...</p>'; return; }
+    el.innerHTML = fileCatalog.map((f) => {
+        const color = f.kind === 'missing' ? 'border-amber-300 bg-amber-50 hover:bg-amber-100' : 'border-slate-200 bg-white hover:bg-slate-50';
+        const badge = f.kind === 'missing' ? '<span class="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">ต้องใช้ไฟล์จริง</span>' : '';
+        return `<button data-file="${esc(f.name)}" class="border ${color} rounded-lg px-3 py-2.5 text-left text-xs flex items-start gap-2 file-btn">
+            <span class="text-slate-400 mt-0.5"><i class="fa-solid ${esc(f.icon)}"></i></span>
+            <span class="min-w-0"><span class="block font-semibold">${esc(f.name)}</span><span class="block text-slate-500 text-[11px]">${esc(f.desc)} ${badge}</span></span>
+        </button>`;
+    }).join('');
+    el.querySelectorAll('.file-btn').forEach((b) => {
+        b.addEventListener('click', () => {
+            const item = fileCatalog.find((f) => f.name === b.dataset.file);
+            if (item) downloadFile(item);
+        });
+    });
 }
 
 function bind() {
@@ -147,6 +286,7 @@ function bind() {
         const f = e.target.files[0];
         if (!f) return;
         data = JSON.parse(await f.text());
+        fileCatalog = [];
         render();
     };
     $('btnExportStats').onclick = () => {
@@ -175,6 +315,7 @@ export async function initAcademicReportPage({ fixture }) {
         const snap = await get(ref(db, 'academic_report_2026'));
         if (snap.exists()) {
             data = snap.val();
+            fileCatalog = [];
             render();
             return;
         }
