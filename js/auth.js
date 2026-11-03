@@ -1,6 +1,7 @@
 // js/auth.js
 import { auth, db, ref, get, escapeEmail } from "./firebase-config.js";
-import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged,
+    setPersistence, browserLocalPersistence }
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const provider = new GoogleAuthProvider();
@@ -14,6 +15,13 @@ const afterLoginUrl = new URLSearchParams(window.location.search).get("next") ==
 // ฟังก์ชัน Login: ตรวจสอบโดเมน และ Whitelist (ถ้ามี)
 export const loginWithKKU = async () => {
     try {
+        // Set durable browser persistence before OAuth opens its provider window.
+        // Mobile Chrome can lose sessionStorage during the Firebase auth handoff.
+        try {
+            await setPersistence(auth, browserLocalPersistence);
+        } catch (persistenceError) {
+            console.warn('Auth local persistence unavailable; continuing with default persistence', persistenceError);
+        }
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
 
